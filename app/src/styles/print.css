@@ -1,0 +1,81 @@
+/*
+ * Print: only the paper pages, at exact size, one per sheet. The @page size
+ * is injected at runtime from the selected paper (see App.tsx).
+ */
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .topbar,
+  .mobile-tabs,
+  .sidebar,
+  .toasts,
+  .busy-overlay,
+  dialog,
+  #ws-measure-host,
+  .pdf-stage,
+  .ws-tools {
+    display: none !important;
+  }
+
+  .app,
+  .workspace {
+    display: block !important;
+    height: auto !important;
+  }
+
+  .preview {
+    display: block !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    background: none !important;
+  }
+
+  .preview-scaler {
+    width: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+  }
+
+  .preview-pages {
+    transform: none !important;
+  }
+
+  .ws-page {
+    margin: 0 !important;
+    box-shadow: none !important;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .ws-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .ws-problem:hover {
+    outline: 0 !important;
+  }
+
+  .ws-edited .ws-num::after {
+    content: none !important;
+  }
+
+  /* A dedicated print job (worksheet + key, etc.) replaces the preview. */
+  html.printing-stage .app {
+    display: none !important;
+  }
+
+  html.printing-stage .print-stage {
+    display: block !important;
+    width: auto !important;
+  }
+
+  html.printing-stage .print-stage .ws-page:last-child {
+    break-after: auto;
+  }
+}

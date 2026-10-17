@@ -1,0 +1,58 @@
+name: Release
+
+# Push a tag like v0.2.0 (matching app/package.json) to publish the static
+# archive that the YunoHost package installs, then point the manifest at it.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ github.ref_name }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Tag matches app/package.json
+        run: |
+          version="$(node -p "require('./app/package.json').version")"
+          test "v$version" = "$TAG" || { echo "Tag $TAG does not match app version $version"; exit 1; }
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: Build the reproducible archive
+        run: tools/build-release.sh
+      - name: Publish the GitHub release
+        run: gh release create "$TAG" release/openinfinite-*.tar.gz --title "OpenInfinite $TAG" --generate-notes
+      - name: Point the YunoHost manifest at this release
+        run: |
+          archive="release/openinfinite-$VERSION.tar.gz"
+          sha="$(sha256sum "$archive" | cut -d' ' -f1)"
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/$TAG/openinfinite-$VERSION.tar.gz"
+          {
+            echo "### YunoHost source"
+            echo '```toml'
+            echo "url = \"$url\""
+            echo "sha256 = \"$sha\""
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          git checkout "$DEFAULT_BRANCH"
+          python3 tools/sync_manifest.py set-source "$VERSION" "$url" "$sha"
+          if git diff --quiet; then
+            echo "Manifest already points at this archive."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "openinfinite_ynh: use release $TAG"
+          git push origin "HEAD:$DEFAULT_BRANCH" || echo "::warning::Could not push the manifest update; apply the snippet in the job summary by hand."
