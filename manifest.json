@@ -10,8 +10,7 @@
     "maintainers": [],
     "upstream": {
         "license": "MIT",
-        "website": "https://github.com/GZPlaz/yunohost-new-app",
-        "code": "https://github.com/GZPlaz/yunohost-new-app"
+        "code": "https://github.com/GZPlaz/open-infinite_ynh"
     },
     "integration": {
         "yunohost": ">= 12.0.9",
@@ -58,7 +57,7 @@
     "resources": {
         "sources": {
             "main": {
-                "url": "https://github.com/GZPlaz/yunohost-new-app/releases/download/v0.1.0/openinfinite-0.1.0.tar.gz",
+                "url": "https://github.com/GZPlaz/open-infinite_ynh/releases/download/v0.1.0/openinfinite-0.1.0.tar.gz",
                 "sha256": "beed2ee6a52444b335019290ee66a8369d2b7bc007eb45cdfb3db8cdf2fc87a8",
                 "autoupdate": {
                     "strategy": "latest_github_release",

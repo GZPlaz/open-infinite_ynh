@@ -35,12 +35,12 @@ tar --format=gnu --sort=name --mtime='2024-01-01 00:00:00Z' --owner=0 --group=0 
     --mode='u+rwX,go+rX,go-w' --transform "s,^dist,$name," -cf - dist | gzip -n -9 > "$archive"
 
 sha256="$(sha256sum "$archive" | cut -d' ' -f1)"
-url="https://github.com/GZPlaz/yunohost-new-app/releases/download/v$version/$name.tar.gz"
+url="https://github.com/GZPlaz/open-infinite_ynh/releases/download/v$version/$name.tar.gz"
 echo "archive: $archive ($(du -h "$archive" | cut -f1))"
 echo "sha256:  $sha256"
 echo "url:     $url"
 
 if [ "$update" = 1 ]; then
     python3 "$root/tools/sync_manifest.py" set-source "$version" "$url" "$sha256"
-    echo "Updated openinfinite_ynh/manifest.toml and manifest.json"
+    echo "Updated manifest.toml and manifest.json"
 fi

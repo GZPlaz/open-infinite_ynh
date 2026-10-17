@@ -26,7 +26,7 @@ trap cleanup EXIT
 
 install_dir="$work/www"
 cp -r "$dist" "$install_dir"
-sed "s/__DEFAULT_PAPER__/a4/" "$root/openinfinite_ynh/conf/config.json" > "$install_dir/config.json"
+sed "s/__DEFAULT_PAPER__/a4/" "$root/conf/config.json" > "$install_dir/config.json"
 # Same ownership model as scripts/_common.sh (app user + www-data group, nothing for others)
 chmod 755 "$work"
 if [ "$(id -u)" = 0 ] && getent group www-data >/dev/null; then
@@ -41,7 +41,7 @@ fi
 
 slashless="${app_path%/}"
 sed -e "s|__PATH__/|$slashless/|g" -e "s|__PATH__|$app_path|g" -e "s|__INSTALL_DIR__|$install_dir|g" \
-    "$root/openinfinite_ynh/conf/nginx.conf" > "$work/app.conf"
+    "$root/conf/nginx.conf" > "$work/app.conf"
 if [ "$app_path" != "/" ]; then
     sed -i 's/^#sub_path_only//' "$work/app.conf"
 else

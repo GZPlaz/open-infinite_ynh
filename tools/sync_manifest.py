@@ -14,7 +14,8 @@ import sys
 import tomllib
 from pathlib import Path
 
-PKG = Path(__file__).resolve().parent.parent / "openinfinite_ynh"
+# The package lives at the repository root, as YunoHost requires.
+PKG = Path(__file__).resolve().parent.parent
 TOML = PKG / "manifest.toml"
 JSON = PKG / "manifest.json"
 

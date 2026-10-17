@@ -1,10 +1,19 @@
 name: Release
 
-# Push a tag like v0.2.0 (matching app/package.json) to publish the static
-# archive that the YunoHost package installs, then point the manifest at it.
+# Builds the reproducible static archive that the YunoHost package installs,
+# attaches it to the GitHub release and points manifest.toml/.json at it.
+#
+# Runs when a vX.Y.Z tag is pushed — including when you create the release in
+# the GitHub UI — or by hand (Actions → Release → Run workflow) for a tag that
+# already exists, e.g. to attach a missing archive.
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build and attach the archive to (e.g. v0.1.0)
+        required: true
 
 permissions:
   contents: write
@@ -13,14 +22,15 @@ jobs:
   release:
     runs-on: ubuntu-24.04
     env:
-      TAG: ${{ github.ref_name }}
+      TAG: ${{ inputs.tag || github.ref_name }}
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
+          ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22.22.0
           cache: npm
@@ -32,8 +42,14 @@ jobs:
           echo "VERSION=$version" >> "$GITHUB_ENV"
       - name: Build the reproducible archive
         run: tools/build-release.sh
-      - name: Publish the GitHub release
-        run: gh release create "$TAG" release/openinfinite-*.tar.gz --title "OpenInfinite $TAG" --generate-notes
+      - name: Attach the archive to the GitHub release
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # Release already exists (e.g. created in the GitHub UI): add or replace the archive.
+            gh release upload "$TAG" release/openinfinite-*.tar.gz --clobber
+          else
+            gh release create "$TAG" release/openinfinite-*.tar.gz --title "OpenInfinite $TAG" --generate-notes
+          fi
       - name: Point the YunoHost manifest at this release
         run: |
           archive="release/openinfinite-$VERSION.tar.gz"
@@ -54,5 +70,5 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "openinfinite_ynh: use release $TAG"
+          git commit -am "Use release $TAG"
           git push origin "HEAD:$DEFAULT_BRANCH" || echo "::warning::Could not push the manifest update; apply the snippet in the job summary by hand."
