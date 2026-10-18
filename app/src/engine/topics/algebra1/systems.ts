@@ -165,6 +165,7 @@ function substitutionSteps(e1: Eq, e2: Eq, sol: Solution): string[] {
 export const systemsOfEquations = defineTopic({
   id: 'alg1.systems',
   subject: 'algebra1',
+  category: 'Systems of Equations and Inequalities',
   title: 'Systems of Linear Equations',
   description: 'Two equations in x and y, by elimination or substitution.',
   instruction: (o) =>

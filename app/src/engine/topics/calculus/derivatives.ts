@@ -32,6 +32,7 @@ const coefTex = (k: Frac) => (k.eq(1) ? '' : k.eq(-1) ? '-' : num(k));
 export const derivatives = defineTopic({
   id: 'calc.derivatives',
   subject: 'calculus',
+  category: 'Differentiation',
   title: 'Differentiation Rules',
   description: 'Power rule, product and quotient rules, chain rule; optional trig, exponential and log functions.',
   instruction: 'Differentiate each function with respect to x.',

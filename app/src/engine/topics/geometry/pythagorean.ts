@@ -82,6 +82,7 @@ const WORDS: Word[] = [
 export const pythagoreanTheorem = defineTopic({
   id: 'geo.pythagorean',
   subject: 'geometry',
+  category: 'Right Triangles and Trigonometry',
   title: 'The Pythagorean Theorem',
   description: 'Find a missing side of a right triangle.',
   instruction: (o) =>

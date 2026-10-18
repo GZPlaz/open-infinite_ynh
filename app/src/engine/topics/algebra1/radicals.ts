@@ -31,6 +31,7 @@ function varPart(exps: Record<string, number>): string {
 export const simplifyingRadicals = defineTopic({
   id: 'alg1.radicals',
   subject: 'algebra1',
+  category: 'Radical Expressions',
   title: 'Simplifying Radicals',
   description: 'Simplest radical form, like radicals, products and rationalizing denominators.',
   instruction: (o) => (o.variables ? 'Simplify. Assume all variables are positive.' : 'Simplify.'),

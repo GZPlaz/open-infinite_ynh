@@ -32,6 +32,7 @@ const polyTerms = (p: Poly): PowerTerm[] => p.c.map((c, i) => pt(c, i)).filter((
 export const integrals = defineTopic({
   id: 'calc.integrals',
   subject: 'calculus',
+  category: 'Integration',
   title: 'Integration',
   description: 'Indefinite integrals by the power rule, definite integrals, u-substitution.',
   instruction: 'Evaluate each integral.',

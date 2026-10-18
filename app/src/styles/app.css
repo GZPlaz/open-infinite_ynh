@@ -598,10 +598,53 @@ code {
   margin-bottom: 14px;
 }
 
+.picker-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.picker-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: var(--panel);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.picker-tab.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.picker-count {
+  color: var(--muted);
+  font-size: 0.85em;
+  font-weight: 400;
+}
+
 .picker-groups {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+  gap: 18px;
+}
+
+.picker-subject-all {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.picker-categories {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
   gap: 14px;
+  align-items: start;
 }
 
 .picker-group {

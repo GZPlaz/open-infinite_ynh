@@ -173,6 +173,7 @@ function relTex(v: string, rel: Rel, x: Frac): string {
 export const inequalities = defineTopic({
   id: 'alg1.inequalities',
   subject: 'algebra1',
+  category: 'Equations and Inequalities',
   title: 'Multi-Step Inequalities',
   description: 'Solve linear and compound inequalities; optionally graph the solution set.',
   instruction: (o) => (o.graph ? 'Solve each inequality and graph its solution.' : 'Solve each inequality.'),

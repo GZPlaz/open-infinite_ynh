@@ -5,24 +5,24 @@ import type { Rng } from '../../rng';
 import { m, num, paren } from '../../tex';
 import type { ProblemContent } from '../../types';
 
-type Matrix = Frac[][];
+export type Matrix = Frac[][];
 
-const mat = (rows: number[][]): Matrix => rows.map((r) => r.map((x) => new Frac(x)));
+export const mat = (rows: number[][]): Matrix => rows.map((r) => r.map((x) => new Frac(x)));
 
-function matTex(a: Matrix): string {
+export function matTex(a: Matrix): string {
   return `\\begin{bmatrix} ${a.map((r) => r.map((x) => num(x)).join(' & ')).join(' \\\\ ')} \\end{bmatrix}`;
 }
 
-function randMatrix(rng: Rng, rows: number, cols: number, max: number): Matrix {
+export function randMatrix(rng: Rng, rows: number, cols: number, max: number): Matrix {
   return mat(Array.from({ length: rows }, () => Array.from({ length: cols }, () => rng.int(-max, max))));
 }
 
-const addM = (a: Matrix, b: Matrix, s = 1): Matrix => a.map((r, i) => r.map((x, j) => x.add(b[i]![j]!.mul(s))));
-const scaleM = (a: Matrix, k: number): Matrix => a.map((r) => r.map((x) => x.mul(k)));
-function mulM(a: Matrix, b: Matrix): Matrix {
+export const addM = (a: Matrix, b: Matrix, s = 1): Matrix => a.map((r, i) => r.map((x, j) => x.add(b[i]![j]!.mul(s))));
+export const scaleM = (a: Matrix, k: number): Matrix => a.map((r) => r.map((x) => x.mul(k)));
+export function mulM(a: Matrix, b: Matrix): Matrix {
   return a.map((r) => b[0]!.map((_, j) => r.reduce((s, x, k) => s.add(x.mul(b[k]![j]!)), Frac.ZERO)));
 }
-function det(a: Matrix): Frac {
+export function det(a: Matrix): Frac {
   if (a.length === 2) return a[0]![0]!.mul(a[1]![1]!).sub(a[0]![1]!.mul(a[1]![0]!));
   let s = Frac.ZERO;
   for (let j = 0; j < 3; j++) {
@@ -44,6 +44,7 @@ export const matrixOperations = defineTopic({
   id: 'alg2.matrices',
   subject: 'algebra2',
   title: 'Matrix Operations',
+  category: 'Matrices',
   description: 'Add, subtract, scale and multiply matrices; determinants and 2×2 inverses.',
   instruction: (o) =>
     o.operation === 'determinant'

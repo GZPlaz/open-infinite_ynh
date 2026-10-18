@@ -59,7 +59,10 @@ try {
   // add every topic
   await page.getByRole('button', { name: '+ Add topics' }).click();
   const dialog = page.locator('dialog[open]');
-  for (const box of await dialog.locator('legend input[type=checkbox]').all()) await box.check();
+  for (const tab of await dialog.getByRole('tab').all()) {
+    await tab.click();
+    await dialog.locator('.picker-subject-all input[type=checkbox]').check();
+  }
   await dialog.getByRole('button', { name: /^Add \d+ topics$/ }).click();
   await page.waitForFunction(() => document.querySelectorAll('.preview .ws-problem').length > 100);
   const total = await problems();

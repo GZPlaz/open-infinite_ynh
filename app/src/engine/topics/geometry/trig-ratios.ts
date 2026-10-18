@@ -75,6 +75,7 @@ function figure(rng: Rng, f: Figure, alt: string) {
 export const trigRatios = defineTopic({
   id: 'geo.trig-ratios',
   subject: 'geometry',
+  category: 'Right Triangles and Trigonometry',
   title: 'Right Triangle Trigonometry',
   description: 'SOH-CAH-TOA: trig ratios, missing sides and missing angles.',
   instruction: (o) =>

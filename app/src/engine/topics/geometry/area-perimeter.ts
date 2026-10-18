@@ -218,6 +218,7 @@ function build(rng: Rng, shape: Shape, measure: Measure): Built {
 export const areaPerimeter = defineTopic({
   id: 'geo.area-perimeter',
   subject: 'geometry',
+  category: 'Polygons and Quadrilaterals',
   title: 'Area & Perimeter',
   description: 'Rectangles, triangles, parallelograms, trapezoids, circles and composite figures.',
   instruction: (o) => {

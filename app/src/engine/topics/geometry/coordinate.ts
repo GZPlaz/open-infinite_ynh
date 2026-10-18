@@ -13,6 +13,7 @@ const pt = (p: Pt) => tuple([p[0], p[1]]);
 export const coordinateGeometry = defineTopic({
   id: 'geo.coordinate',
   subject: 'geometry',
+  category: 'Basics of Geometry',
   title: 'Distance, Midpoint & Slope',
   description: 'Distance and midpoint formulas, slope between two points, missing endpoints.',
   instruction: (o) =>

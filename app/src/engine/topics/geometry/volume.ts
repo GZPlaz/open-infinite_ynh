@@ -194,6 +194,7 @@ const NAMES: Record<Solid, string> = {
 export const volumeSurfaceArea = defineTopic({
   id: 'geo.volume',
   subject: 'geometry',
+  category: 'Solids',
   title: 'Volume & Surface Area',
   description: 'Prisms, cubes, cylinders, cones, square pyramids and spheres.',
   instruction: (o) => {

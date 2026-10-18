@@ -4,6 +4,7 @@ import { attempt, boolOpt, defineTopic, distinctDistractors, offset, strOpt } fr
 import type { Rng } from '../../rng';
 import { m } from '../../tex';
 import type { Difficulty, ProblemContent } from '../../types';
+import { CAT } from './common';
 
 type Op = '+' | '-' | '*' | '/';
 const SYMBOL: Record<Op, string> = { '+': '+', '-': '-', '*': '\\times', '/': '\\div' };
@@ -56,6 +57,7 @@ function pickOperand(rng: Rng, d: Difficulty, mixed: boolean, negatives: boolean
 export const fractionOperations = defineTopic({
   id: 'prealg.fractions',
   subject: 'prealgebra',
+  category: CAT.fractions,
   title: 'Operations with Fractions',
   description: 'Add, subtract, multiply and divide fractions and mixed numbers; answers in lowest terms.',
   instruction: (o) => (o.mixed ? 'Evaluate each expression. Write answers as mixed numbers in lowest terms.' : 'Evaluate each expression. Write answers in lowest terms.'),

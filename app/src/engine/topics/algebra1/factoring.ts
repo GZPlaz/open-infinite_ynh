@@ -83,6 +83,7 @@ function buildFactors(rng: Rng, kind: Kind, hard: boolean, negatives: boolean): 
 export const factoringTrinomials = defineTopic({
   id: 'alg1.factoring',
   subject: 'algebra1',
+  category: 'Factoring',
   title: 'Factoring Polynomials',
   description: 'Trinomials with a = 1 and a ≠ 1, greatest common factors, differences of squares.',
   instruction: 'Factor each completely.',
