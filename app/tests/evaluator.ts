@@ -193,7 +193,7 @@ class Parser {
     if (!t) return false;
     if (t.k === 'num' || t.k === 'var') return true;
     if (t.k === 'sym') return t.v === '(' || t.v === '[' || t.v === '{' || (t.v === '|' && this.absDepth === 0);
-    return ['frac', 'sqrt', 'pi', 'infty'].includes(t.v) || t.v in FUNCS;
+    return ['frac', 'sqrt', 'pi', 'infty', 'binom'].includes(t.v) || t.v in FUNCS;
   }
 
   private term(): C {
@@ -220,7 +220,11 @@ class Parser {
   }
 
   private power(): C {
-    const base = this.primary();
+    let base = this.primary();
+    while (this.isSym('!')) {
+      this.p++;
+      base = c(factorial(base.re));
+    }
     if (this.isSym('^')) {
       this.p++;
       if (this.isCmd('circ') || (this.isSym('{') && this.isCmd('circ', 1))) {
@@ -330,6 +334,11 @@ class Parser {
         const a = this.arg();
         return index === 2 ? csqrt(a) : cnthroot(a, index);
       }
+      case 'binom': {
+        const n = this.arg().re;
+        const k = this.arg().re;
+        return c(factorial(n) / (factorial(k) * factorial(n - k)));
+      }
       case 'pi':
         return c(Math.PI);
       case 'infty':
@@ -338,6 +347,12 @@ class Parser {
         if (!(t.v in FUNCS)) throw new Error(`unsupported command \\${t.v}`);
         let name = t.v;
         let post: C | null = null;
+        let base: C | null = null;
+        if (name === 'log' && this.isSym('_')) {
+          // \log_{b} x and \log_b x
+          this.p++;
+          base = this.arg();
+        }
         if (this.isSym('^')) {
           this.p++;
           const e = this.arg();
@@ -345,11 +360,18 @@ class Parser {
           else post = e;
         }
         const a = this.isSym('(') || this.isSym('{') ? this.primary() : this.power();
-        const v = FUNCS[name]!(a);
+        const v = base ? cdiv(cln(a), cln(base)) : FUNCS[name]!(a);
         return post ? cpow(v, post) : v;
       }
     }
   }
+}
+
+function factorial(n: number): number {
+  if (!Number.isInteger(n) || n < 0 || n > 170) throw new Error(`factorial of ${n}`);
+  let r = 1;
+  for (let i = 2; i <= n; i++) r *= i;
+  return r;
 }
 
 /** Evaluate a LaTeX expression. */

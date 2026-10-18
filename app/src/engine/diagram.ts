@@ -11,7 +11,7 @@ export type Ink = 'ink' | 'grid' | 'axis' | 'accent' | 'muted';
 export type LabelPos = 'c' | 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
 export type DiagramItem =
-  | { t: 'path'; pts: Pt[]; closed?: boolean; dash?: boolean; ink?: Ink; weight?: number }
+  | { t: 'path'; pts: Pt[]; closed?: boolean; dash?: boolean; ink?: Ink; weight?: number; fill?: Ink; noStroke?: boolean; role?: 'curve' }
   | { t: 'circle'; c: Pt; r: number; dash?: boolean; ink?: Ink; weight?: number }
   | { t: 'ellipse'; c: Pt; rx: number; ry: number; part?: 'full' | 'upper' | 'lower'; dash?: boolean; ink?: Ink; weight?: number }
   | { t: 'arc'; c: Pt; r: number; from: number; to: number; ink?: Ink; weight?: number }
@@ -104,6 +104,11 @@ export interface Style {
   dash?: boolean;
   ink?: Ink;
   weight?: number;
+  /** Tinted fill (shaded regions). */
+  fill?: Ink;
+  noStroke?: boolean;
+  /** Marks the plotted graph of the problem's equation (checked by the tests). */
+  role?: 'curve';
 }
 
 export class DiagramBuilder {
@@ -277,4 +282,89 @@ export function numberLine(lo: number, hi: number, scale = 26): DiagramBuilder {
     b.label([v, -0.15], String(v), 's', { small: true });
   }
   return b;
+}
+
+// ---------------------------------------------------------------- graphs
+
+export interface Window {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+}
+
+/**
+ * Graph y = f(x) inside the window. Only exact samples are drawn (no clipping
+ * interpolation), and the curve breaks where it leaves the window or jumps
+ * (vertical asymptotes).
+ */
+export function plot(b: DiagramBuilder, f: (x: number) => number, w: Window, style: Style = {}, steps = 240): DiagramBuilder {
+  let seg: Pt[] = [];
+  const flush = () => {
+    if (seg.length > 1) b.path(seg, { weight: 1.8, ink: 'accent', role: 'curve', ...style });
+    seg = [];
+  };
+  let prev: number | null = null;
+  for (let i = 0; i <= steps; i++) {
+    const x = w.x0 + ((w.x1 - w.x0) * i) / steps;
+    const y = f(x);
+    if (!Number.isFinite(y) || y < w.y0 || y > w.y1) {
+      flush();
+      prev = null;
+      continue;
+    }
+    if (prev !== null && Math.abs(y - prev) > (w.y1 - w.y0) * 0.5) flush();
+    seg.push([x, y]);
+    prev = y;
+  }
+  flush();
+  return b;
+}
+
+/** Graph a parametric curve (conics), keeping only the points inside the window. */
+export function plotParam(b: DiagramBuilder, fx: (t: number) => number, fy: (t: number) => number, t0: number, t1: number, w: Window, style: Style = {}, steps = 240): DiagramBuilder {
+  let seg: Pt[] = [];
+  const flush = () => {
+    if (seg.length > 1) b.path(seg, { weight: 1.8, ink: 'accent', role: 'curve', ...style });
+    seg = [];
+  };
+  for (let i = 0; i <= steps; i++) {
+    const t = t0 + ((t1 - t0) * i) / steps;
+    const x = fx(t);
+    const y = fy(t);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < w.x0 || x > w.x1 || y < w.y0 || y > w.y1) flush();
+    else seg.push([x, y]);
+  }
+  flush();
+  return b;
+}
+
+/** Shade { lower(x) < y < upper(x) } inside the window. */
+export function shadeBetween(b: DiagramBuilder, lower: (x: number) => number, upper: (x: number) => number, w: Window, ink: Ink = 'accent', steps = 160): DiagramBuilder {
+  const clamp = (y: number) => Math.min(w.y1, Math.max(w.y0, Number.isFinite(y) ? y : y > 0 ? w.y1 : w.y0));
+  let lo: Pt[] = [];
+  let hi: Pt[] = [];
+  const flush = () => {
+    if (lo.length > 1) b.path([...lo, ...hi.reverse()], { closed: true, fill: ink, noStroke: true });
+    lo = [];
+    hi = [];
+  };
+  for (let i = 0; i <= steps; i++) {
+    const x = w.x0 + ((w.x1 - w.x0) * i) / steps;
+    const l = clamp(lower(x));
+    const u = clamp(upper(x));
+    if (u - l <= 1e-9) {
+      flush();
+      continue;
+    }
+    lo.push([x, l]);
+    hi.push([x, u]);
+  }
+  flush();
+  return b;
+}
+
+/** Coordinate plane sized for graphing, labelled every `tick` units. */
+export function graphPlane(range = 10, tick = 2, scale = 10): { b: DiagramBuilder; w: Window } {
+  return { b: coordinatePlane({ range, scale, tickEvery: tick }), w: { x0: -range, x1: range, y0: -range, y1: range } };
 }

@@ -17,7 +17,7 @@ export const DIFFICULTIES: readonly Difficulty[] = ['easy', 'medium', 'hard'];
  */
 export type RichText = string;
 
-export type SubjectId = 'prealgebra' | 'algebra1' | 'algebra2' | 'geometry' | 'precalculus' | 'calculus';
+export type SubjectId = 'prealgebra' | 'algebra1' | 'algebra2' | 'geometry' | 'trigonometry' | 'precalculus' | 'calculus';
 
 export interface Subject {
   id: SubjectId;
@@ -29,6 +29,7 @@ export const SUBJECTS: readonly Subject[] = [
   { id: 'algebra1', title: 'Algebra 1' },
   { id: 'algebra2', title: 'Algebra 2' },
   { id: 'geometry', title: 'Geometry' },
+  { id: 'trigonometry', title: 'Trigonometry' },
   { id: 'precalculus', title: 'Precalculus' },
   { id: 'calculus', title: 'Calculus' },
 ];
@@ -82,6 +83,8 @@ export interface TopicGenerator {
   subject: SubjectId;
   title: string;
   description: string;
+  /** Grouping inside the subject in the topic picker, e.g. "Conic Sections". */
+  category?: string;
   /** Section heading printed above the problems. */
   instruction: string | ((options: OptionValues) => string);
   options: readonly OptionDef[];

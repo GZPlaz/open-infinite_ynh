@@ -56,8 +56,9 @@ export const DiagramSvg = memo(function DiagramSvg({ diagram, maxWidth }: Props)
         const common = {
           key,
           points: it.pts.map(P).join(' '),
-          fill: 'none',
-          stroke: color,
+          fill: it.fill ? COLORS[it.fill] : 'none',
+          fillOpacity: it.fill ? 0.16 : undefined,
+          stroke: it.noStroke ? 'none' : color,
           strokeWidth: stroke(it.weight),
           strokeDasharray: it.dash ? `${px(4)} ${px(3)}` : undefined,
           strokeLinejoin: 'round' as const,
