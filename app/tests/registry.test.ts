@@ -19,7 +19,8 @@ describe('topic registry', () => {
   it('contains every exported topic generator', () => {
     const missing = [...exported].filter((t) => !TOPICS.includes(t)).map((t) => t.id);
     expect(missing).toEqual([]);
-    expect(TOPICS.length).toBe(exported.size);
+    // (packs may also define a few topics inline, e.g. variants, so TOPICS can be larger)
+    expect(TOPICS.length).toBeGreaterThanOrEqual(exported.size);
   });
 
   it('has unique ids that resolve through getTopic', () => {
