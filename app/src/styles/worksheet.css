@@ -1,0 +1,344 @@
+/* The paper worksheet. Always black on white, independent of the app theme. */
+
+.ws-doc {
+  --answer: #c62828;
+  --answer-soft: #8e1b1b;
+  font-family: 'Helvetica Neue', Helvetica, Arial, 'Liberation Sans', 'Nimbus Sans', sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  color: #000;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.ws-font-small {
+  font-size: 13px;
+}
+
+.ws-font-large {
+  font-size: 17px;
+}
+
+.ws-doc .katex {
+  font-size: 1.12em;
+}
+
+.ws-page {
+  position: relative;
+  background: #fff;
+  overflow: hidden;
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / 0.18),
+    0 8px 28px rgb(0 0 0 / 0.1);
+}
+
+.ws-page > .ws-doc {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.ws-page-content {
+  overflow: hidden;
+}
+
+.ws-block {
+  display: flow-root;
+}
+
+/* header */
+
+.ws-header {
+  padding-bottom: 12px;
+}
+
+.ws-fields {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  font-size: 0.9em;
+  margin-bottom: 12px;
+}
+
+.ws-fields-right {
+  display: inline-flex;
+  gap: 16px;
+  margin-left: auto;
+}
+
+.ws-field {
+  white-space: nowrap;
+}
+
+.ws-blank {
+  display: inline-block;
+  width: 230px;
+  border-bottom: 1px solid #000;
+  height: 1em;
+  vertical-align: baseline;
+}
+
+.ws-blank-md {
+  width: 120px;
+}
+
+.ws-blank-sm {
+  width: 56px;
+}
+
+.ws-title-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 2px solid #000;
+  padding-bottom: 6px;
+}
+
+.ws-title {
+  margin: 0;
+  font-size: 1.55em;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.ws-subtitle {
+  font-size: 0.95em;
+  color: #333;
+}
+
+.ws-key-badge {
+  flex: none;
+  color: var(--answer);
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.78em;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ws-score {
+  flex: none;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+/* sections and problems */
+
+.ws-instruction {
+  font-weight: 700;
+  padding: 12px 0 10px;
+}
+
+.ws-row {
+  display: grid;
+  column-gap: 16px;
+  padding-bottom: 14px;
+}
+
+.ws-problem {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ws-num {
+  flex: none;
+  min-width: 2.1em;
+  font-weight: 700;
+}
+
+.ws-body {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ws-question .katex-display {
+  margin: 0.2em 0;
+}
+
+.ws-figure {
+  margin-top: 6px;
+}
+
+.ws-figure svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.ws-choices {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 7.5em), 1fr));
+  gap: 6px 14px;
+}
+
+.ws-choice-letter {
+  font-weight: 600;
+}
+
+.ws-mode-teacher .ws-choice-correct {
+  color: var(--answer);
+}
+
+.ws-mode-teacher .ws-choice-correct .ws-choice-letter {
+  display: inline-block;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  min-width: 1.6em;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.ws-key {
+  color: var(--answer);
+  padding-top: 6px;
+}
+
+.ws-answer {
+  font-weight: 600;
+}
+
+.ws-steps {
+  margin: 4px 0 0;
+  padding-left: 1.2em;
+  font-size: 0.84em;
+  color: var(--answer-soft);
+}
+
+.ws-steps li {
+  margin: 1px 0;
+}
+
+.ws-footer {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: auto;
+  border-top: 1px solid #d5d5d5;
+  font-size: 10px;
+  color: #666;
+}
+
+.ws-footer > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 45%;
+}
+
+.ws-footer-brand {
+  color: #888;
+}
+
+/* editing affordances (screen only — the export copies render without them) */
+
+.ws-tools {
+  position: absolute;
+  top: -10px;
+  right: -6px;
+  display: flex;
+  gap: 1px;
+  padding: 2px;
+  background: #fff;
+  border: 1px solid #cfd5dd;
+  border-radius: 7px;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.12);
+  opacity: 0;
+  transition: opacity 0.12s;
+  z-index: 2;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.ws-problem:hover .ws-tools,
+.ws-problem:focus-within .ws-tools {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .ws-tools {
+    opacity: 0.92;
+  }
+}
+
+.ws-tool {
+  border: 0;
+  background: none;
+  color: #2b3440;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  font-size: 14px;
+  line-height: 26px;
+  text-align: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.ws-tool:hover:not(:disabled) {
+  background: #eef2f8;
+}
+
+.ws-tool:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.ws-tool-danger:hover:not(:disabled) {
+  color: #c0392b;
+}
+
+.ws-drag {
+  cursor: grab;
+  user-select: none;
+}
+
+.ws-problem:hover {
+  outline: 1px dashed #b9c6dd;
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+.ws-measure .ws-problem:hover,
+.pdf-stage .ws-problem:hover,
+.print-stage .ws-problem:hover {
+  outline: 0;
+}
+
+.ws-drop-before::before,
+.ws-drop-after::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 2px;
+  background: #2856c4;
+}
+
+.ws-drop-before::before {
+  left: -10px;
+}
+
+.ws-drop-after::after {
+  right: -10px;
+}
+
+.preview .ws-edited .ws-num::after {
+  content: '✎';
+  font-weight: 400;
+  font-size: 0.75em;
+  color: #2856c4;
+  margin-left: 2px;
+}
