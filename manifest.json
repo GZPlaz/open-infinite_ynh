@@ -1,0 +1,78 @@
+{
+    "packaging_format": 2,
+    "id": "openinfinite",
+    "name": "OpenInfinite",
+    "description": {
+        "en": "Printable math worksheets with answer keys, generated in the browser",
+        "fr": "Fiches d'exercices de maths imprimables avec corrigés, générées dans le navigateur"
+    },
+    "version": "0.1.0~ynh1",
+    "maintainers": [],
+    "upstream": {
+        "license": "MIT",
+        "code": "https://github.com/GZPlaz/open-infinite_ynh"
+    },
+    "integration": {
+        "yunohost": ">= 12.0.9",
+        "helpers_version": "2.1",
+        "architectures": "all",
+        "multi_instance": true,
+        "ldap": "not_relevant",
+        "sso": "not_relevant",
+        "disk": "20M",
+        "ram": {
+            "build": "50M",
+            "runtime": "10M"
+        }
+    },
+    "install": {
+        "domain": {
+            "type": "domain"
+        },
+        "path": {
+            "type": "path",
+            "default": "/openinfinite"
+        },
+        "init_main_permission": {
+            "help": {
+                "en": "Worksheets are generated in each visitor's browser; the server only serves static files.",
+                "fr": "Les fiches sont générées dans le navigateur de chaque visiteur ; le serveur ne sert que des fichiers statiques."
+            },
+            "type": "group",
+            "default": "visitors"
+        },
+        "default_paper": {
+            "ask": {
+                "en": "Default paper size for new worksheets",
+                "fr": "Format de papier par défaut des nouvelles fiches"
+            },
+            "type": "select",
+            "choices": {
+                "letter": "US Letter",
+                "a4": "A4"
+            },
+            "default": "letter"
+        }
+    },
+    "resources": {
+        "sources": {
+            "main": {
+                "url": "https://github.com/GZPlaz/open-infinite_ynh/releases/download/v0.1.0/openinfinite-0.1.0.tar.gz",
+                "sha256": "beed2ee6a52444b335019290ee66a8369d2b7bc007eb45cdfb3db8cdf2fc87a8",
+                "autoupdate": {
+                    "strategy": "latest_github_release",
+                    "asset": "^openinfinite-.*\\.tar\\.gz$"
+                }
+            }
+        },
+        "system_user": {},
+        "install_dir": {
+            "group": "www-data:r-x"
+        },
+        "permissions": {
+            "main": {
+                "url": "/"
+            }
+        }
+    }
+}
