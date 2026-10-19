@@ -256,6 +256,29 @@ export const VERIFIERS: Record<string, Verifier> = {
     else expect(/^-?[\d{},]+(\.\d+)?$/.test(a), `standard form: ${a}`).toBe(true);
   },
 
+  /**
+   * Words ↔ algebra: the rendered expression must take the values the phrase
+   * means (generator-supplied samples), and no distractor may be equivalent.
+   * Sentence → equation: the left side matches and the right side is the stated number.
+   */
+  'prealgebra.verbal'(p) {
+    const samples = p.check!.samples as Array<[number, number]>;
+    const agrees = (tex: string): boolean => samples.every(([n, want]) => close(evalReal(tex, { vars: { n } }), want));
+    const task = p.check!.task;
+    const side = (tex: string): string => (task === 'equation' ? tex.split('=')[0]!.trim() : tex);
+    const shown = task === 'toWords' ? onlyMath(p.question) : side(onlyMath(p.answer));
+    expect(agrees(shown), `${p.question} → ${p.answer}`).toBe(true);
+    if (task === 'equation') expect(close(evalReal(onlyMath(p.answer).split('=')[1]!.trim()), p.check!.value as number), p.answer).toBe(true);
+    if (task !== 'toWords') {
+      const rhs = (tex: string): number => evalReal(tex.split('=')[1]!.trim());
+      for (const d of p.distractors ?? []) {
+        const tex = onlyMath(d);
+        const same = agrees(side(tex)) && (task !== 'equation' || close(rhs(tex), p.check!.value as number));
+        expect(same, `distractor ${d} is equivalent to the answer for ${p.question}`).toBe(false);
+      }
+    }
+  },
+
   /** Square roots: exact value, consecutive-integer bounds, or rounded to a tenth. */
   'prealgebra.sqrt'(p) {
     const q = qty(mathSegments(p.question)[0]!);

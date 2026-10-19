@@ -40,7 +40,8 @@ app/src/engine/          pure TypeScript, no DOM: runs in browsers and in the te
   polynomial.ts, radical.ts, tex.ts
   diagram.ts             figures as primitives → SVG on screen, TikZ in LaTeX
   worksheet.ts           sections, seeds, deduplication, multiple-choice assembly
-  topics/<subject>/*.ts  one file per topic generator
+  topics/<subject>/*.ts  topic generators; every `export const x = defineTopic(...)` is picked up automatically
+  topics/packs/*.ts      curriculum order of the topic picker (optional: unlisted topics are appended)
   export/                JSON and LaTeX
 app/src/components/      React UI; worksheet/Worksheet.tsx paginates into real pages
 

@@ -1,9 +1,9 @@
 /** Derivatives of trig, exponential, log and inverse trig functions; implicit and higher-order derivatives. */
 import { Frac, gcdAll } from '../../fraction';
-import { attempt, defineTopic, distinctDistractors, offset, strOpt } from '../../generator';
+import { attempt, defineTopic, offset, strOpt } from '../../generator';
 import { Poly } from '../../polynomial';
 import type { Rng } from '../../rng';
-import { m, num } from '../../tex';
+import { m } from '../../tex';
 import type { Difficulty, ProblemContent } from '../../types';
 import { atom, DYDX, fderiv, fnorm, ft, ftex, ftweak, joinSigned, lead, lhsDistractors, lin, polyFactor, randPoly, type AtomFn, type FTerm, type Signed } from './common';
 

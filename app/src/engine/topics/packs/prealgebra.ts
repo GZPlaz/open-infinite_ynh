@@ -11,6 +11,7 @@ import { orderOfOperations } from '../prealgebra/order-of-operations';
 import { percentChange, percentProblems, simpleInterest } from '../prealgebra/percents';
 import { proportions, ratiosRates } from '../prealgebra/ratios';
 import { twoStepEquations } from '../prealgebra/two-step';
+import { writingExpressions } from '../prealgebra/verbal';
 
 const topics: TopicGenerator[] = [
   // Integers and Order of Operations
@@ -38,6 +39,7 @@ const topics: TopicGenerator[] = [
   scientificNotation,
   squareRoots,
   // Equations and Inequalities
+  writingExpressions,
   oneStepEquations,
   twoStepEquations,
   multiStepEquations,
