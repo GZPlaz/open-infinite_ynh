@@ -47,6 +47,7 @@ function pickParabola(rng: Rng, d: Difficulty, easyRoots: boolean): Parabola {
     if (easyRoots) {
       const r = k.neg().div(a);
       if (r.sign > 0 && ![1, 4, 9, 16].includes(r.value)) return null;
+      if (r.sign <= 0 && rng.bool(0.75)) return null;
     }
     return p;
   });

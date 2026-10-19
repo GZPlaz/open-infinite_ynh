@@ -5,7 +5,7 @@ import { attempt, boolOpt, defineTopic, distinctDistractors, offset, strOpt } fr
 import type { Rng } from '../../../rng';
 import { linear, m, num, sum } from '../../../tex';
 import type { Difficulty, ProblemContent } from '../../../types';
-import { blankPlane, CATEGORY, dashedLine, fields, fr, generalTex, overTex, plane, primitive, ptTex, rootTex } from './common';
+import { blankPlane, CATEGORY, dashedLine, fields, fr, generalTex, overTex, plane, primitive, ptTex, rootTex, shiftTex } from './common';
 import { andTex, pairTex } from './ellipses';
 
 /** t = 'x': (x − h)²/A − (y − k)²/B = 1;  t = 'y': (y − k)²/A − (x − h)²/B = 1. a² = A, b² = B. */
@@ -35,8 +35,6 @@ interface PropsOpts {
 }
 
 function propsAnswer(e: Hyp, o: PropsOpts = {}): string {
-  const other = e.t === 'x' ? 'y' : 'x';
-  void other;
   return fields([
     ['Center', m(ptTex(e.h, e.k))],
     ['Vertices', andTex(pairTex(e.h, e.k, e.t, e.A))],
@@ -44,8 +42,6 @@ function propsAnswer(e: Hyp, o: PropsOpts = {}): string {
     ['Asymptotes', andTex(asymTex(e, o.slope ?? slopeOf(e)))],
   ]);
 }
-
-const sq = (v: number) => v * v;
 
 function pickOrient(rng: Rng, o: string): 'x' | 'y' {
   return o === 'horizontal' ? 'x' : o === 'vertical' ? 'y' : rng.bool() ? 'x' : 'y';
@@ -124,7 +120,7 @@ export const hyperbolaGraph = defineTopic({
       const co =
         e.t === 'x'
           ? primitive({ A: B, C: -A, D: -2 * B * h, E: 2 * A * k, F: B * h * h - A * k * k - A * B }, false)
-          : primitive({ A: -B, C: A, D: 2 * B * h, E: -2 * A * k, F: A * k * k - B * h * h - A * B }, false);
+          : primitive({ A: -A, C: B, D: 2 * A * h, E: -2 * B * k, F: B * k * k - A * h * h - A * B }, false);
       question = `${generalTex(co, e.t === 'y')} = 0`;
       const g = Math.abs(B / (e.t === 'x' ? co.A : co.C));
       const lead = e.t === 'x' ? [{ coef: B / g, sym: overTex('x', e.h, 1) }, { coef: -A / g, sym: overTex('y', e.k, 1) }] : [{ coef: B / g, sym: overTex('y', e.k, 1) }, { coef: -A / g, sym: overTex('x', e.h, 1) }];
@@ -133,7 +129,7 @@ export const hyperbolaGraph = defineTopic({
     }
     steps.push(`Center $${ptTex(e.h, e.k)}$; the positive term contains $${e.t}$, so the transverse axis is ${e.t === 'x' ? 'horizontal' : 'vertical'}.`);
     steps.push(`$a = ${a}$, $b = ${b}$, $c = \\sqrt{a^{2} + b^{2}} = \\sqrt{${c2}}${rootTex(c2) === `\\sqrt{${c2}}` ? '' : ` = ${rootTex(c2)}`}$`);
-    steps.push(`Asymptotes: $y - ${num(e.k)} = \\pm ${num(s)}(x - ${num(e.h)})$`.replace(/- -/g, '+ ').replace(/\\pm 1\(/, '\\pm ('));
+    steps.push(`Asymptotes: $${shiftTex('y', e.k)} = \\pm ${s.eq(1) ? '' : num(s)}${e.h.isZero() ? 'x' : `(${shiftTex('x', e.h)})`}$`);
 
     const answer = propsAnswer(e);
     const distractors = distinctDistractors(
@@ -272,7 +268,6 @@ export const hyperbolaWrite = defineTopic({
       ],
       (n) => (b2 + offset(n) > 0 ? m(hyperbolaTex({ ...e, B: b2 + offset(n) })) : null),
     );
-    void sq;
     return {
       question,
       answer,

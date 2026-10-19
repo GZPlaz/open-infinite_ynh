@@ -36,9 +36,8 @@ function gTex(pid: ParentId, t: T): string {
   const u = t.b.eq(1) ? linear(1, -t.h) : t.h === 0 ? term(t.b, 'x') : scaled(t.b, linear(1, -t.h));
   let main: string;
   if (pid === 'recip') {
-    // a·1/u written as one fraction
-    const n = t.a.abs();
-    main = `${t.a.sign < 0 ? '-' : ''}\\frac{${n.n}}{${n.d === 1 ? '' : n.d}${n.d === 1 || u === 'x' || /^[\d\\]/.test(u) ? u : `(${u})`}}`;
+    // a·1/u written as one fraction (a is an integer here)
+    main = `${t.a.sign < 0 ? '-' : ''}\\frac{${t.a.abs().n}}{${u}}`;
   } else main = sum([{ coef: t.a, sym: PARENTS[pid].apply(u) }]);
   return t.k === 0 ? main : `${main} ${t.k < 0 ? '-' : '+'} ${Math.abs(t.k)}`;
 }
@@ -169,7 +168,7 @@ export const transformations = defineTopic({
       render = describe;
     } else {
       const list = phrases(t).map((s) => `a ${s}`);
-      const said = list.length === 1 ? list[0] : `${list.slice(0, -1).join(', ')}, and ${list.at(-1)}`;
+      const said = list.length === 1 ? list[0] : list.length === 2 ? list.join(' and ') : `${list.slice(0, -1).join(', ')}, and ${list.at(-1)}`;
       question = `Let ${fDef}. Write ${m('g(x)')}, the result of ${said}.`;
       render = (w) => m(`g(x) = ${gTex(pid, w)}`);
     }
@@ -179,8 +178,7 @@ export const transformations = defineTopic({
     if (!t.b.eq(1)) steps.push(`${m(`b = ${num(t.b)}`)}: ${t.b.sign < 0 ? 'reflect across the $y$-axis' : `horizontal ${t.b.abs().cmp(1) > 0 ? 'compression' : 'stretch'} by $${num(t.b.abs().inv())}$`}.`);
     if (t.h !== 0) steps.push(`${m(`h = ${t.h}`)}: shift ${t.h < 0 ? 'left' : 'right'}.`);
     if (t.k !== 0) steps.push(`${m(`k = ${t.k}`)}: shift ${t.k < 0 ? 'down' : 'up'}.`);
-    if (task === 'write') steps.push(answer);
-    else steps.push(answer);
+    steps.push(answer);
 
     const distractors = distinctDistractors(answer, uniq.map(render), (j) => render({ ...t, k: t.k + j * (t.k >= 0 ? 1 : -1) + (j > 2 ? 1 : 0) }));
 

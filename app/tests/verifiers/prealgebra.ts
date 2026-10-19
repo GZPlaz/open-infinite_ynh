@@ -1,7 +1,7 @@
 /** Pre-Algebra verifiers: recompute every answer from the rendered question text. */
 import { expect } from 'vitest';
 import type { Verifier } from '../verify';
-import { close, evalReal, evaluate, mathSegments, onlyMath, splitTop } from '../evaluator';
+import { close, evalReal, mathSegments, onlyMath } from '../evaluator';
 
 /** Strip money signs, digit-group commas, percent signs and \text{…}. */
 function clean(tex: string): string {
@@ -30,11 +30,6 @@ function repeating(t: string): string {
   });
 }
 
-/** Value after the last = / ≈ of a math segment. */
-function last(tex: string): string {
-  const { parts } = splitTop(tex, ['=', '\\approx']);
-  return parts.at(-1)!;
-}
 
 function gcd(a: number, b: number): number {
   a = Math.abs(a);
@@ -166,7 +161,8 @@ export const VERIFIERS: Record<string, Verifier> = {
   'prealgebra.unitRate'(p) {
     const segs = mathSegments(p.question);
     expect(segs.length).toBe(2);
-    const moneyIdx = segs.findIndex((t) => t.includes('\\$'));
+    const { text } = skeleton(p.question);
+    const moneyIdx = text.includes('\\$@1') ? 1 : 0;
     const [top, bottom] = moneyIdx === 1 ? [segs[1]!, segs[0]!] : [segs[0]!, segs[1]!];
     const want = qty(top) / qty(bottom);
     near(qty(mathSegments(p.answer)[0]!), want, 1e-9, p.question);
@@ -176,6 +172,79 @@ export const VERIFIERS: Record<string, Verifier> = {
   'prealgebra.proportionWord'(p) {
     const [a, b, c] = mathSegments(p.question).map((t) => qty(t));
     near(qty(mathSegments(p.answer)[0]!), (b! * c!) / a!, 1e-9, p.question);
+  },
+
+  /** Percent of a number / what percent / percent of what, from the sentence pattern. */
+  'prealgebra.percent'(p) {
+    const { text, segs } = skeleton(p.question);
+    const v = segs.map((t) => qty(t));
+    const isPct = segs.map((t) => t.includes('\\%'));
+    const patterns: Array<[RegExp, (a: number, b: number) => number, boolean]> = [
+      [/^What is @0 of @1\?$/, (a, b) => (a * b) / 100, false],
+      [/^Find @0 of @1\.$/, (a, b) => (a * b) / 100, false],
+      [/^@0 is what percent of @1\?$/, (a, b) => (a / b) * 100, true],
+      [/^What percent of @0 is @1\?$/, (a, b) => (b / a) * 100, true],
+      [/^@0 is @1 of what number\?$/, (a, b) => (a * 100) / b, false],
+      [/^@0 of what number is @1\?$/, (a, b) => (b * 100) / a, false],
+    ];
+    const hit = patterns.find(([re]) => re.test(text));
+    expect(hit, `pattern for ${text}`).toBeDefined();
+    const [, f, percentAnswer] = hit!;
+    // the percent operand really is a percent
+    expect(isPct.filter(Boolean).length, text).toBe(percentAnswer ? 0 : 1);
+    const a = onlyMath(p.answer);
+    expect(a.includes('\\%'), p.answer).toBe(percentAnswer);
+    near(qty(a), f(v[0]!, v[1]!), 1e-9, `${p.question} → ${p.answer}`);
+  },
+
+  /** Markup, discount, tax, tip: amount or new total, to the cent. */
+  'prealgebra.percentApplied'(p) {
+    const { text, segs } = skeleton(p.question);
+    const priceIdx = Number(/\\\$@(\d+)/.exec(text)![1]);
+    const price = qty(segs[priceIdx]!);
+    const rate = qty(segs.find((t) => t.includes('\\%'))!) / 100;
+    let want: number;
+    if (/Find the amount of the (markup|discount|tax|tip)\./.test(text)) want = price * rate;
+    else if (/Find the sale price\./.test(text)) {
+      expect(text).toMatch(/off\./);
+      want = price * (1 - rate);
+    } else {
+      expect(text).toMatch(/Find the (selling price|total cost|total amount paid)\./);
+      want = price * (1 + rate);
+    }
+    expect(p.answer.startsWith('\\$$'), p.answer).toBe(true);
+    near(qty(onlyMath(p.answer)), want, 0.005, p.question);
+  },
+
+  /** Percent of change, rounded to a tenth of a percent, with its direction. */
+  'prealgebra.percentChange'(p) {
+    const segs = mathSegments(p.question).map((t) => qty(t));
+    const [from, to] = segs as [number, number];
+    const change = ((to - from) / from) * 100;
+    const got = qty(mathSegments(p.answer)[0]!);
+    near(got, Math.round(Math.abs(change) * 10) / 10, 1e-9, `${p.question} → ${p.answer}`);
+    expect(p.answer.endsWith(change > 0 ? 'increase' : 'decrease'), p.answer).toBe(true);
+  },
+
+  /** I = Prt in all its forms. */
+  'prealgebra.interest'(p) {
+    const { text, segs } = skeleton(p.question);
+    const moneyVals = [...text.matchAll(/\\\$@(\d+)/g)].map((mm) => qty(segs[Number(mm[1])]!));
+    const rateSeg = segs.findIndex((t) => t.includes('\\%'));
+    const r = rateSeg >= 0 ? qty(segs[rateSeg]!) / 100 : NaN;
+    const tm = /@(\d+) (years?|months)/.exec(text);
+    const t = tm ? qty(segs[Number(tm[1])]!) / (tm[2] === 'months' ? 12 : 1) : NaN;
+    const ans = qty(mathSegments(p.answer)[0]!);
+    if (/How much interest is earned/.test(text)) near(ans, moneyVals[0]! * r * t, 0.005, text);
+    else if (/What is the balance/.test(text)) near(ans, moneyVals[0]! * (1 + r * t), 0.005, text);
+    else if (/annual interest rate/.test(text)) {
+      expect(p.answer).toContain('\\%');
+      near(ans / 100, moneyVals[1]! / (moneyVals[0]! * t), 1e-9, text);
+    } else if (/how many years/.test(text)) near(ans, moneyVals[1]! / (moneyVals[0]! * r), 1e-9, text);
+    else {
+      expect(text).toMatch(/How much was deposited/);
+      near(ans, moneyVals[0]! / (r * t), 0.005, text);
+    }
   },
 };
 

@@ -196,4 +196,52 @@ export const VERIFIERS: Record<string, Verifier> = {
       expect(r === null || Math.abs(r) > 1e-6, `${x} should be extraneous for ${eq}`).toBe(true);
     }
   },
+
+  /** Exponential ↔ logarithmic form: same base, argument and exponent; true when numeric. */
+  'alg2-explog.forms'(p) {
+    const q = parseForm(onlyMath(p.question));
+    const a = parseForm(onlyMath(p.answer));
+    expect(a.form, `${p.question} → ${p.answer}`).not.toBe(q.form);
+    const env: Record<string, number> = { x: 2.37, n: 1.91, k: 3.13, m: 2.71, p: 1.37, r: 2.13, v: 1.77, w: 2.93 };
+    for (const key of ['B', 'A', 'C'] as const) {
+      const x = evalReal(q[key], { vars: env });
+      const y = evalReal(a[key], { vars: env });
+      expect(close(x, y), `${key}: ${q[key]} vs ${a[key]}`).toBe(true);
+    }
+    const letters = /[a-df-zA-Z]/.test([q.A, q.B, q.C].join(' ').replace(/\\[a-zA-Z]+/g, ''));
+    if (!letters) {
+      const B = evalReal(q.B);
+      expect(close(B ** evalReal(q.C), evalReal(q.A), 1e-9), `${p.question} is true`).toBe(true);
+      const lhs = evalReal(sides(onlyMath(p.answer))[0]);
+      expect(close(lhs, evalReal(sides(onlyMath(p.answer))[1]), 1e-9), `${p.answer} is true`).toBe(true);
+    }
+  },
+
+  /** Numeric answer equals the question's expression (exactly, or within rounding for \approx). */
+  'alg2-explog.num'(p) {
+    const q = evalReal(onlyMath(p.question));
+    const { parts, rels } = splitTop(onlyMath(p.answer), ['=', '\\approx']);
+    const a = evalReal(parts.at(-1)!);
+    if (rels.at(-1) === '\\approx') {
+      const places = (p.check!.places as number | undefined) ?? 3;
+      expect(Math.abs(a - q), `${p.question} → ${p.answer}`).toBeLessThanOrEqual(0.5 * 10 ** -places + 1e-9);
+      expect(close(a, q, 1e-12), 'rounded value marked with \\approx').toBe(Math.abs(a - q) < 1e-12);
+    } else expect(close(a, q, 1e-9), `${p.question} → ${p.answer}`).toBe(true);
+  },
+
+  /** log_b N written in terms of given logs: evaluate both with a concrete base. */
+  'alg2-explog.terms'(p) {
+    const segs = mathSegments(p.question);
+    const target = segs.at(-1)!;
+    const baseEnv = { b: 4.3 };
+    const env: Record<string, number> = {};
+    for (const s of segs.slice(0, -1)) {
+      const [l, r] = sides(s);
+      env[r.trim()] = evalReal(l, { vars: baseEnv });
+    }
+    expect(Object.keys(env).length, p.question).toBeGreaterThanOrEqual(2);
+    const ans = onlyMath(p.answer);
+    expect(ans, 'answer uses only the given values').not.toMatch(/\\log|\\ln/);
+    expect(close(evalReal(ans, { vars: env }), evalReal(target, { vars: baseEnv }), 1e-9), `${p.question} → ${p.answer}`).toBe(true);
+  },
 };

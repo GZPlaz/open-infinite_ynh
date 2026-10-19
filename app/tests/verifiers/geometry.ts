@@ -132,8 +132,157 @@ function classifyAngle(v: number): string {
   return Math.abs(v - 90) < 1e-9 ? 'Right' : Math.abs(v - 180) < 1e-9 ? 'Straight' : v < 90 ? 'Acute' : 'Obtuse';
 }
 
+/** Linear equation in x, y → coefficients of l − r = ax + by + c. */
+function lineOf(eq: string): { a: number; b: number; c: number; slope: number; at: (x: number, y: number) => number } {
+  const { parts, rels } = splitTop(eq, ['=']);
+  expect(rels.length, eq).toBe(1);
+  const at = (x: number, y: number) => evalReal(parts[0]!, { vars: { x, y } }) - evalReal(parts[1]!, { vars: { x, y } });
+  const c = at(0, 0);
+  const a = at(1, 0) - c;
+  const b = at(0, 1) - c;
+  expect(close(at(2.3, -1.7), a * 2.3 - b * 1.7 + c), `${eq} is linear`).toBe(true);
+  return { a, b, c, slope: -a / b, at };
+}
+
+type Rel = string;
+function transversalRelation(I: Pt[], u: Pt, t: Pt, L1: Pt, L2: Pt): Rel {
+  const cross = (v: Pt, w: Pt) => v[0] * w[1] - v[1] * w[0];
+  const d = (P: Pt, Q: Pt): Pt => [P[0] - Q[0], P[1] - Q[1]];
+  const info = (L: Pt) => {
+    const k = Math.hypot(...d(L, I[0]!)) < Math.hypot(...d(L, I[1]!)) ? 0 : 1;
+    const side = Math.sign(cross(t, d(L, I[k]!)));
+    const above = cross(u, d(L, I[k]!)) > 0;
+    const interior = Math.sign(cross(u, d(L, I[0]!))) !== Math.sign(cross(u, d(L, I[1]!)));
+    return { k, side, above, interior };
+  };
+  const a = info(L1);
+  const b = info(L2);
+  if (a.k === b.k) return a.side !== b.side && a.above !== b.above ? 'Vertical angles' : 'Linear pair';
+  if (a.side === b.side && a.above === b.above) return 'Corresponding angles';
+  if (a.interior && b.interior) return a.side === b.side ? 'Same-side interior angles' : 'Alternate interior angles';
+  if (!a.interior && !b.interior) return a.side === b.side ? 'Same-side exterior angles' : 'Alternate exterior angles';
+  return '?';
+}
+
+function triangleClass(sides: number[], angles: number[]): string {
+  const eq = (a: number, b: number) => Math.abs(a - b) < 1e-6 * Math.max(1, a);
+  const [a, b, c] = [...sides].sort((x, y) => x - y) as [number, number, number];
+  if (eq(a, c)) return 'Equilateral';
+  const side = eq(a, b) || eq(b, c) ? 'isosceles' : 'scalene';
+  const big = Math.max(...angles);
+  const kind = Math.abs(big - 90) < 1e-6 ? 'Right' : big > 90 ? 'Obtuse' : 'Acute';
+  return `${kind} ${side}`;
+}
+
+/** Pure numbers among the question's math segments. */
+function questionNumbers(p: ProblemContent): number[] {
+  return mathSegments(p.question)
+    .filter((s) => /^-?[\d.]+$/.test(s.trim()))
+    .map(Number);
+}
+
 export const VERIFIERS: Record<string, Verifier> = {
   'geometry.solve': solveCheck,
+
+  /** Classification from the drawn triangle, or from side lengths via the converse of the Pythagorean theorem. */
+  'geometry.classifyTriangle'(p) {
+    const c = p.check!;
+    if (c.pts) {
+      const P = c.pts as Pt[];
+      const sides = [0, 1, 2].map((i) => Math.hypot(P[(i + 1) % 3]![0] - P[(i + 2) % 3]![0], P[(i + 1) % 3]![1] - P[(i + 2) % 3]![1]));
+      const angles = [0, 1, 2].map((i) => angleAt(P[(i + 1) % 3]!, P[i]!, P[(i + 2) % 3]!));
+      expect(p.answer).toBe(triangleClass(sides, angles));
+    } else {
+      const s = questionNumbers(p).sort((a, b) => a - b);
+      expect(s.length).toBe(3);
+      expect(s[0]! + s[1]! > s[2]!).toBe(true);
+      const d = s[0]! ** 2 + s[1]! ** 2 - s[2]! ** 2;
+      const big = d === 0 ? 90 : d > 0 ? 60 : 120;
+      expect(p.answer).toBe(triangleClass(s, [big]));
+    }
+  },
+
+  /** |a − b| < x < a + b from the two given sides. */
+  'geometry.ineqRange'(p) {
+    const [a, b] = questionNumbers(p) as [number, number];
+    const { parts, rels } = splitTop(mathSegments(p.answer)[0]!, ['<', '\\le']);
+    expect(rels).toEqual(['<', '<']);
+    expect(parts[1]).toBe('x');
+    expect(close(evalReal(parts[0]!), Math.abs(a - b)) && close(evalReal(parts[2]!), a + b), `${p.question} → ${p.answer}`).toBe(true);
+  },
+
+  /** Sides ordered by opposite angles, or angles by opposite sides. */
+  'geometry.order'(p) {
+    const c = p.check!;
+    const shown = visible(p);
+    const items = splitTop(mathSegments(p.answer)[0]!, [',']).parts;
+    if (c.angles) {
+      const ang = c.angles as Record<string, number>;
+      const names = Object.keys(ang);
+      expect(close(names.reduce((s, n) => s + ang[n]!, 0), 180)).toBe(true);
+      expect(names.filter((n) => shown.includes(norm(`${ang[n]}^\\circ`))).length).toBeGreaterThanOrEqual(2);
+      const opp = (side: string) => names.find((n) => !side.includes(n))!;
+      const vals = items.map((it) => ang[opp(/\\overline\{(\w+)\}/.exec(it)![1]!)]!);
+      vals.slice(1).forEach((v, i) => expect(v, p.answer).toBeGreaterThan(vals[i]!));
+    } else {
+      const sides = c.sides as Record<string, number>;
+      Object.values(sides).forEach((v) => expect(shown.includes(`|${v}|`) || shown.includes(`|${v}`)).toBe(true));
+      const vals = items.map((it) => {
+        const v = /\\angle (\w)/.exec(it)![1]!;
+        return sides[Object.keys(sides).find((k) => !k.includes(v))!]!;
+      });
+      vals.slice(1).forEach((v, i) => expect(v, p.answer).toBeGreaterThan(vals[i]!));
+    }
+  },
+
+  /** Average of the three vertices listed in the question. */
+  'geometry.centroid'(p) {
+    const V = tuplesIn(mathSegments(p.question).join(' '));
+    expect(V.length).toBe(3);
+    const G = tuplesIn(mathSegments(p.answer).join(' '))[0]!;
+    expect(close(G[0]!, (V[0]![0]! + V[1]![0]! + V[2]![0]!) / 3) && close(G[1]!, (V[0]![1]! + V[1]![1]! + V[2]![1]!) / 3), p.answer).toBe(true);
+  },
+
+  /** Relationship of two numbered angles, read from where their numbers sit in the figure. */
+  'geometry.transversal'(p) {
+    const c = p.check!;
+    const pair = c.pair as number[];
+    const at = (n: number) => {
+      const it = p.diagram!.items.find((i) => i.t === 'label' && i.tex === String(n));
+      expect(it, `label ${n}`).toBeDefined();
+      return (it as unknown as { p: Pt }).p;
+    };
+    expect(p.question).toContain(`\\angle ${pair[0]}`);
+    expect(p.question).toContain(`\\angle ${pair[1]}`);
+    expect(p.answer).toBe(transversalRelation(c.I as Pt[], c.u as Pt, c.t as Pt, at(pair[0]!), at(pair[1]!)));
+  },
+
+  /** Slopes and equations of parallel / perpendicular lines, from the question's equations. */
+  'geometry.lines'(p) {
+    const task = p.check!.task;
+    const segs = mathSegments(p.question).filter((s) => s.includes('='));
+    if (task === 'slope') {
+      const L = lineOf(segs[0]!);
+      const want = /perpendicular/.test(p.question) ? -1 / L.slope : L.slope;
+      const got = assignments(p.answer);
+      expect(got[0]!.lhs).toBe('m');
+      expect(close(got[0]!.value, want), `${p.question} → ${p.answer}`).toBe(true);
+    } else if (task === 'classify') {
+      const [A, B] = segs.map(lineOf) as [ReturnType<typeof lineOf>, ReturnType<typeof lineOf>];
+      const same = [-3, 0, 2.5].every((x) => close(B.at(x, A.slope * x - A.c / A.b), 0));
+      const want = same ? 'Same line' : close(A.slope, B.slope) ? 'Parallel' : close(A.slope * B.slope, -1) ? 'Perpendicular' : 'Neither';
+      expect(p.answer, p.question).toBe(want);
+    } else {
+      const P = tuplesIn(mathSegments(p.question).join(' '))[0]!;
+      const L = lineOf(segs[0]!);
+      const ans = mathSegments(p.answer)[0]!;
+      expect(ans.startsWith('y ='), ans).toBe(true);
+      const A = lineOf(ans);
+      const want = /perpendicular/.test(p.question) ? -1 / L.slope : L.slope;
+      expect(close(A.slope, want), `${p.question} → ${p.answer}`).toBe(true);
+      expect(close(A.at(P[0]!, P[1]!), 0), `passes through (${P.join(', ')})`).toBe(true);
+    }
+  },
 
   /** The question gives midpoint M then endpoint; the answer is the other endpoint. */
   'geometry.endpoint'(p) {

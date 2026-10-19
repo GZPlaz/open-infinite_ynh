@@ -126,7 +126,7 @@ export const primeFactorization = defineTopic({
     );
     const steps: string[] = [];
     let v = n;
-    for (const p of ps.slice(0, -1)) {
+    for (const p of ps.length > 2 ? ps.slice(0, -1) : []) {
       steps.push(m(`${v} = ${p} \\cdot ${v / p}`));
       v /= p;
     }
@@ -159,7 +159,7 @@ function divisibility(rng: Rng, d: Difficulty): ProblemContent {
     .split('')
     .reduce((s, c) => s + Number(c), 0);
   const steps = [
-    `Last digit $${n % 10}$; last two digits $${n % 100}$; digit sum $${digitSum}$.`,
+    `Last digit $${n % 10}$; last two digits $${String(n % 100).padStart(2, '0')}$; digit sum $${digitSum}$.`,
     yes.length ? `Divisible by $${yes.join(', ')}$.` : 'Divisible by none of them.',
   ];
   return { question: m(groupDigits(String(n))), answer, steps, distractors, check: { kind: 'prealgebra.divisibility' } };
@@ -227,8 +227,10 @@ export const gcfLcm = defineTopic({
     const G = nums.reduce((a, b) => gcd(a, b), 0);
     const L = nums.reduce((a, b) => lcm(a, b), 1);
     const vars = rng.pick([['x', 'y'], ['a', 'b'], ['m', 'n'], ['x', 'y']]);
-    const monos: Mono[] = nums.map((c) => ({ c, e: monomials ? vars.map(() => rng.int(0, 4)) : [0, 0] }));
-    if (monomials) monos.forEach((mo) => mo.e.every((e) => e === 0) && (mo.e[rng.int(0, 1)] = rng.int(1, 3)));
+    const monos: Mono[] = nums.map((c): Mono => ({ c, e: vars.map((): number => (monomials ? rng.int(0, 4) : 0)) }));
+    if (monomials) {
+      for (const mo of monos) if (!mo.e.some((e) => e > 0)) mo.e[rng.int(0, 1)] = rng.int(1, 3);
+    }
     const minE = vars.map((_, i) => Math.min(...monos.map((mo) => mo.e[i]!)));
     const maxE = vars.map((_, i) => Math.max(...monos.map((mo) => mo.e[i]!)));
     const res: Mono = task === 'gcf' ? { c: G, e: minE } : { c: L, e: maxE };

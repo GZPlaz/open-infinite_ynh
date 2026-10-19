@@ -15,6 +15,11 @@ function termsTex(ts: ReadonlyArray<readonly [number, number]>): string {
   return joinTerms(ts.map(([c, n]) => (n === 1 ? String(c) : `${c === 1 ? '' : c === -1 ? '-' : c}\\sqrt{${n}}`)));
 }
 
+/** RadSum from display-order (coef, radicand) pairs. */
+function rs(ts: ReadonlyArray<readonly [number, number]>): RadSum {
+  return new RadSum(ts.map(([c, n]) => [n, c] as const));
+}
+
 function randVars(rng: Rng, d: Difficulty): string[] {
   return d === 'hard' ? rng.pick([['x'], ['x', 'y'], ['a', 'b'], ['m', 'n']]) : [rng.pick(['x', 'a', 'n', 'k'])];
 }
@@ -98,7 +103,7 @@ export const multiplyRadicals = defineTopic({
         const second: [number, number] = rng.bool(0.5) ? [c2, 1] : [c2, rng.pick(SMALL_FREE)];
         const inner: Array<[number, number]> = rng.bool(0.5) ? [[cb, b], second] : [second, [cb, b]];
         if (inner[0]![1] === inner[1]![1]) return null;
-        const res = RadSum.of([a, ca]).mul(new RadSum(inner));
+        const res = RadSum.of([a, ca]).mul(rs(inner));
         if (res.size < 2) return null;
         return { a, ca, inner, res };
       });
@@ -109,12 +114,12 @@ export const multiplyRadicals = defineTopic({
       const raw = inner.map(([c, n]) => [ca * c, a * n] as const);
       steps.push(m(`= ${termsTex(raw)}`));
       steps.push(m(`= ${answerTex}`));
-      const noSimplify = new RadSum(inner.map(([c, n]) => [c, n] as const));
+      const noSimplify = rs(inner);
       wrongs = [
-        RadSum.of([a, ca]).mul(RadSum.of(inner[0]!)).add(new RadSum([inner[1]!])).tex(),
+        RadSum.of([a, ca]).mul(rs([inner[0]!])).add(rs([inner[1]!])).tex(),
         noSimplify.add(RadSum.of([a, ca])).tex(),
         res.scale(-1).tex(),
-        RadSum.of([a, ca]).mul(RadSum.of(inner[0]!)).add(RadSum.of([inner[1]![1], -inner[1]![0] * ca])).tex(),
+        RadSum.of([a, ca]).mul(rs([inner[0]!])).add(RadSum.of([inner[1]![1], -inner[1]![0] * ca])).tex(),
       ];
       fallback = (k) => res.add(RadSum.of([1, offset(k)])).tex();
     } else {
@@ -128,7 +133,7 @@ export const multiplyRadicals = defineTopic({
         if (kind === 'conjugate') q = [p[0]!, [-p[1]![0], p[1]![1]]];
         else if (kind === 'square') q = p;
         else q = twoRad ? [[rng.signedInt(1, 3, true), r], [rng.signedInt(1, 3, true), s]] : [[rng.signedInt(1, 6, true), 1], [rng.signedInt(1, 3, true), r]];
-        const res = new RadSum(p).mul(new RadSum(q));
+        const res = rs(p).mul(rs(q));
         if (res.isZero()) return null;
         if (kind === 'binomial' && res.size < 2) return null;
         if (rng.bool(0.4) && !twoRad) {
@@ -228,8 +233,9 @@ export const divideRadicals = defineTopic({
       vars = boolOpt(ctx, 'variables') && difficulty !== 'easy' && rng.bool(0.6) ? [rng.pick(['x', 'a', 'n', 'k'])] : [];
       const built = attempt('radical-div-mono', () => {
         const radNum = rng.bool(0.5);
-        const N = { c: radNum ? rng.int(1, 20) : 1, e: {} as Exps };
-        const D = { c: rng.int(2, n === 2 ? 20 : 9), e: {} as Exps };
+        const N = { c: radNum ? rng.pick([1, 2, 3, 5, 6, 7, 10, 12, 15, 18, 20]) : 1, e: {} as Exps };
+        const D = { c: n === 2 ? rng.pick([2, 3, 5, 6, 7, 8, 10, 12, 18, 20]) : rng.int(2, 9), e: {} as Exps };
+        if (n === 2 && N.c * D.c > 150) return null;
         for (const v of vars) {
           N.e[v] = radNum ? rng.int(0, 5) : 0;
           D.e[v] = rng.int(1, 3);
@@ -274,11 +280,11 @@ export const divideRadicals = defineTopic({
         } else {
           const r = rng.pick(SMALL_FREE);
           den = [[rng.int(1, 6), 1], [rng.signedInt(1, difficulty === 'hard' ? 3 : 1, true), r]];
-          if (rng.bool(0.35)) den.reverse();
+          if (den[1]![0] > 0 && rng.bool(0.35)) den.reverse();
         }
-        const D = new RadSum(den);
+        const D = rs(den);
         const conjTerms: Array<[number, number]> = [den[0]!, [-den[1]![0], den[1]![1]]];
-        const conj = new RadSum(conjTerms);
+        const conj = rs(conjTerms);
         const Q = D.mul(conj);
         if (Q.size !== 1 || Q.constant === 0) return null;
         let num: Array<[number, number]>;
@@ -286,7 +292,7 @@ export const divideRadicals = defineTopic({
         if (nk === 0) num = [[rng.int(1, 12), 1]];
         else if (nk === 1) num = [[rng.int(1, 4), rng.pick(SMALL_FREE)]];
         else num = [[rng.int(1, 5), 1], [rng.signedInt(1, 3, true), den.find(([, x]) => x !== 1)![1]]];
-        const N = new RadSum(num);
+        const N = rs(num);
         const red = reduceRadFrac(N.mul(conj), Q.constant);
         if (red.M.isZero()) return null;
         if (Math.abs(red.d) > 60) return null;
@@ -307,7 +313,7 @@ export const divideRadicals = defineTopic({
         const r = reduceRadFrac(M, d);
         return radFracTex(r.M, r.d);
       };
-      const D = new RadSum(den);
+      const D = rs(den);
       const rad = den.find(([, x]) => x !== 1) ?? den[1]!;
       const a = den.find(([, x]) => x === 1);
       const plusDen = a ? a[0] ** 2 + rad[0] ** 2 * rad[1] : den[0]![1] + den[1]![1];

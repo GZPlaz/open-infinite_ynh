@@ -160,8 +160,7 @@ function twoSided(f: Fn, a: number): LimitVal {
   const r = sideLimit(f, a, 1);
   if (typeof l === 'number' && typeof r === 'number') {
     if (!near(l, r, 1e-3)) return 'dne';
-    const avg = (h: number) => (f(a + h) + f(a - h)) / 2;
-    return (4 * avg(5e-3) - avg(1e-2)) / 3;
+    return (l + r) / 2;
   }
   return l === r ? l : 'dne';
 }

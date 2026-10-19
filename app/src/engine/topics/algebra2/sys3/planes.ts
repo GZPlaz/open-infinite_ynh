@@ -139,6 +139,8 @@ export const planes = defineTopic({
         const others = V.filter((_, j) => j !== i).map((w) => `${w} = 0`).join(', ');
         return p.c[i] === 0
           ? `$${v}$ does not appear, so the plane is parallel to the $${v}$-axis: no $${v}$-intercept.`
+          : Math.abs(p.c[i]!) === 1 && p.c[i]! > 0
+          ? `Let $${others}$: $${v} = ${p.d}$.`
           : `Let $${others}$: $${sum([{ coef: p.c[i]!, sym: v }])} = ${p.d}$, so $${v} = ${num(ints[i]!)}$.`;
       });
       return {
@@ -152,19 +154,21 @@ export const planes = defineTopic({
     }
 
     if (task === 'contains') {
-      const p = randomPlane(rng, difficulty === 'easy' ? 'medium' : difficulty, false, false);
+      const p = attempt('lattice plane', () => {
+        const q = randomPlane(rng, difficulty === 'easy' ? 'medium' : difficulty, false, false);
+        return q.d % gcdAll(q.c) === 0 ? q : null;
+      });
       const R = { easy: 5, medium: 7, hard: 9 }[difficulty];
       const names = rng.pick(LETTERS);
       const onFlags = names.map(() => rng.bool(0.5));
       const pts = onFlags.map((on) =>
         attempt('plane point', () => {
           const q = [rng.int(-R, R), rng.int(-R, R), rng.int(-R, R)];
-          const k = rng.int(0, 2);
-          if (p.c[k] === 0) return null;
+          const k = rng.bool(0.7) ? p.c.reduce((b, c, i) => (Math.abs(c) < Math.abs(p.c[b]!) ? i : b), 0) : rng.int(0, 2);
           const rest = p.d - lhsAt(p, q.map((v, i) => (i === k ? 0 : v)));
           if (rest % p.c[k]! !== 0) return null;
           q[k] = rest / p.c[k]!;
-          if (Math.abs(q[k]!) > R + 4) return null;
+          if (Math.abs(q[k]!) > 2 * R) return null;
           if (!on) q[rng.int(0, 2)] += rng.pick([-2, -1, 1, 2]);
           return lhsAt(p, q) === p.d ? (on ? q : null) : on ? null : q;
         }),

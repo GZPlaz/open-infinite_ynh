@@ -4,7 +4,7 @@ import { Frac } from '../../fraction';
 import { attempt, defineTopic, distinctDistractors, offset, strOpt } from '../../generator';
 import { m, num, paren, parenNeg, sum, tuple } from '../../tex';
 import type { ProblemContent } from '../../types';
-import { add, dirDeg, line, linDeg, linFor, linTex, linVal, mul, numChoices, parallelMarks, sub, type Lin } from './kit';
+import { add, dirDeg, line, linDeg, linFor, linTex, linVal, mul, numChoices, parallelMarks } from './kit';
 
 // ---------------------------------------------------------------- transversals
 
@@ -23,7 +23,7 @@ const RELATIONS: Relation[] = ['Corresponding angles', 'Alternate interior angle
 const top = (p: Pos) => p[0] === 'T';
 const right = (p: Pos) => p[1] === 'R';
 
-function relationOf(a: Slot, b: Slot): Relation {
+function relationOf(a: Slot, b: Slot): Relation | null {
   if (a.at === b.at) return top(a.pos) !== top(b.pos) && right(a.pos) !== right(b.pos) ? 'Vertical angles' : 'Linear pair';
   const [u, l] = a.at === 0 ? [a, b] : [b, a];
   const interior = (s: Slot) => (s.at === 0 ? !top(s.pos) : top(s.pos));
@@ -31,7 +31,7 @@ function relationOf(a: Slot, b: Slot): Relation {
   const sameSide = right(u.pos) === right(l.pos);
   if (interior(u) && interior(l)) return sameSide ? 'Same-side interior angles' : 'Alternate interior angles';
   if (!interior(u) && !interior(l)) return sameSide ? 'Same-side exterior angles' : 'Alternate exterior angles';
-  return 'Corresponding angles'; // unreachable for distinct slots of different lines with mixed sides
+  return null; // one interior, one exterior, different sides: no named relationship
 }
 
 /** Measure at a slot when the angle from the parallel (rightward) to the transversal (upward) is θ. */
@@ -49,7 +49,6 @@ interface TransversalFigure {
 function transversalFigure(phi: number, theta: number, gap: number): TransversalFigure {
   const u = dirDeg(phi);
   const t = dirDeg(phi + theta);
-  const nrm = dirDeg(phi + 90);
   const I0: Pt = [0, 0];
   // second intersection: along the transversal, a distance gap/sin θ below
   const along = gap / Math.sin((theta * Math.PI) / 180);
@@ -60,7 +59,6 @@ function transversalFigure(phi: number, theta: number, gap: number): Transversal
   line(b, add(I0, mul(t, 0.9)), add(I1, mul(t, -0.9)), 0.05);
   parallelMarks(b, add(I0, mul(u, -L)), add(I0, mul(u, -L * 0.2)), 1, 0.45);
   parallelMarks(b, add(I1, mul(u, -L)), add(I1, mul(u, -L * 0.2)), 1, 0.45);
-  void nrm;
   const ray = (s: Slot): [Pt, Pt, Pt] => {
     const I = s.at === 0 ? I0 : I1;
     const r1 = right(s.pos) ? u : mul(u, -1);
@@ -114,12 +112,13 @@ export const parallelTransversal = defineTopic({
     const [a, b] = attempt('pair', () => {
       const [x, y] = rng.sample(SLOTS, 2) as [Slot, Slot];
       const r = relationOf(x, y);
+      if (!r) return null;
       if (task !== 'identify' && r === 'Linear pair' && rng.bool(0.6)) return null;
       if (task === 'identify' && r === 'Linear pair' && rng.bool(0.5)) return null;
       if (task === 'solve' && x.at === y.at && rng.bool(0.6)) return null;
       return [x, y];
     });
-    const rel = relationOf(a, b);
+    const rel = relationOf(a, b)!;
     const la = label(a);
     const lb = label(b);
     SLOTS.forEach((s) => placeNumber(fig, s, String(label(s)), theta));
@@ -268,14 +267,14 @@ export const parallelPerpendicular = defineTopic({
     const perp = rng.bool();
     const want = perp ? mm.inv().neg() : mm;
     const word = perp ? 'perpendicular' : 'parallel';
-    const toSlope = useStandard ? [m(given.replace(/ = .*$/, '') + ` = ${given.split(' = ')[1]}`), m(slopeIntercept(mm, b0))] : [];
+    const toSlope = useStandard ? [`Rewrite in slope-intercept form: $${slopeIntercept(mm, b0)}$`] : [];
 
     if (task === 'slope') {
       const fmt = (f: Frac) => m(`m = ${num(f)}`);
       return {
         question: `Find the slope of a line ${word} to $${given}$.`,
         answer: fmt(want),
-        steps: [...toSlope.slice(1), m(`m = ${num(mm)}`), perp ? `Perpendicular slopes are opposite reciprocals: $m = ${num(want)}$.` : `Parallel lines have equal slopes: $m = ${num(want)}$.`],
+        steps: [...toSlope, m(`m = ${num(mm)}`), perp ? `Perpendicular slopes are opposite reciprocals: $m = ${num(want)}$.` : `Parallel lines have equal slopes: $m = ${num(want)}$.`],
         distractors: distinctDistractors(fmt(want), [mm, mm.neg(), mm.inv(), mm.inv().neg()].map(fmt), (k) => fmt(want.add(offset(k)))),
         check: { kind: 'geometry.lines', task },
       };
@@ -298,9 +297,8 @@ export const parallelPerpendicular = defineTopic({
         m2 = rng.pick([mm.inv(), mm.neg(), mm.add(1), mm.mul(2)].filter((f) => !f.eq(mm) && !f.eq(mm.inv().neg())));
         b2 = new Frac(rng.int(-9, 9));
       }
-      const eq2 = useStandard ? (kind === 'same' ? standardForm(m2, b2).replace(/(-?\d*)([xy])/g, (s) => s) : standardForm(m2, b2)) : slopeIntercept(m2, b2);
-      // write the same line differently: scale the standard form by 2 or show slope-intercept
-      const second = kind === 'same' && useStandard ? slopeIntercept(m2, b2) : eq2;
+      // the same line is shown in the other form
+      const second = useStandard && kind !== 'same' ? standardForm(m2, b2) : slopeIntercept(m2, b2);
       const first = given;
       const answer = kind === 'parallel' ? 'Parallel' : kind === 'perpendicular' ? 'Perpendicular' : kind === 'same' ? 'Same line' : 'Neither';
       const others = ['Parallel', 'Perpendicular', 'Neither', 'Same line'].filter((s) => s !== answer);
@@ -339,9 +337,9 @@ export const parallelPerpendicular = defineTopic({
       question: `Through $${tuple(P)}$, ${word} to $${given}$`,
       answer,
       steps: [
-        ...toSlope.slice(1),
+        ...toSlope,
         perp ? `Perpendicular slope: $m = ${num(want)}$` : `Parallel slope: $m = ${num(want)}$`,
-        m(`${P[1]} = ${num(want)}${paren(P[0])} + b`),
+        m(`${P[1]} = ${want.eq(1) ? paren(P[0]) : want.eq(-1) ? `-${paren(P[0])}` : `${num(want)}${paren(P[0])}`} + b`),
         m(`b = ${num(bb)}`),
         answer,
       ],
@@ -351,4 +349,3 @@ export const parallelPerpendicular = defineTopic({
   },
 });
 
-export { sub };

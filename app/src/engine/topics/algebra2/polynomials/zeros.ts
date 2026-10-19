@@ -299,6 +299,10 @@ export const conjugateFactoring = defineTopic({
       [...rational.map((r) => r.neg()).sort((a, b) => a.cmp(b)).map((r) => num(r)), ...pairs.flatMap((p) => p.tex)],
       pair.quad.coef(1).isZero() ? null : [...rational.map((r) => num(r)), ...negPair(pair), ...(second ? second.tex : [])],
       [...rational.map((r) => num(r)), given, ...(second ? second.tex : [])],
+      second ? [...rational.map((r) => num(r)), ...pair.tex, second.tex[0]] : null,
+      second ? [...rational.map((r) => num(r)), ...pair.tex] : null,
+      second && !second.quad.coef(1).isZero() ? [...rational.map((r) => num(r)), ...pair.tex, ...negPair(second)] : null,
+      second ? [...rational.map((r) => num(r)), given, second.tex[0]] : null,
     ];
     return {
       question,

@@ -109,10 +109,10 @@ export function buildCubes(rng: Rng, d: Difficulty, v: string, type: string): Fa
         ],
       };
     }
-    const a = d === 'easy' ? 1 : rng.int(1, d === 'medium' ? 3 : 4);
-    const b = rng.int(1, d === 'easy' ? 4 : 5);
-    if (gcd(a, b) !== 1) return null;
-    const g = pickGcf(rng, d === 'hard' ? 0.5 : 0, true);
+    const a = rng.int(1, d === 'easy' ? 2 : d === 'medium' ? 3 : 4);
+    const b = rng.int(1, 6);
+    if (gcd(a, b) !== 1 || a * b > 15) return null;
+    const g = pickGcf(rng, d === 'hard' ? 0.5 : 0.35, d === 'hard');
     const L = Poly.linear(a, s * b);
     const Q = Poly.of(b * b, -s * a * b, a * a);
     const answer = fac(g.k, g.j, [L, Q]);

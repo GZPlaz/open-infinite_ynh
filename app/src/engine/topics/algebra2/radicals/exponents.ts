@@ -163,9 +163,14 @@ export const evaluateRationalExponents = defineTopic({
     const value = b ? a.value.mul(b.value) : a.value;
     const question = b ? `${a.tex} \\cdot ${b.tex}` : a.tex;
     const stepFor = (t: typeof a) => {
-      const rootTex = t.base.isInt() ? radTex(t.q, String(t.base.n)) : `\\left(${radTex(t.q, t.base.toTex())}\\right)`;
-      const lines = [m(`${t.tex} = ${t.neg ? `\\frac{1}{${t.base.isInt() ? t.base.n : `\\left(${t.base.toTex()}\\right)`}^{${new Frac(t.p, t.q).toTex()}}}` : `\\left(${rootTex}\\right)^{${t.p}}`}`.replace('^{1}', ''))];
-      lines.push(m(`= ${t.neg ? `\\frac{1}{${t.root.isInt() ? t.root.n : `\\left(${t.root.toTex()}\\right)`}^{${t.p}}}` : `${t.root.isInt() ? t.root.n : `\\left(${t.root.toTex()}\\right)`}^{${t.p}}`}`.replace('^{1}', '')));
+      const baseTex = t.base.isInt() ? String(t.base.n) : `\\left(${t.base.toTex()}\\right)`;
+      const rootTex = radTex(t.q, t.base.toTex());
+      const rootVal = t.root.isInt() ? String(t.root.n) : `\\left(${t.root.toTex()}\\right)`;
+      const powed = (b: string, k: number) => (k === 1 ? b : `${b}^{${k}}`);
+      const lines: string[] = [];
+      if (t.neg) lines.push(m(`${t.tex} = \\frac{1}{${baseTex}^{${new Frac(t.p, t.q).toTex()}}}`));
+      const rootPow = t.p === 1 ? rootTex : `\\left(${rootTex}\\right)^{${t.p}}`;
+      lines.push(m(t.neg ? `= \\frac{1}{${rootPow}} = \\frac{1}{${powed(rootVal, t.p)}}` : `${t.tex} = ${rootPow}${t.p === 1 ? '' : ` = ${powed(rootVal, t.p)}`}`));
       lines.push(m(`= ${num(t.value)}`));
       return lines;
     };

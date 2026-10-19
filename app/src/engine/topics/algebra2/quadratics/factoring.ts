@@ -7,7 +7,7 @@ import type { Difficulty, ProblemContent } from '../../../types';
 import { factoringTrinomials } from '../../algebra1/factoring';
 import { CATEGORY_QUAD } from './common';
 
-export const factoringQuadratics = variant(factoringTrinomials, {
+const factoringVariant = variant(factoringTrinomials, {
   id: 'alg2.quad.factor',
   title: 'Factoring Quadratic Expressions',
   subject: 'algebra2',
@@ -15,6 +15,16 @@ export const factoringQuadratics = variant(factoringTrinomials, {
   description: 'Factor ax² + bx + c, including leading coefficients other than 1 and common factors.',
   defaultCount: 12,
   fixed: { type: 'trinomials' },
+});
+
+/**
+ * The Algebra 1 generator draws hard and medium problems from the same random
+ * stream, so the same seed often gives the same trinomial; a forked stream at
+ * the hard level keeps the two levels apart.
+ */
+export const factoringQuadratics = defineTopic({
+  ...factoringVariant,
+  generate: (ctx) => factoringVariant.generate(ctx.difficulty === 'hard' ? { ...ctx, rng: ctx.rng.fork('alg2-hard') } : ctx),
 });
 
 type Kind = 'dos' | 'pst' | 'dos4';

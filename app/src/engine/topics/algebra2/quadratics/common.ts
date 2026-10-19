@@ -48,7 +48,8 @@ export function rearranged(rng: Rng, std: Poly, v: string): string {
     const leftTerms = left.c.filter((x) => !x.isZero()).length;
     const rightTerms = right.c.filter((x) => !x.isZero()).length;
     if (rightTerms === 0 || leftTerms === 0 || leftTerms + rightTerms < 3) return null;
-    if (left.c.some((x) => Math.abs(x.value) > 60)) return null;
+    const max = Math.max(...std.c.map((x) => Math.abs(x.value)));
+    if (left.c.some((x) => Math.abs(x.value) > max + 12)) return null;
     return rng.bool() ? `${left.toTex(v)} = ${right.toTex(v)}` : `${right.toTex(v)} = ${left.toTex(v)}`;
   });
 }

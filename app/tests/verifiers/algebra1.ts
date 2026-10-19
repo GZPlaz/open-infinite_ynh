@@ -154,7 +154,176 @@ function intervalOf(seg: string | null, text: string, v: string): { lo: number; 
   return iv;
 }
 
+const COIN: Record<string, number> = { pennies: 0.01, nickels: 0.05, dimes: 0.1, quarters: 0.25 };
+
+/** Word problems: re-derive the answer from the numbers given in the question. */
+const WORD: Record<string, (g: number[], q: string) => number[]> = {
+  'work.together': ([a, b]) => [(a! * b!) / (a! + b!)],
+  'work.alone': ([a, t]) => [(a! * t!) / (a! - t!)],
+  'work.drain': ([a, b]) => [(a! * b!) / (b! - a!)],
+  'drt.opposite': ([r1, r2, D]) => [D! / (r1! + r2!)],
+  'drt.toward': ([D, r1, r2]) => [D! / (r1! + r2!)],
+  'drt.catchup': ([r1, h, r2]) => [(r1! * h!) / (r2! - r1!)],
+  'drt.roundtrip': ([r1, r2, T]) => [(T! * r1! * r2!) / (r1! + r2!)],
+  'drt.speeds': ([k, t, D]) => [(D! / t! - k!) / 2, (D! / t! + k!) / 2],
+  'mix.water': ([V, q, r]) => [(V! * (q! - r!)) / r!],
+  'mix.solution': ([p, V, q, r]) => [(V! * (q! - r!)) / (r! - p!)],
+  'mix.value': ([pa, pb, W, pm]) => {
+    const a = (W! * (pm! - pb!)) / (pa! - pb!);
+    return [a, W! - a];
+  },
+  'sys.numbers': ([S, D]) => [(S! + D!) / 2, (S! - D!) / 2],
+  'sys.tickets': ([N, R, pa, pc]) => {
+    const a = (R! - pc! * N!) / (pa! - pc!);
+    return [a, N! - a];
+  },
+  'sys.purchases': ([a1, b1, c1, a2, b2, c2]) => {
+    const det = a1! * b2! - a2! * b1!;
+    return [(c1! * b2! - c2! * b1!) / det, (a1! * c2! - a2! * c1!) / det];
+  },
+  'sys.coins': ([N, V], q) => {
+    const mm = /all (\w+) and (\w+)/.exec(q)!;
+    const v1 = COIN[mm[1]!]!;
+    const v2 = COIN[mm[2]!]!;
+    const y = (V! - v1 * N!) / (v2 - v1);
+    return [N! - y, y];
+  },
+  'sys.current': ([d, t1, t2]) => [(d! / t1! + d! / t2!) / 2, (d! / t1! - d! / t2!) / 2],
+};
+
+/** Pairs of a discrete relation from the question (ordered pairs, table or mapping diagram). */
+function relationPairs(p: ProblemContent): Array<[number, number]> {
+  if (p.diagram) {
+    const labels = p.diagram.items.filter((it) => it.t === 'label' && /^-?\d+$/.test(it.tex)) as Array<{ p: readonly [number, number]; tex: string }>;
+    const left = labels.filter((l) => Math.abs(l.p[0]) < 1e-9);
+    const right = labels.filter((l) => Math.abs(l.p[0] - 4) < 1e-9);
+    const near = (ls: typeof labels, y: number) => Number(ls.reduce((a, b2) => (Math.abs(b2.p[1] - y) < Math.abs(a.p[1] - y) ? b2 : a)).tex);
+    return p.diagram.items.filter((it) => it.t === 'arrow').map((a) => {
+      const ar = a as { from: readonly [number, number]; to: readonly [number, number] };
+      return [near(left, ar.from[1]), near(right, ar.to[1])];
+    });
+  }
+  const q = onlyMath(p.question);
+  if (q.includes('\\begin{array}')) {
+    const rows = q.replace(/\\begin\{array\}\{[^}]*\}|\\end\{array\}|\\hline/g, '').split('\\\\').map((r) => r.split('&').map((c) => c.trim()));
+    const xs = rows[0]!.slice(1).map((c) => evalReal(c));
+    const ys = rows[1]!.slice(1).map((c) => evalReal(c));
+    return xs.map((x, i) => [x, ys[i]!]);
+  }
+  return [...q.matchAll(/\((-?\d+), (-?\d+)\)/g)].map((mm) => [Number(mm[1]), Number(mm[2])]);
+}
+
+const setValues = (seg: string) => listItems(seg).map((t) => evalReal(t)).sort((a, b) => a - b);
+const uniq = (xs: number[]) => [...new Set(xs)].sort((a, b) => a - b);
+
+/** Bounds of a graphed relation: curve extremes, with arrowheads meaning unbounded. */
+function graphedSets(d: Diagram): { domain: { lo: number; hi: number; loOpen: boolean; hiOpen: boolean }; range: { lo: number; hi: number; loOpen: boolean; hiOpen: boolean }; fn: boolean } {
+  const pts = densePoints(d);
+  const arrows = d.items.filter((it) => it.t === 'arrow' && it.ink === 'accent') as Array<{ from: readonly [number, number]; to: readonly [number, number] }>;
+  const dirs = arrows.map((a) => [a.to[0] - a.from[0], a.to[1] - a.from[1]] as const);
+  // every arrowhead sits on the curve
+  arrows.forEach((a) => expect(pts.some(([x, y]) => Math.hypot(x - a.to[0], y - a.to[1]) < 1e-9), 'arrow at the end of the curve').toBe(true));
+  const openDots = d.items.filter((it) => it.t === 'dot' && it.open) as Array<{ p: readonly [number, number] }>;
+  const side = (k: 0 | 1, sign: 1 | -1) => {
+    const unbounded = dirs.some((v) => sign * v[k] > 1e-6 * Math.hypot(v[0], v[1]) && Math.abs(v[k]) > 0.05 * Math.hypot(v[0], v[1]));
+    if (unbounded) return { value: sign * Infinity, open: true };
+    const target = sign > 0 ? Math.max(...pts.map((p) => p[k])) : Math.min(...pts.map((p) => p[k]));
+    const hits = pts.filter((p) => Math.abs(p[k] - target) < 1e-6);
+    const open = hits.every((h) => openDots.some((o) => Math.hypot(o.p[0] - h[0], o.p[1] - h[1]) < 1e-6));
+    return { value: target, open };
+  };
+  const iv = (k: 0 | 1) => {
+    const lo = side(k, -1);
+    const hi = side(k, 1);
+    return { lo: lo.value, hi: hi.value, loOpen: lo.open, hiOpen: hi.open };
+  };
+  // vertical line test
+  const sorted = [...pts].sort((a, b) => a[0] - b[0]);
+  let fn = true;
+  for (let i = 0; i < sorted.length && fn; i++) {
+    for (let j = i + 1; j < sorted.length && sorted[j]![0] - sorted[i]![0] < 0.02; j++) {
+      if (Math.abs(sorted[j]![1] - sorted[i]![1]) > 0.3) {
+        fn = false;
+        break;
+      }
+    }
+  }
+  return { domain: iv(0), range: iv(1), fn };
+}
+
+function expectInterval(got: ReturnType<typeof intervalOf>, want: ReturnType<typeof intervalOf>, what: string): void {
+  expect(close(got.lo, want.lo, 1e-6) && close(got.hi, want.hi, 1e-6), `${what}: bounds ${JSON.stringify(got)} vs ${JSON.stringify(want)}`).toBe(true);
+  if (Number.isFinite(want.lo) && want.lo !== want.hi) expect(got.loOpen, `${what}: lower strictness`).toBe(want.loOpen);
+  if (Number.isFinite(want.hi) && want.lo !== want.hi) expect(got.hiOpen, `${what}: upper strictness`).toBe(want.hiOpen);
+}
+
+/** "Domain: …; Range: …; Function" → parts. */
+function domainRangeParts(answer: string): { dom: string; ran: string; verdict: string | null } {
+  const parts = answer.split(/;\s*/);
+  expect(parts[0]).toMatch(/^Domain: /);
+  expect(parts[1]).toMatch(/^Range: /);
+  return { dom: parts[0]!.slice(8), ran: parts[1]!.slice(7), verdict: parts[2] ?? null };
+}
+
 export const VERIFIERS: Record<string, Verifier> = {
+  'algebra1.relation'(p) {
+    const pairs = relationPairs(p);
+    expect(pairs.length).toBeGreaterThan(2);
+    const { dom, ran, verdict } = domainRangeParts(p.answer);
+    expect(setValues(onlyMath(dom)), `domain of ${JSON.stringify(pairs)}`).toEqual(uniq(pairs.map((q) => q[0])));
+    expect(setValues(onlyMath(ran)), `range of ${JSON.stringify(pairs)}`).toEqual(uniq(pairs.map((q) => q[1])));
+    const isFn = pairs.every(([x, y]) => pairs.every(([x2, y2]) => x !== x2 || y === y2));
+    if (p.check!.verdict) expect(verdict).toBe(isFn ? 'Function' : 'Not a function');
+    else expect(verdict).toBe(null);
+  },
+
+  'algebra1.contRelation'(p) {
+    const g = graphedSets(p.diagram!);
+    const { dom, ran, verdict } = domainRangeParts(p.answer);
+    const segOf = (r: string) => (mathSegments(r).length ? onlyMath(r) : null);
+    expectInterval(intervalOf(segOf(dom), dom, 'x'), g.domain, `domain in ${p.answer}`);
+    expectInterval(intervalOf(segOf(ran), ran, 'y'), g.range, `range in ${p.answer}`);
+    if (p.check!.verdict) expect(verdict, p.answer).toBe(g.fn ? 'Function' : 'Not a function');
+    // the figure stays inside the plane
+    const R = p.check!.range as number;
+    densePoints(p.diagram).forEach(([x, y]) => expect(Math.max(Math.abs(x), Math.abs(y))).toBeLessThanOrEqual(R + 1e-9));
+  },
+
+  /** `f(x) = …; Find f(arg)`: the answer equals the definition evaluated at arg (symbolically for expressions). */
+  'algebra1.evalfn'(p) {
+    const [def, call] = mathSegments(p.question) as [string, string];
+    const dm = /^([a-z])\(([a-z])\) = (.+)$/.exec(def)!;
+    const [, name, v, body] = dm as unknown as [string, string, string, string];
+    expect(call.startsWith(`${name}(`) && call.endsWith(')'), call).toBe(true);
+    const arg = call.slice(2, -1);
+    const [lhs, rhsTex] = sides(onlyMath(p.answer));
+    expect(lhs).toBe(call);
+    const letters = [...new Set(arg.match(/[a-z]/g) ?? [])];
+    if (letters.length === 0) {
+      const want = evalReal(body, { vars: { [v]: evalReal(arg) } });
+      expect(close(evalReal(rhsTex), want), `${p.question} → ${p.answer}`).toBe(true);
+    } else {
+      const t = letters[0]!;
+      for (const tv of [-2.3, -0.7, 0.4, 1.9, 3.2]) {
+        const want = evalReal(body, { vars: { [v]: evalReal(arg, { vars: { [t]: tv } }) } });
+        expect(close(evalReal(rhsTex, { vars: { [t]: tv } }), want), `${p.question} → ${p.answer} at ${t}=${tv}`).toBe(true);
+      }
+    }
+  },
+
+  'algebra1.word'(p) {
+    const mode = p.check!.mode as string;
+    const f = WORD[mode];
+    expect(f, `word mode ${mode}`).toBeTruthy();
+    const want = f!(givenNumbers(p.question), p.question);
+    const got = givenNumbers(p.answer);
+    expect(got.length, `${p.answer}`).toBe(want.length);
+    want.forEach((w, i) => {
+      expect(Number.isFinite(w) && (w > 0 || mode === 'sys.numbers'), `${p.question}: sensible answer`).toBe(true);
+      expect(close(got[i]!, w, 1e-9), `${p.question} → ${p.answer}: item ${i} should be ${w}`).toBe(true);
+    });
+  },
+
   /** Expression with `; use $a = 2$, …`: the answer and every worked step equal its value. */
   'algebra1.evaluate'(p) {
     const segs = mathSegments(p.question);

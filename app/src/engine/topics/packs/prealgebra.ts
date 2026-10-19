@@ -6,6 +6,7 @@ import { fractionOperations } from '../prealgebra/fractions';
 import { absoluteValue, addSubIntegers, mulDivIntegers } from '../prealgebra/integers';
 import { gcfLcm, primeFactorization } from '../prealgebra/number-theory';
 import { orderOfOperations } from '../prealgebra/order-of-operations';
+import { percentChange, percentProblems, simpleInterest } from '../prealgebra/percents';
 import { proportions, ratiosRates } from '../prealgebra/ratios';
 import { twoStepEquations } from '../prealgebra/two-step';
 
@@ -27,6 +28,9 @@ const topics: TopicGenerator[] = [
   // Ratios, Rates and Percents
   ratiosRates,
   proportions,
+  percentProblems,
+  percentChange,
+  simpleInterest,
   // Equations and Inequalities
   twoStepEquations,
 ];

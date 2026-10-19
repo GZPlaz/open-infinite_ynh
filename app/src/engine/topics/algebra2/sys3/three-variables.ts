@@ -70,13 +70,13 @@ interface Built {
 }
 
 function build(rng: Rng, d: Difficulty, neg: boolean, special: boolean): Built {
-  const wantSpecial = special && d === 'hard' && rng.bool(0.3) ? rng.pick<'none' | 'all'>(['none', 'all']) : null;
+  const wantSpecial = special && d === 'hard' && rng.bool(0.25) ? rng.pick<'none' | 'all'>(['none', 'all']) : null;
   const C = { easy: 3, medium: 5, hard: 7 }[d];
   const R = { easy: 5, medium: 7, hard: 9 }[d];
   const zeroP = { easy: 0.3, medium: 0.15, hard: 0.05 }[d];
   return attempt('three-variable system', () => {
     const sol = V.map(() => (neg ? rng.int(-R, R) : rng.int(0, R)));
-    const coef = () => (rng.bool(zeroP) ? 0 : rng.signedInt(1, C, neg || d !== 'easy'));
+    const coef = () => (rng.bool(zeroP) ? 0 : rng.signedInt(1, C, neg));
     const A = [0, 1, 2].map(() => [coef(), coef(), coef()]);
     if (wantSpecial) {
       const p = rng.pick([1, -1, 2]);

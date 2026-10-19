@@ -110,6 +110,8 @@ export const squareRootSolving = defineTopic({
         h !== 0 ? wrong(-h, K) : wrong(h, K.neg()),
         a !== 1 ? wrong(h, new Frac(N)) : null,
         c !== 0 ? wrong(h, new Frac(N + 2 * c, a)) : null,
+        K.sign > 0 && K.isInt() ? wrong(h, K.mul(K)) : null,
+        K.sign > 0 ? wrong(h, K.div(4)) : null,
       ],
       (k) => wrong(h, K.add(k)),
     );

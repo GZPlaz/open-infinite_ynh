@@ -99,7 +99,13 @@ export const discriminant = defineTopic({
         ? others.map((x) => CATEGORY_TEXT[x])
         : distinctDistractors(
             answer,
-            [show(D, others[0]!), show(alt, category(alt)), show(-D, category(-D)), show(D, others[1]!), show(b - 4 * a * c, category(b - 4 * a * c))],
+            [
+              show(D, others[0]!),
+              show(alt, category(alt)),
+              D !== 0 ? show(-D, category(-D)) : null,
+              b !== 0 ? show(b * b, category(b * b)) : null,
+              show(b - 4 * a * c, category(b - 4 * a * c)),
+            ],
             (k) => show(D + 4 * k, category(D + 4 * k)),
           );
     return {

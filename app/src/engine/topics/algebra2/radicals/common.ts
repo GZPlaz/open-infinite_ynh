@@ -159,6 +159,7 @@ export function radFracTex(M: RadSum, d: number): string {
     const mag = rootTex(Math.abs(c), n);
     return `${c < 0 ? '-' : ''}\\frac{${mag}}{${d}}`;
   }
+  if ([...M.terms.values()].every((c) => c < 0)) return `-\\frac{${M.scale(-1).tex()}}{${d}}`;
   return `\\frac{${M.tex()}}{${d}}`;
 }
 

@@ -447,7 +447,7 @@ export const VERIFIERS: Record<string, Verifier> = {
     const sc = gScaleOf(eq);
     const what = `${p.question} → ${p.answer}`;
     const f = parseFields(p.question);
-    expect(f.size, what).toBeGreaterThanOrEqual(2);
+    expect([...f.values()].reduce((n, x) => n + x.math.length, 0), what).toBeGreaterThanOrEqual(2);
     for (const [label, field] of f) {
       if (checkFeature(label, field, c, what)) continue;
       if (label === 'passes through' || label === 'diameter endpoints') {

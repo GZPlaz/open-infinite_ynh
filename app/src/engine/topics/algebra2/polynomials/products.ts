@@ -48,7 +48,7 @@ function powParen(tex: string, e: number): string {
 
 function pickTerms(rng: Rng, d: Difficulty, kind: 'square' | 'conjugate' | 'cube' | 'binomial', twoVars: boolean): [Mono, Mono] {
   const small = kind === 'cube' || kind === 'binomial';
-  const aMax = d === 'easy' ? 1 : d === 'medium' ? (small ? 2 : 4) : small ? 3 : 5;
+  const aMax = d === 'easy' ? (kind === 'binomial' ? 2 : 1) : d === 'medium' ? (small ? 2 : 4) : small ? 3 : 5;
   const exA = d === 'hard' && rng.bool(kind === 'binomial' ? 0.25 : 0.4) ? 2 : 1;
   const A: Mono = { c: rng.int(1, aMax), ex: exA, ey: 0 };
   const bMax = small ? (d === 'easy' ? 3 : d === 'medium' ? 4 : 5) : 9;
@@ -190,7 +190,7 @@ export const binomialTheorem = defineTopic({
     const n =
       task === 'expand'
         ? difficulty === 'easy'
-          ? rng.int(3, 4)
+          ? rng.int(3, 5)
           : difficulty === 'medium'
             ? rng.int(4, 5)
             : rng.int(5, 6)
@@ -236,7 +236,7 @@ export const binomialTheorem = defineTopic({
     const t = termOf(k);
     const aPow = monosTex([powMono(A, n - k)], v);
     const bPow = monosTex([powMono(B, k)], v);
-    steps.push(`The term containing $b^{${k}}$ is the ${ordinal(k + 1)} term: $\\binom{${n}}{${k}}a^{${n - k}}b^{${k}}$`);
+    steps.push(`The term containing $${pow('b', k)}$ is the ${ordinal(k + 1)} term: $\\binom{${n}}{${k}}${pow('a', n - k)}${pow('b', k)}$`);
     steps.push(`$\\binom{${n}}{${k}}${powParen(aTex, n - k)}${powParen(bTex, k)} = ${binom(n, k)}(${aPow})(${bPow})$`);
     if (task === 'term') {
       const answerTex = monosTex([t], v);

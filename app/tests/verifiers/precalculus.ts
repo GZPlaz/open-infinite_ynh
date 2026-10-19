@@ -60,9 +60,10 @@ function endpoint(s: string): number {
 /** Finite numbers appearing in an interval / inequality answer (probe anchors). */
 function anchors(tex: string): number[] {
   const out: number[] = [];
-  for (const piece of splitTop(tex.replace(/\\left|\\right/g, ''), ['\\cup', ',', '<', '>', '\\le', '\\ge', '=', '\\text{ or }', '\\text{ and }']).parts) {
-    const s = piece.replace(/^[([]|[)\]]$/g, '').replace(/^\\\{|\\\}$/g, '').trim();
-    if (!s || /infty|[a-z]$/.test(s)) continue;
+  const flat = tex.replace(/\\left|\\right/g, '').replace(/\\\{|\\\}/g, ' ').replace(/[()[\]]/g, ' ');
+  for (const piece of splitTop(flat, ['\\cup', ',', '<', '>', '\\le', '\\ge', '=', '\\text{ or }', '\\text{ and }']).parts) {
+    const s = piece.trim();
+    if (!s || /infty|^[a-z]$/.test(s)) continue;
     const v = realAt(s, {});
     if (v !== null) out.push(v);
   }
@@ -76,7 +77,7 @@ const GRID = (() => {
 })();
 
 function probesAround(points: number[]): number[] {
-  return [...points.flatMap((b) => [b - 2.3, b - 0.4, b - 1e-4, b, b + 1e-4, b + 0.4, b + 2.3]), ...GRID];
+  return [...points.flatMap((b) => [b - 2.3, b - 0.4, b - 1e-4, b, b + 1e-4, b + 0.4, b + 2.3]), ...GRID.filter((x) => points.every((b) => Math.abs(x - b) > 1e-6))];
 }
 
 /** Labelled parts of an answer such as `Domain: $…$; Range: $…$`. */
@@ -142,7 +143,166 @@ function expectDomain(f: (x: number) => number | null, domainTex: string, what: 
 
 // ---------------------------------------------------------------- verifiers
 
+/** Segment of the form `name = …` (e.g. `f(x) = …`) among a rich string's math, or undefined. */
+function defOf(rich: string, name: string): string | undefined {
+  const seg = mathSegments(rich).find((s) => s.trim().startsWith(`${name} =`));
+  return seg === undefined ? undefined : rhsOf(seg);
+}
+
+/** Every role:'curve' point of the figure lies on y = f(x). */
+function curveOnGraph(fig: Diagram | undefined, f: (x: number) => number | null, what: string): void {
+  const pts = curvePoints(fig);
+  expect(pts.length, `${what}: curve drawn`).toBeGreaterThan(5);
+  for (const [x, y] of pts) {
+    const v = f(x);
+    expect(v !== null && Math.abs(v - y) <= 1e-6 * Math.max(1, Math.abs(y)), `${what}: point (${x}, ${y}) vs ${v}`).toBe(true);
+  }
+}
+
+interface Row {
+  expr: string;
+  cond: string;
+}
+
+/** Rows of a `\\begin{cases} expr, & condition \\\\ … \\end{cases}` definition. */
+function casesRows(rich: string): Row[] {
+  const seg = mathSegments(rich).find((s) => s.includes('\\begin{cases}'))!;
+  const body = /\\begin\{cases\}(.*)\\end\{cases\}/.exec(seg)![1]!;
+  return body.split('\\\\').map((r) => {
+    const [e, c] = r.split('&');
+    return { expr: e!.trim().replace(/,$/, ''), cond: c!.trim() };
+  });
+}
+
+function rowsHolding(rows: Row[], x: number): Row[] {
+  return rows.filter((r) => chainHolds(r.cond, { x }));
+}
+
+/** Value of the piecewise function (exactly one row must apply). */
+function piecewiseAt(rows: Row[], x: number): number {
+  const hit = rowsHolding(rows, x);
+  expect(hit.length, `exactly one piece applies at x=${x}`).toBe(1);
+  return evalReal(hit[0]!.expr, { vars: { x } });
+}
+
+function dotsOf(fig: Diagram | undefined): Array<{ x: number; y: number; open: boolean }> {
+  return (fig?.items ?? []).filter((it): it is Extract<DiagramItem, { t: 'dot' }> => it.t === 'dot' && it.ink === 'accent').map((d) => ({ x: d.p[0], y: d.p[1], open: !!d.open }));
+}
+
+function pointsIn(rich: string): number[][] {
+  return mathSegments(rich).map((s) => listItems(s).map((t) => evalReal(t)));
+}
+
 export const VERIFIERS: Record<string, Verifier> = {
+  /** (f∘g)(x) and its domain, against f and g as printed. */
+  'precalculus.composition'(p) {
+    const fns: Record<string, string> = { f: defOf(p.question, 'f(x)')!, g: defOf(p.question, 'g(x)')! };
+    const op = /\((\w) \\circ (\w)\)\(x\)/.exec(p.answer)!;
+    const outer = fns[op[1]!]!;
+    const inner = fns[op[2]!]!;
+    expect(p.question).toContain(op[0]);
+    const comp = (x: number) => {
+      const u = realAt(inner, { x });
+      return u === null ? null : realAt(outer, { x: u });
+    };
+    const [expr, dom] = mathSegments(p.answer);
+    const ans = rhsOf(expr!);
+    expectDomain(comp, dom!, p.question);
+    let checked = 0;
+    for (const x of GRID) {
+      const want = comp(x);
+      if (want === null) continue;
+      const got = realAt(ans, { x });
+      expect(got !== null && close(got, want, 1e-8), `${ans} vs composite at x=${x}`).toBe(true);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(5);
+  },
+
+  'precalculus.piecewiseEval'(p) {
+    const rows = casesRows(p.question);
+    const segs = mathSegments(p.answer);
+    const asked = mathSegments(p.question).filter((s) => /^f\(|^f\\left\(/.test(s) && !s.includes('='));
+    expect(segs.length, p.answer).toBe(asked.length);
+    for (const s of segs) {
+      const mm = /^f(?:\\left)?\((.*?)(?:\\right)?\) = (.*)$/.exec(s)!;
+      expect(mm, s).toBeTruthy();
+      const x = evalReal(mm[1]!);
+      expect(close(evalReal(mm[2]!), piecewiseAt(rows, x)), `${p.question}: ${s}`).toBe(true);
+    }
+  },
+
+  'precalculus.piecewiseGraph'(p) {
+    const rows = casesRows(p.question);
+    const pts = curvePoints(p.answerDiagram);
+    expect(pts.length).toBeGreaterThan(10);
+    for (const [x, y] of pts) {
+      const on = (list: Row[]) => list.some((r) => close(evalReal(r.expr, { vars: { x } }), y, 1e-9));
+      expect(on(rowsHolding(rows, x)) || on([...rowsHolding(rows, x - 1e-7), ...rowsHolding(rows, x + 1e-7)]), `point (${x}, ${y}) on a piece`).toBe(true);
+    }
+    const dots = dotsOf(p.answerDiagram);
+    for (const d of dots) {
+      const fx = piecewiseAt(rows, d.x);
+      if (d.open) {
+        expect(close(fx, d.y), `open dot (${d.x}, ${d.y}) is not a value`).toBe(false);
+        expect(rows.some((r) => close(evalReal(r.expr, { vars: { x: d.x } }), d.y)), `open dot (${d.x}, ${d.y}) ends a piece`).toBe(true);
+      } else expect(close(fx, d.y), `closed dot (${d.x}, ${d.y})`).toBe(true);
+    }
+    // every breakpoint of the definition has its value marked
+    for (const r of rows) {
+      for (const t of splitTop(r.cond, ['<', '\\le', '>', '\\ge']).parts) {
+        if (t.trim() === 'x') continue;
+        const b = evalReal(t);
+        expect(dots.some((d) => !d.open && close(d.x, b) && close(d.y, piecewiseAt(rows, b))), `closed dot at x=${b}`).toBe(true);
+      }
+    }
+    const [closedPart, openPart] = p.answer.split('; ');
+    const want = (open: boolean) => dots.filter((d) => d.open === open).map((d) => [d.x, d.y]);
+    expect(pointsIn(closedPart!), p.answer).toEqual(want(false));
+    expect(pointsIn(openPart!), p.answer).toEqual(want(true));
+  },
+
+  /** g(x) = a·f(b(x − h)) + k against a verbal description of the transformations. */
+  'precalculus.transform'(p) {
+    const fTex = defOf(p.question, 'f(x)')!;
+    const write = /g\(x\) =/.test(p.answer);
+    const gTex = defOf(write ? p.answer : p.question, 'g(x)')!;
+    const text = write ? p.question : p.answer;
+    expect(fTex && gTex, `${p.question} → ${p.answer}`).toBeTruthy();
+    let a = 1;
+    let b = 1;
+    let h = 0;
+    let k = 0;
+    if (/reflection across the \$x\$-axis/i.test(text)) a = -a;
+    if (/reflection across the \$y\$-axis/i.test(text)) b = -b;
+    for (const mm of text.matchAll(/(vertical|horizontal) (stretch|compression) by a factor of \$([^$]+)\$/gi)) {
+      const v = evalReal(mm[3]!);
+      expect(mm[2]!.toLowerCase() === 'stretch' ? v > 1 : v < 1, `${mm[0]}: wording matches the factor`).toBe(true);
+      if (mm[1]!.toLowerCase() === 'vertical') a *= v;
+      else b /= v;
+    }
+    for (const mm of text.matchAll(/shift \$(\d+)\$ units? (left|right|up|down)/gi)) {
+      const v = Number(mm[1]);
+      if (mm[2] === 'left') h -= v;
+      else if (mm[2] === 'right') h += v;
+      else if (mm[2] === 'down') k -= v;
+      else k += v;
+    }
+    let matched = 0;
+    for (const x of [-11.3, -9.6, -8.1, -6.4, -4.3, -2.7, -1.3, 0.6, 1.7, 3.1, 4.4, 5.9, 7.2, 8.8, 10.3, 11.7]) {
+      const inner = realAt(fTex, { x: b * (x - h) });
+      const want = inner === null ? null : a * inner + k;
+      const got = realAt(gTex, { x });
+      expect(got === null, `${gTex} defined at ${x}`).toBe(want === null);
+      if (got !== null) {
+        expect(close(got, want!, 1e-9), `${text} vs g = ${gTex} at x=${x}`).toBe(true);
+        matched++;
+      }
+    }
+    expect(matched).toBeGreaterThanOrEqual(3);
+    if (p.answerDiagram) curveOnGraph(p.answerDiagram, (x) => realAt(gTex, { x }), p.question);
+  },
+
   /** Even / odd / neither, by comparing f(−x) and f(x) numerically. */
   'precalculus.parity'(p) {
     const fTex = rhsOf(onlyMath(p.question));

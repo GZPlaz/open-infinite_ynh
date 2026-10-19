@@ -4,7 +4,7 @@ import { attempt, boolOpt, defineTopic, distinctDistractors, offset, opt, pickVa
 import type { Rng } from '../../rng';
 import { linear, m, num } from '../../tex';
 import type { Difficulty, ProblemContent } from '../../types';
-import { CAT, Dec, money, pickName } from './common';
+import { CAT, Dec, pickName } from './common';
 
 // ---------------------------------------------------------------- ratios and unit rates
 
@@ -88,15 +88,15 @@ function rateProblem(rng: Rng, d: Difficulty): ProblemContent {
     return { count, rate, total: rate * count };
   });
   const { count, rate, total } = p;
-  const show = (hundredths: number) => (ctx.money ? money(hundredths) : new Dec(hundredths, 2).toTex());
+  const show = (hundredths: number) => new Dec(hundredths, 2).toTex(ctx.money ? 2 : 0);
+  const disp = (h: number) => (ctx.money ? `\\$${m(show(h))}` : m(show(h)));
   const name = pickName(rng);
-  const question = `${ctx.text(name, m(show(total)), m(String(count)))} Find the unit rate.`;
-  const answer = `${m(show(rate))} ${ctx.unit}`;
-  const inverse = Math.round((count * 10000) / total);
+  const question = `${ctx.text(name, disp(total), m(String(count)))} Find the unit rate.`;
+  const answer = `${disp(rate)} ${ctx.unit}`;
   const distractors = distinctDistractors(
     answer,
-    [`${m(show(inverse))} ${ctx.unit}`, `${m(show(total - count * 100))} ${ctx.unit}`, `${m(show(rate * 2))} ${ctx.unit}`, `${m(show(Math.round(rate / 2)))} ${ctx.unit}`],
-    (k) => `${m(show(rate + offset(k) * 100))} ${ctx.unit}`,
+    [`${disp(total - count * 100)} ${ctx.unit}`, `${disp(rate + 1000)} ${ctx.unit}`, `${disp(rate * 2)} ${ctx.unit}`, `${disp(Math.round(rate / 2))} ${ctx.unit}`],
+    (k) => `${disp(rate + offset(k) * 100)} ${ctx.unit}`,
   );
   return {
     question: question.charAt(0).toUpperCase() + question.slice(1),
@@ -167,11 +167,12 @@ function proportionWord(rng: Rng, d: Difficulty): ProblemContent {
     const unit = w.money ? rng.int(d === 'easy' ? 2 : 1, 12) * (d === 'easy' ? 100 : 25) : d === 'easy' ? rng.int(2, 20) * 100 : rng.int(3, 60) * 50;
     return { a, c, b: a * unit, x: c * unit };
   });
-  const show = (h: number) => (w.money ? money(h) : new Dec(h, 2).toTex());
+  const show = (h: number) => new Dec(h, 2).toTex(w.money ? 2 : 0);
+  const disp = (h: number) => (w.money ? `\\$${m(show(h))}` : m(show(h)));
   const unitText = w.unit ? ` ${w.unit}` : '';
-  const ans = (h: number) => `${m(show(h))}${unitText}`;
+  const ans = (h: number) => `${disp(h)}${unitText}`;
   const name = pickName(rng);
-  const question = w.text(name, m(String(p.a)), m(show(p.b)), m(String(p.c)));
+  const question = w.text(name, m(String(p.a)), disp(p.b), m(String(p.c)));
   const wrongInverse = Math.round((p.a * p.b) / p.c);
   return {
     question: question.charAt(0).toUpperCase() + question.slice(1),
@@ -206,44 +207,47 @@ export const proportions = defineTopic({
       const s = rng.int(1, difficulty === 'easy' ? 4 : 6);
       const t = rng.int(1, difficulty === 'easy' ? 6 : 9);
       if (s === t) return null;
-      const a = P * s;
-      const b = Q * s;
-      let c = P * t;
-      const dd = Q * t;
-      if (fractions) {
-        // perturb one known value so the solution is a fraction
-        c = c + rng.pick([1, -1]);
-        if (c <= 0) return null;
-      }
+      // fractional answers: four independent known values; otherwise two equal ratios P/Q
+      const r = () => rng.int(2, difficulty === 'easy' ? 9 : 12);
+      const a = fractions ? r() : P * s;
+      const b = fractions ? r() : Q * s;
+      const c = fractions ? r() : P * t;
+      const dd = fractions ? r() : Q * t;
       const k = rng.int(1, 9);
       let x: Frac;
+      let wrong: Frac;
       let lhs: string;
       let rhs: string;
       const fr = (n: string | number, d: string | number) => `\\frac{${n}}{${d}}`;
       switch (form) {
         case 'x/a=b/c': // x/b = c/d → x = b c / d
           x = new Frac(b * c, dd);
+          wrong = new Frac(b * dd, c);
           lhs = fr(v, b);
           rhs = fr(c, dd);
           break;
         case 'a/x=b/c': // a/x = c/d → x = a d / c
           x = new Frac(a * dd, c);
+          wrong = new Frac(a * c, dd);
           lhs = fr(a, v);
           rhs = fr(c, dd);
           break;
         case 'a/b=x/c':
           x = new Frac(a * dd, b);
+          wrong = new Frac(b * dd, a);
           lhs = fr(a, b);
           rhs = fr(v, dd);
           break;
         case 'a/b=c/x':
           x = new Frac(b * c, a);
+          wrong = new Frac(a * c, b);
           lhs = fr(a, b);
           rhs = fr(c, v);
           break;
         case '(x+k)/a=b/c': {
           const y = new Frac(b * c, dd);
           x = y.sub(k);
+          wrong = new Frac(b * dd, c).sub(k);
           lhs = fr(linear(1, k, v), b);
           rhs = fr(c, dd);
           break;
@@ -251,6 +255,7 @@ export const proportions = defineTopic({
         case 'a/b=(x-k)/c': {
           const y = new Frac(a * dd, b);
           x = y.add(k);
+          wrong = new Frac(b * dd, a).add(k);
           lhs = fr(a, b);
           rhs = fr(linear(1, -k, v), dd);
           break;
@@ -258,6 +263,7 @@ export const proportions = defineTopic({
         case 'a/(x+k)=b/c': {
           const y = new Frac(a * dd, c);
           x = y.sub(k);
+          wrong = new Frac(a * c, dd).sub(k);
           lhs = fr(a, linear(1, k, v));
           rhs = fr(c, dd);
           break;
@@ -266,9 +272,9 @@ export const proportions = defineTopic({
       if (fractions ? x.isInt() : !x.isInt()) return null;
       if (x.isZero() || Math.abs(x.value) > 150) return null;
       if (fractions && x.d > 12) return null;
-      return { x, lhs, rhs };
+      return { x, lhs, rhs, wrong };
     });
-    const { x, lhs, rhs } = p;
+    const { x, lhs, rhs, wrong } = p;
     const answer = m(`${v} = ${num(x)}`);
     const parts = (f: string) => /^\\frac\{([^{}]*)\}\{([^{}]*)\}$/.exec(f)!.slice(1).map((t) => (t.includes(' ') ? `(${t})` : t));
     const [ln, ld] = parts(lhs);
@@ -276,7 +282,7 @@ export const proportions = defineTopic({
     const steps = [`Cross multiply: $${ln} \\cdot ${rd} = ${ld} \\cdot ${rn}$`, `Solve: $${v} = ${num(x)}$`];
     const distractors = distinctDistractors(
       answer,
-      [m(`${v} = ${num(x.inv())}`), m(`${v} = ${num(x.mul(2))}`), m(`${v} = ${num(x.neg())}`)],
+      [m(`${v} = ${num(wrong)}`), m(`${v} = ${num(x.mul(2))}`), m(`${v} = ${num(x.neg())}`)],
       (k) => m(`${v} = ${num(x.add(offset(k)))}`),
     );
     return { question: m(`${lhs} = ${rhs}`), answer, steps, distractors, check: { kind: 'linear', variable: v, solution: x.value } };

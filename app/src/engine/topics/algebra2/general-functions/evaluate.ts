@@ -158,7 +158,7 @@ export const evaluatingFunctions = defineTopic({
       const a =
         difficulty === 'hard' && fn.kind === 'poly' && rng.bool(0.5)
           ? new Frac(rng.signedInt(1, 5, true), rng.pick([2, 3]))
-          : new Frac(rng.int(difficulty === 'easy' ? -5 : -8, difficulty === 'easy' ? 5 : 8));
+          : new Frac(rng.bool(0.1) ? 0 : rng.signedInt(1, difficulty === 'easy' ? 5 : 8, true));
       const val = fn.at(a);
       if (!val || Math.abs(val.value) > 500 || val.d > 36) return null;
       if (fn.kind === 'rational' && val.isInt() && rng.bool(0.5)) return null;

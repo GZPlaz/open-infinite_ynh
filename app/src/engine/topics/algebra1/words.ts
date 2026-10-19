@@ -15,6 +15,8 @@ import { NAMES, twoNames } from './helpers';
 export function fmt(x: number): string {
   return String(roundTo(x, 2));
 }
+/** Coefficient times a variable: `t`, `-t`, `2.5t`. */
+const ct = (c: number, v: string) => (c === 1 ? v : c === -1 ? `-${v}` : `${fmt(c)}${v}`);
 const mm = (x: number) => `$${fmt(x)}$`;
 const money = (x: number) => `\\$${Number.isInteger(roundTo(x, 2)) ? String(roundTo(x, 2)) : roundTo(x, 2).toFixed(2)}`;
 const isNice = (x: number, places: number) => Math.abs(x * 10 ** places - Math.round(x * 10 ** places)) < 1e-9;
@@ -61,7 +63,7 @@ const TANKS = ['a swimming pool', 'a water tank', 'a fish pond', 'a rain barrel'
 /** (a, b) with a ≤ b and a·b/(a + b) having at most `places` decimals. */
 function workPairs(max: number, places: number): Array<[number, number]> {
   const out: Array<[number, number]> = [];
-  for (let a = 2; a <= max; a++) for (let b = a; b <= max; b++) if (isNice((a * b) / (a + b), places)) out.push([a, b]);
+  for (let a = 2; a <= max; a++) for (let b = a + 1; b <= max; b++) if (isNice((a * b) / (a + b), places)) out.push([a, b]);
   return out;
 }
 const WORK_EASY = workPairs(30, 0);
@@ -102,9 +104,8 @@ export const workWordProblems = defineTopic({
     const [a, b] = rng.pick(d === 'easy' ? WORK_EASY : WORK_MED);
     const job = rng.pick(JOBS);
     const unit = job.unit;
-    const scale = unit === 'minutes' && d !== 'hard' ? 1 : 1;
-    const A = a * scale;
-    const B = b * scale;
+    const A = unit === 'minutes' ? a * 5 : a;
+    const B = unit === 'minutes' ? b * 5 : b;
     const t = (A * B) / (A + B);
     const [ta, tb] = rng.bool() ? [A, B] : [B, A];
     if (mode === 'together') {
@@ -125,13 +126,13 @@ export const workWordProblems = defineTopic({
 
 // ================================================================ distance, rate, time
 
-const VEHICLES: ReadonlyArray<{ thing: string; lo: number; hi: number }> = [
-  { thing: 'car', lo: 30, hi: 70 },
-  { thing: 'train', lo: 40, hi: 90 },
-  { thing: 'bus', lo: 30, hi: 60 },
-  { thing: 'cyclist', lo: 8, hi: 20 },
-  { thing: 'truck', lo: 35, hi: 65 },
-  { thing: 'boat', lo: 10, hi: 30 },
+const VEHICLES: ReadonlyArray<{ thing: string; lo: number; hi: number; from: string; went: string }> = [
+  { thing: 'car', lo: 30, hi: 70, from: 'a parking garage', went: 'drove' },
+  { thing: 'train', lo: 40, hi: 90, from: 'a station', went: 'took a train' },
+  { thing: 'bus', lo: 30, hi: 60, from: 'a terminal', went: 'took a bus' },
+  { thing: 'cyclist', lo: 8, hi: 20, from: 'a trailhead', went: 'biked' },
+  { thing: 'truck', lo: 35, hi: 65, from: 'a warehouse', went: 'drove a delivery truck' },
+  { thing: 'boat', lo: 10, hi: 30, from: 'a dock', went: 'took a ferry' },
 ];
 
 export const distanceWordProblems = defineTopic({
@@ -162,7 +163,7 @@ export const distanceWordProblems = defineTopic({
     const veh = rng.pick(VEHICLES);
     const step = veh.lo >= 30 ? 5 : 1;
     const speed = () => step * rng.int(Math.ceil(veh.lo / step), Math.floor(veh.hi / step));
-    const unit = veh.lo >= 30 ? 'mph' : 'mph';
+    const unit = 'mph';
     const [p, q] = twoNames(rng);
     const things = `${veh.thing}s`;
     if (mode === 'opposite' || mode === 'toward') {
@@ -177,9 +178,9 @@ export const distanceWordProblems = defineTopic({
       const question =
         mode === 'opposite'
           ? `Two ${things} leave the same place at the same time, traveling in opposite directions. One goes ${mm(r1)} ${unit} and the other goes ${mm(r2)} ${unit}. In how many hours will they be ${mm(D)} miles apart?`
-          : `${p} and ${q} are ${mm(D)} miles apart and drive toward each other, ${p} at ${mm(r1)} ${unit} and ${q} at ${mm(r2)} ${unit}. In how many hours will they meet?`;
+          : `${p} and ${q} are ${mm(D)} miles apart and travel toward each other, ${p} at ${mm(r1)} ${unit} and ${q} at ${mm(r2)} ${unit}. In how many hours will they meet?`;
       const answer = `${mm(t)} hours`;
-      const steps = [`Their distances add up: $${r1}t + ${r2}t = ${D}$`, `$${r1 + r2}t = ${D}$, so $t = ${fmt(t)}$`];
+      const steps = [`Their distances add up: $${ct(r1, 't')} + ${ct(r2, 't')} = ${D}$`, `$${ct(r1 + r2, 't')} = ${D}$, so $t = ${fmt(t)}$`];
       const wrong = [r1 === r2 ? D / r1 : D / Math.abs(r1 - r2), D / r1, D / r2, (D / (r1 + r2)) * 2].map((x) => `${mm(x)} hours`);
       return wordProblem(question, answer, steps, wrong, (k) => `${mm(t + k / 2)} hours`, `drt.${mode === 'opposite' ? 'opposite' : 'toward'}`);
     }
@@ -192,9 +193,9 @@ export const distanceWordProblems = defineTopic({
         if (!isNice(t, 1) || t > 12) return null;
         return { r1, r2, h, t };
       });
-      const question = `A ${veh.thing} leaves a station traveling at ${mm(r1)} ${unit}. ${mm(h)} ${h === 1 ? 'hour' : 'hours'} later, a second ${veh.thing} leaves the same station on the same route at ${mm(r2)} ${unit}. How many hours after it leaves will the second ${veh.thing} catch up?`;
+      const question = `A ${veh.thing} leaves ${veh.from} traveling at ${mm(r1)} ${unit}. ${mm(h)} ${h === 1 ? 'hour' : 'hours'} later, a second ${veh.thing} leaves the same place on the same route at ${mm(r2)} ${unit}. How many hours after it leaves will the second ${veh.thing} catch up?`;
       const answer = `${mm(t)} hours`;
-      const steps = [`Equal distances: $${r2}t = ${r1}(t + ${h})$`, `$${r2 - r1}t = ${r1 * h}$, so $t = ${fmt(t)}$`];
+      const steps = [`Equal distances: $${ct(r2, 't')} = ${r1}(t + ${h})$`, `$${ct(r2 - r1, 't')} = ${r1 * h}$, so $t = ${fmt(t)}$`];
       const wrong = [t + h, (r2 * h) / (r2 - r1), (r1 * h) / (r1 + r2), (r1 * h) / r2].map((x) => `${mm(x)} hours`);
       return wordProblem(question, answer, steps, wrong, (k) => `${mm(t + k)} hours`, 'drt.catchup');
     }
@@ -208,7 +209,7 @@ export const distanceWordProblems = defineTopic({
         if (!isNice(T, 1) || T > 15) return null;
         return { r1, r2, T, dist };
       });
-      const question = `${p} rode a ${veh.thing} to a nearby town at an average speed of ${mm(r1)} ${unit} and returned along the same route at ${mm(r2)} ${unit}. The whole trip took ${mm(T)} hours. How far away is the town?`;
+      const question = `${p} ${veh.went} to a nearby town at an average speed of ${mm(r1)} ${unit} and returned along the same route at ${mm(r2)} ${unit}. The whole trip took ${mm(T)} hours. How far away is the town?`;
       const answer = `${mm(dist)} miles`;
       const steps = [`$\\frac{d}{${r1}} + \\frac{d}{${r2}} = ${fmt(T)}$`, `$d = ${fmt(dist)}$`];
       const wrong = [((r1 + r2) / 2) * T, ((r1 + r2) / 2) * (T / 2), r1 * T, dist * 2].map((x) => `${mm(x)} miles`);
@@ -224,7 +225,7 @@ export const distanceWordProblems = defineTopic({
     const D = (2 * s + k) * t;
     const question = `Two ${things} leave the same place at the same time and travel in opposite directions. One travels ${mm(k)} ${unit} faster than the other. After ${mm(t)} hours they are ${mm(D)} miles apart. Find the speed of each.`;
     const answer = `${mm(s)} ${unit} and ${mm(s + k)} ${unit}`;
-    const steps = [`$${t}r + ${t}(r + ${k}) = ${D}$`, `$${2 * t}r + ${t * k} = ${D}$, so $r = ${s}$ and $r + ${k} = ${s + k}$`];
+    const steps = [`$${ct(t, 'r')} + ${t}(r + ${k}) = ${D}$`, `$${ct(2 * t, 'r')} + ${t * k} = ${D}$, so $r = ${s}$ and $r + ${k} = ${s + k}$`];
     const both = (x: number) => `${mm(x)} ${unit} and ${mm(x + k)} ${unit}`;
     const wrong = [both(D / t / 2), both(s - k), both((D - k) / t / 2), both(s + k)];
     return wordProblem(question, answer, steps, wrong, (j) => both(s + j * step), 'drt.speeds');
@@ -292,7 +293,7 @@ export const mixtureWordProblems = defineTopic({
       const sol = rng.pick(SOLUTIONS);
       const question = `How many liters of a $${pp}\\%$ ${sol} solution must be added to ${mm(V)} liters of a $${qp}\\%$ ${sol} solution to make a $${rp}\\%$ solution?`;
       const answer = `${mm(x)} liters`;
-      const steps = [`$${pp / 100}x + ${qp / 100}(${V}) = ${rp / 100}(x + ${V})$`, `$${fmt((rp - pp) / 100)}x = ${fmt((V * (qp - rp)) / 100)}$, so $x = ${fmt(x)}$`];
+      const steps = [`$${ct(pp / 100, 'x')} + ${qp / 100}(${V}) = ${rp / 100}(x + ${V})$`, `$${ct((rp - pp) / 100, 'x')} = ${fmt((V * (qp - rp)) / 100)}$, so $x = ${fmt(x)}$`];
       const wrong = [(V * (rp - pp)) / (qp - rp), V, (V * qp) / rp, x + V].map((y) => `${mm(Math.abs(y))} liters`);
       return wordProblem(question, answer, steps, wrong, (k) => `${mm(x + k)} liters`, 'mix.solution');
     }
@@ -310,7 +311,7 @@ export const mixtureWordProblems = defineTopic({
     });
     const question = `A store mixes ${hiName} that cost ${money(pa)} per pound with ${loName} that cost ${money(pb)} per pound to make ${mm(W)} pounds of a mix that costs ${money(pm)} per pound. How many pounds of each are used?`;
     const answer = `${mm(a)} pounds of ${hiName} and ${mm(b)} pounds of ${loName}`;
-    const steps = [`Let $x$ be the pounds of ${hiName}: $${fmt(pa)}x + ${fmt(pb)}(${W} - x) = ${fmt(pm)}(${W})$`, `$${fmt(pa - pb)}x = ${fmt(pm * W - pb * W)}$, so $x = ${fmt(a)}$ and the rest is ${mm(b)} pounds`];
+    const steps = [`Let $x$ be the pounds of ${hiName}: $${ct(pa, 'x')} + ${fmt(pb)}(${W} - x) = ${fmt(pm)}(${W})$`, `$${ct(pa - pb, 'x')} = ${fmt(pm * W - pb * W)}$, so $x = ${fmt(a)}$ and the rest is ${mm(b)} pounds`];
     const pair = (x: number, y: number) => `${mm(x)} pounds of ${hiName} and ${mm(y)} pounds of ${loName}`;
     const wrong = [pair(b, a), pair(W / 2, W / 2), pair(a + 1, b - 1), pair(roundTo((W * (pm - pb)) / pa, 2), roundTo(W - (W * (pm - pb)) / pa, 2))];
     return wordProblem(question, answer, steps, wrong, (k) => pair(a + k + 1, b - k - 1), 'mix.value');
@@ -320,13 +321,14 @@ export const mixtureWordProblems = defineTopic({
 // ================================================================ systems word problems
 
 const EVENTS = ['a school play', 'a concert', 'a basketball game', 'a museum exhibit', 'a science fair', 'a talent show'];
-const ITEMS: ReadonlyArray<[string, string]> = [
-  ['notebooks', 'pens'],
-  ['apples', 'oranges'],
-  ['sandwiches', 'drinks'],
-  ['bagels', 'muffins'],
-  ['tacos', 'burritos'],
-  ['posters', 'stickers'],
+/** [plural, singular] pairs of items bought together. */
+const ITEMS: ReadonlyArray<[[string, string], [string, string]]> = [
+  [['notebooks', 'notebook'], ['pens', 'pen']],
+  [['apples', 'apple'], ['oranges', 'orange']],
+  [['sandwiches', 'sandwich'], ['drinks', 'drink']],
+  [['bagels', 'bagel'], ['muffins', 'muffin']],
+  [['tacos', 'taco'], ['burritos', 'burrito']],
+  [['posters', 'poster'], ['stickers', 'sticker']],
 ];
 
 export const systemsWordProblems = defineTopic({
@@ -385,7 +387,7 @@ const SYSTEM_MODES: Record<string, Maker> = {
     const R = pa * a + pc * c;
     const question = `${mm(N)} tickets were sold for ${event}, for a total of ${money(R)}. Adult tickets cost ${money(pa)} each and student tickets cost ${money(pc)} each. How many of each kind were sold?`;
     const answer = `${mm(a)} adult tickets and ${mm(c)} student tickets`;
-    const steps = [`$a + s = ${N}$ and $${fmt(pa)}a + ${fmt(pc)}s = ${fmt(R)}$`, `Substitute $s = ${N} - a$: $${fmt(pa - pc)}a = ${fmt(R - pc * N)}$, so $a = ${a}$ and $s = ${c}$`];
+    const steps = [`$a + s = ${N}$ and $${ct(pa, 'a')} + ${ct(pc, 's')} = ${fmt(R)}$`, `Substitute $s = ${N} - a$: $${ct(pa - pc, 'a')} = ${fmt(R - pc * N)}$, so $a = ${a}$ and $s = ${c}$`];
     const pair = (x: number, y: number) => `${mm(x)} adult tickets and ${mm(y)} student tickets`;
     return wordProblem(question, answer, steps, [pair(c, a), pair(Math.floor(N / 2), Math.ceil(N / 2)), pair(a + 2, c - 2)], (k) => pair(a - k, c + k), 'sys.tickets');
   },
@@ -404,11 +406,11 @@ const SYSTEM_MODES: Record<string, Maker> = {
     });
     const c1 = a1 * u + b1 * v;
     const c2 = a2 * u + b2 * v;
-    const qty = (n: number, item: string) => `${mm(n)} ${n === 1 ? item.replace(/(?:es|s)$/, (s) => (item.endsWith('ches') || item.endsWith('oes') ? 'es' : s).slice(0, s.length === 2 && (item.endsWith('ches') || item.endsWith('oes')) ? 0 : 0)).replace(/s$/, '') : item}`;
+    const qty = (n: number, item: [string, string]) => `${mm(n)} ${n === 1 ? item[1] : item[0]}`;
     const question = `${p} bought ${qty(a1, i1)} and ${qty(b1, i2)} for ${money(c1)}. ${q} bought ${qty(a2, i1)} and ${qty(b2, i2)} for ${money(c2)}. What is the price of one of each item?`;
-    const one = (item: string) => item.replace(/(ches|oes)$/, (s) => s.slice(0, -2)).replace(/s$/, '');
+    const one = (item: [string, string]) => item[1];
     const answer = `${money(u)} per ${one(i1)} and ${money(v)} per ${one(i2)}`;
-    const steps = [`$${a1}x + ${b1}y = ${fmt(c1)}$ and $${a2}x + ${b2}y = ${fmt(c2)}$`, `Eliminate one variable: $x = ${fmt(u)}$, $y = ${fmt(v)}$`];
+    const steps = [`$${ct(a1, 'x')} + ${ct(b1, 'y')} = ${fmt(c1)}$ and $${ct(a2, 'x')} + ${ct(b2, 'y')} = ${fmt(c2)}$`, `Eliminate one variable: $x = ${fmt(u)}$, $y = ${fmt(v)}$`];
     const pair = (x: number, y: number) => `${money(x)} per ${one(i1)} and ${money(y)} per ${one(i2)}`;
     return wordProblem(question, answer, steps, [pair(v, u), pair(u + 0.5, v - 0.25), pair(u - 0.25, v + 0.5)], (k) => pair(u + k / 4, v + k / 2), 'sys.purchases');
   },
@@ -429,7 +431,7 @@ const SYSTEM_MODES: Record<string, Maker> = {
     const V = roundTo(n1 * v1 + n2 * v2, 2);
     const question = `${name} has ${mm(N)} coins, all ${c1} and ${c2}, worth ${money(V)} in total. How many of each coin are there?`;
     const answer = `${mm(n1)} ${c1} and ${mm(n2)} ${c2}`;
-    const steps = [`$x + y = ${N}$ and $${v1}x + ${v2}y = ${fmt(V)}$`, `Substitute $x = ${N} - y$: $${fmt(v2 - v1)}y = ${fmt(V - v1 * N)}$, so $y = ${n2}$ and $x = ${n1}$`];
+    const steps = [`$x + y = ${N}$ and $${ct(v1, 'x')} + ${ct(v2, 'y')} = ${fmt(V)}$`, `Substitute $x = ${N} - y$: $${ct(v2 - v1, 'y')} = ${fmt(V - v1 * N)}$, so $y = ${n2}$ and $x = ${n1}$`];
     const pair = (x: number, y: number) => `${mm(x)} ${c1} and ${mm(y)} ${c2}`;
     return wordProblem(question, answer, steps, [pair(n2, n1), pair(n1 + 1, n2 - 1), pair(n1 - 2, n2 + 2)], (k) => pair(n1 + k + 2, n2 - k - 2), 'sys.coins');
   },

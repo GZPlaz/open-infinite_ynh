@@ -131,15 +131,22 @@ export function roundDec(v: number, places: number): Dec {
   return new Dec(r, places);
 }
 
-/** Money from cents: `\$1{,}234.50`. */
-export function money(cents: number): string {
-  const neg = cents < 0;
-  return `${neg ? '-' : ''}\\$${new Dec(Math.abs(cents), 2).toTex(2)}`;
+/** Money amount without the dollar sign, as LaTeX: `1{,}234.50`. */
+export function moneyNum(cents: number): string {
+  return new Dec(cents, 2).toTex(2);
 }
 
-/** Whole-dollar amounts print without cents: `\$45`, otherwise `\$45.50`. */
+/**
+ * Money as rich text: `\$$1{,}234.50$`. The dollar sign stays outside math,
+ * because a `\$` inside `$…$` would end the math segment.
+ */
+export function money(cents: number): string {
+  return cents < 0 ? `$-$\\$$${moneyNum(-cents)}$` : `\\$$${moneyNum(cents)}$`;
+}
+
+/** Like `money`, but whole-dollar amounts print without cents: `\$$45$`. */
 export function moneyShort(cents: number): string {
-  return cents % 100 === 0 ? `\\$${groupDigits(String(cents / 100))}` : money(cents);
+  return cents % 100 === 0 ? `\\$$${groupDigits(String(cents / 100))}$` : money(cents);
 }
 
 /** Round to the nearest cent. */

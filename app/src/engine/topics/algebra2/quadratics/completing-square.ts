@@ -74,7 +74,7 @@ function buildSolve(rng: Rng, d: Difficulty, complex: boolean): Built {
       // integer roots with an even middle coefficient
       const r1 = rng.signedInt(0, 10, true);
       const r2 = rng.signedInt(1, 10, true);
-      if ((r1 + r2) % 2 !== 0 || r1 + r2 === 0) return null;
+      if ((r1 + r2) % 2 !== 0 || r1 + r2 === 0 || r1 === r2) return null;
       return { A: 1, B: -(r1 + r2), C: r1 * r2 };
     }
     const A = d === 'hard' ? rng.int(2, 5) : 1;
@@ -136,7 +136,7 @@ export const solveByCompletingSquare = defineTopic({
     const answer = m(setTex(roots));
     steps.push(`$${v} = ${roots.join(',\\ ')}$`);
 
-    const wrong = (negB: number, Dw: number, den: number) => (Dw === 0 || (Dw < 0 && D > 0 && !complex) ? null : m(setTex(formatRoots(negB, Dw, den))));
+    const wrong = (negB: number, Dw: number, den: number) => (Dw === 0 || (Dw < 0 && D >= 0 && !complex) ? null : m(setTex(formatRoots(negB, Dw, den))));
     const distractors = distinctDistractors(
       answer,
       [wrong(B, D, 2 * A), wrong(-B, -4 * A * C, 2 * A), A !== 1 ? wrong(-B, B * B - 4 * C, 2) : null, wrong(-B, B * B + 4 * A * C, 2 * A)],

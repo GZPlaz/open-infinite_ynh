@@ -397,14 +397,14 @@ function findDiscontinuities(rng: Rng, d: Difficulty): ProblemContent {
     };
     const answer = render(removable, infinite);
     const wrap = (r: number) => (r === 0 ? 'x' : `(${xm(r)})`);
-    const factored = fr(`${k === 1 ? '' : k === -1 ? '-' : k}${nRootsAll.map(wrap).join('')}`, dRoots.map(wrap).join(''));
+    const factored = fr(`${k === 1 ? '' : k === -1 ? '-' : k}${nRootsAll.map(wrap).join('')}`, dRoots.length === 1 ? xm(dRoots[0]!) : dRoots.map(wrap).join(''));
     return {
       question: `$\\displaystyle f(x) = ${f}$`,
       answer,
       steps: [
         `Factor: $\\displaystyle f(x) = ${factored}$`,
-        `The function is undefined where the denominator is $0$: ${list(dRoots)}.`,
-        removable.length ? `$${removable.map((r) => xm(r)).join(', ')}$ cancels, so ${removable.length > 1 ? 'those are' : 'that is a'} removable discontinuit${removable.length > 1 ? 'ies' : 'y'}; the rest are vertical asymptotes.` : 'Nothing cancels, so each is an infinite discontinuity (vertical asymptote).',
+        `The denominator is $0$ at ${list(dRoots)}, so $f$ is not defined there.`,
+        removable.length ? `$${removable.map((r) => xm(r)).join(', ')}$ cancels, so that is a removable discontinuity${infinite.length ? '; the other zero of the denominator gives a vertical asymptote' : ''}.` : 'Nothing cancels, so each is an infinite discontinuity (vertical asymptote).',
       ],
       distractors: distinctDistractors(answer, [render(infinite, removable), render([], dRoots), render(dRoots, []), render([], [...infinite, other])], (q) => render([], [...dRoots, r1 + offset(q) * 7].filter((v, i, arr) => arr.indexOf(v) === i))),
       check: { kind: 'calculus.discontinuities' },
