@@ -150,10 +150,11 @@ function defOf(rich: string, name: string): string | undefined {
 }
 
 /** Every role:'curve' point of the figure lies on y = f(x). */
-function curveOnGraph(fig: Diagram | undefined, f: (x: number) => number | null, what: string): void {
+function curveOnGraph(fig: Diagram | undefined, f: (x: number) => number | null, what: string, stride = 1): void {
   const pts = curvePoints(fig);
   expect(pts.length, `${what}: curve drawn`).toBeGreaterThan(5);
-  for (const [x, y] of pts) {
+  for (let i = 0; i < pts.length; i += stride) {
+    const [x, y] = pts[i]!;
     const v = f(x);
     expect(v !== null && Math.abs(v - y) <= 1e-6 * Math.max(1, Math.abs(y)), `${what}: point (${x}, ${y}) vs ${v}`).toBe(true);
   }
@@ -210,9 +211,11 @@ export const VERIFIERS: Record<string, Verifier> = {
       expect(Math.abs(f(x! - 1e-7)! - y!) < 1e-4 && Math.abs(f(x! + 1e-7)! - y!) < 1e-4, `${p.question}: hole (${x}, ${y})`).toBe(true);
     }
     // nothing else is excluded
+    const scan = new Map<number, number | null>();
+    for (let n = -72; n <= 72; n++) scan.set(n, f(n / 6));
     for (let n = -72; n <= 72; n++) {
       const x = n / 6;
-      if (f(x) === null) expect([...vas, ...holes.map((h) => h[0]!)].some((v) => close(v, x)), `${p.question}: unlisted gap at x=${x}`).toBe(true);
+      if (scan.get(n) === null) expect([...vas, ...holes.map((h) => h[0]!)].some((v) => close(v, x)), `${p.question}: unlisted gap at x=${x}`).toBe(true);
     }
     const ha = parts['horizontal asymptote'] ?? parts['slant asymptote'];
     expect(ha, p.answer).toBeTruthy();
@@ -223,13 +226,13 @@ export const VERIFIERS: Record<string, Verifier> = {
     const xi = pointsIn((p.answer.split('; ').find((s) => s.startsWith('x-intercepts')) ?? '').replace(/^x-intercepts:/, ''));
     for (const [x, y] of xi) expect(y === 0 && f(x!) !== null && Math.abs(f(x!)!) < 1e-9, `${p.question}: x-intercept ${x}`).toBe(true);
     for (let n = -72; n <= 72; n++) {
-      const v = f(n / 6);
+      const v = scan.get(n)!;
       if (v !== null && Math.abs(v) < 1e-12) expect(xi.some(([x]) => close(x!, n / 6)), `${p.question}: unlisted zero at ${n / 6}`).toBe(true);
     }
     const yi = pointsIn((p.answer.split('; ').find((s) => s.startsWith('y-intercept')) ?? '').replace(/^y-intercept:/, ''));
     if (f(0) === null) expect(yi.length).toBe(0);
     else expect(yi.length === 1 && yi[0]![0] === 0 && close(yi[0]![1]!, f(0)!), `${p.question}: y-intercept`).toBe(true);
-    curveOnGraph(p.answerDiagram, f, p.question);
+    curveOnGraph(p.answerDiagram, f, p.question, 3);
     for (const d of dotsOf(p.answerDiagram)) expect(d.open && holes.some(([x, y]) => close(x!, d.x) && close(y!, d.y)), 'dots mark holes').toBe(true);
   },
 

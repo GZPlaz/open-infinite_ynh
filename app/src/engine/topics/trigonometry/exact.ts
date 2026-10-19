@@ -119,10 +119,10 @@ export class Exact {
     const D = entries.reduce((l, [, c]) => lcm(l, c.d), 1);
     let nums = entries.map(([r, c]) => [r, c.mul(D).n] as [number, number]);
     let lead = '';
-    if (nums.every(([, n]) => n < 0)) {
+    if (nums.every(([, n]) => n < 0) && (D > 1 || nums.length === 1)) {
       lead = '-';
       nums = nums.map(([r, n]) => [r, -n]);
-    } else if (nums[0]![1] < 0) {
+    } else if (nums[0]![1] < 0 && nums.some(([, n]) => n > 0)) {
       const k = nums.findIndex(([, n]) => n > 0);
       nums = [nums[k]!, ...nums.filter((_, i) => i !== k)];
     }

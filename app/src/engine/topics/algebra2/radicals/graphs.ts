@@ -25,10 +25,6 @@ function fnTex(f: RadFn): string {
   return sum([{ coef: 1, sym: `${coefPrefix(f.a)}${radTex(f.n, innerTex(f.s, f.h))}` }, { coef: f.k }]);
 }
 
-function evalFn(f: RadFn, x: number): number {
-  const u = f.s * (x - f.h);
-  return f.a.value * (f.n === 2 ? Math.sqrt(u) : Math.cbrt(u)) + f.k;
-}
 
 export const graphRadicals = defineTopic({
   id: 'alg2.radical.graph',

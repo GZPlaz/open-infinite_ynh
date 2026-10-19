@@ -88,6 +88,30 @@ function scaleAt(eq: string, v: string, x: number): number {
   return Math.max(1, Math.abs(realOrNull(l, { [v]: x }) ?? 1), Math.abs(realOrNull(r, { [v]: x }) ?? 1));
 }
 
+/** Arguments of every \log / \ln in an expression (parenthesised or a single token). */
+function logArgs(tex: string): string[] {
+  const out: string[] = [];
+  const re = /\\(?:log(?:_\{[^{}]*\})?|ln) /g;
+  let mm: RegExpExecArray | null;
+  while ((mm = re.exec(tex))) {
+    const rest = tex.slice(mm.index + mm[0].length);
+    if (rest.startsWith('(')) {
+      let depth = 0;
+      let j = 0;
+      do {
+        if (rest[j] === '(') depth++;
+        else if (rest[j] === ')') depth--;
+        j++;
+      } while (depth > 0 && j < rest.length);
+      out.push(rest.slice(0, j));
+    } else {
+      const t = /^[a-zA-Z0-9.]+(\^\{[^{}]*\})?/.exec(rest);
+      if (t) out.push(t[0]);
+    }
+  }
+  return out;
+}
+
 export const VERIFIERS: Record<string, Verifier> = {
   /** Exponential / logarithmic graph: stated features + plotted curve + dashed asymptote. */
   'alg2-explog.graph'(p) {
@@ -191,9 +215,12 @@ export const VERIFIERS: Record<string, Verifier> = {
       expect(k, `${p.answer}: unexpected ${g.x}`).toBeGreaterThanOrEqual(0);
       left.splice(k, 1);
     }
+    const args = logArgs(eq);
+    const inDomain = (x: number) => args.every((t) => (realOrNull(t, { [v]: x }) ?? -1) > 0);
+    for (const g of got) if (!g.approx) expect(inDomain(g.x), `${eq}: ${v} = ${g.x} outside the domain`).toBe(true);
     for (const x of (c.extraneous as number[] | undefined) ?? []) {
       const r = realResidual(eq, v, x);
-      expect(r === null || Math.abs(r) > 1e-6, `${x} should be extraneous for ${eq}`).toBe(true);
+      expect(!inDomain(x) || r === null || Math.abs(r) > 1e-6, `${x} should be extraneous for ${eq}`).toBe(true);
     }
   },
 

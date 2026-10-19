@@ -185,6 +185,7 @@ export const lawOfSines = defineTopic({
       const sinB = (g.b! * Math.sin(rad(g.A!))) / g.a!;
       const steps = [m(`\\sin B = \\frac{${g.b}\\sin ${g.A}^\\circ}{${g.a}} \\approx ${decimal(sinB, 4)}`)];
       if (sinB > 1) steps.push(`Since ${m('\\sin B > 1')}, no triangle exists.`);
+      else if (sols.length === 0) steps.push(`${m('\\angle A')} is obtuse and ${m(`a \\le b`)}, so no triangle exists.`);
       else {
         const B1 = deg(Math.asin(sinB));
         steps.push(m(`m\\angle B \\approx ${decimal(B1)}^\\circ \\text{ or } m\\angle B \\approx ${decimal(180 - B1)}^\\circ`));

@@ -246,6 +246,29 @@ export const VERIFIERS: Record<string, Verifier> = {
       near(ans, moneyVals[0]! / (r * t), 0.005, text);
     }
   },
+
+  /** Scientific notation: same value as the question, in the requested form. */
+  'prealgebra.sci'(p) {
+    const q = qty(mathSegments(p.question)[0]!);
+    const a = onlyMath(p.answer);
+    expect(close(qty(a), q, 1e-9), `${p.question} → ${p.answer}`).toBe(true);
+    if (p.check!.form === 'sci') expect(/^-?[1-9](\.\d*[1-9])? \\times 10\^\{-?\d+\}$/.test(a), `scientific form: ${a}`).toBe(true);
+    else expect(/^-?[\d{},]+(\.\d+)?$/.test(a), `standard form: ${a}`).toBe(true);
+  },
+
+  /** Square roots: exact value, consecutive-integer bounds, or rounded to a tenth. */
+  'prealgebra.sqrt'(p) {
+    const q = qty(mathSegments(p.question)[0]!);
+    const segs = mathSegments(p.answer).map((t) => qty(t));
+    if (p.check!.task === 'perfect') expect(close(segs[0]!, q), `${p.question} → ${p.answer}`).toBe(true);
+    else if (p.check!.task === 'estimate') {
+      const [lo, hi] = segs as [number, number];
+      expect(hi - lo, p.answer).toBe(1);
+      expect(lo < q && q < hi, `${p.question} → ${p.answer}`).toBe(true);
+    } else {
+      near(segs[0]!, Math.round(q * 10) / 10, 1e-9, `${p.question} → ${p.answer}`);
+    }
+  },
 };
 
 /** Percent-aware value: `12.5\%` → 0.125; mixed numbers allowed. */

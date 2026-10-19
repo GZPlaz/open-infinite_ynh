@@ -38,6 +38,8 @@ const COLORS: Array<[string, string]> = [
   ['orange', 'O'],
 ];
 
+const orList = (xs: string[]) => (xs.length === 2 ? xs.join(' or ') : `${xs.slice(0, -1).join(', ')} or ${xs.at(-1)}`);
+
 function pickSpace(rng: Rng, d: Difficulty): Space {
   const coin = ['H', 'T'];
   const opts: Array<() => Space> = [
@@ -74,7 +76,7 @@ function pickSpace(rng: Rng, d: Difficulty): Space {
       const fills = rng.sample(['ham', 'turkey', 'tuna', 'veggie', 'egg'], d === 'easy' ? 2 : rng.int(2, 3));
       const name = rng.pick(['A deli', 'A cafe', 'A food truck', 'The school cafeteria']);
       return {
-        question: `${name} makes sandwiches on ${breads.join(', ')} bread with a ${fills.join(', ')} filling. Write each outcome as bread-filling.`,
+        question: `${name} makes sandwiches on ${orList(breads)} bread with a ${orList(fills)} filling. Write each outcome as bread-filling.`,
         stages: [breads, fills],
         sep: '-',
         mentions: [...breads, ...fills],

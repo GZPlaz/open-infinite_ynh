@@ -166,7 +166,11 @@ export const logEqSimple = defineTopic({
       question: s.question,
       answer: s.answer,
       steps: s.steps,
-      distractors: distinctDistractors(s.answer, s.wrong, fallback),
+      distractors: distinctDistractors(
+        s.answer,
+        s.wrong.filter((w) => !w || boolOpt(ctx, 'fractions') || !/\\frac/.test(w) || /\\frac/.test(s.answer)),
+        fallback,
+      ),
       check: { kind: 'alg2-explog.solve', variable: v, solutions: s.solutions, places: 3 },
     };
   },
@@ -335,7 +339,7 @@ export const logEqHard = defineTopic({
         h.extraneous.length ? answerList(v, h.roots) : null,
         h.extraneous.length ? answerList(v, h.extraneous) : null,
         h.valid.length ? 'No solution' : null,
-        h.wrongCombine ? answerList(v, h.wrongCombine) : null,
+        h.wrongCombine?.every((x) => x.isInt()) ? answerList(v, h.wrongCombine) : null,
         answerList(v, h.roots.map((x) => x.neg())),
       ],
       (k) => answerList(v, [h.roots[0]!.add(offset(k))]),

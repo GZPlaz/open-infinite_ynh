@@ -343,7 +343,7 @@ function wordScenario(rng: Rng, d: Difficulty, mode: Mode): Scenario {
       pools: { deck: { deck: true } },
       stages,
       replace,
-      question: `${name} draws a card from a standard deck, ${replace ? 'returns it and shuffles' : 'keeps it'}, then draws a second card. What is the probability that the first card is ${stages[0]!.cat.long} and the second is ${stages[1]!.cat.long}?`,
+      question: `${name} draws a card from a standard deck, ${replace ? 'returns it and shuffles' : 'keeps it'}, then draws a second card. What is the probability that ${stages[0]!.cat === stages[1]!.cat ? `both cards are ${stages[0]!.cat.short}s` : `the first card is ${stages[0]!.cat.long} and the second is ${stages[1]!.cat.long}`}?`,
       mentions: [],
     };
   };
@@ -484,13 +484,13 @@ function plainOr(rng: Rng, d: Difficulty): OrProblem {
   return rng.pick(d === 'easy' ? [die, cards, bag] : [die, cards, twoDice, bag])();
 }
 
-const VENN: Array<[string, string, string]> = [
-  ['students', 'play a sport', 'play an instrument'],
-  ['students', 'take Spanish', 'take art'],
-  ['families', 'have a dog', 'have a cat'],
-  ['customers', 'bought coffee', 'bought a muffin'],
-  ['members', 'like hiking', 'like swimming'],
-  ['students', 'ride the bus', 'play in the band'],
+const VENN: Array<[string, string, string, string, string, string]> = [
+  ['students', 'student', 'play a sport', 'plays a sport', 'play an instrument', 'plays an instrument'],
+  ['students', 'student', 'take Spanish', 'takes Spanish', 'take art', 'takes art'],
+  ['families', 'family', 'have a dog', 'has a dog', 'have a cat', 'has a cat'],
+  ['customers', 'customer', 'bought coffee', 'bought coffee', 'bought a muffin', 'bought a muffin'],
+  ['members', 'member', 'like hiking', 'likes hiking', 'like swimming', 'likes swimming'],
+  ['students', 'student', 'ride the bus', 'rides the bus', 'play in the band', 'plays in the band'],
 ];
 
 const CLUB: Array<[string, string[]]> = [
@@ -506,7 +506,7 @@ const an = (w: string) => (/^[aeiou]/.test(w) ? `an ${w}` : `a ${w}`);
 function wordOr(rng: Rng, d: Difficulty): OrProblem {
   const [name] = names(rng, 1);
   const venn = (): OrProblem => {
-    const [who, a, b] = rng.pick(VENN);
+    const [who, one, a, aSg, b, bSg] = rng.pick(VENN);
     const both = rng.bool(0.25) ? 0 : rng.int(2, 8);
     const aOnly = rng.int(3, 15);
     const bOnly = rng.int(3, 15);
@@ -520,14 +520,13 @@ function wordOr(rng: Rng, d: Difficulty): OrProblem {
         { count: neither, attrs: { a: 'n', b: 'n' } },
       ].filter((x) => x.count > 0),
     };
-    const one = who.slice(0, -1).replace(/ie$/, 'y');
     return {
       exp: (event) => ({ pools: { g: pool }, draws: ['g'], replace: true, event }),
       A: { at: 0, attr: 'a', in: ['y'] },
       B: { at: 0, attr: 'b', in: ['y'] },
       aLabel: a,
       bLabel: b,
-      question: `Of the ${total} ${who} in a survey, ${aOnly + both} ${a}, ${bOnly + both} ${b}, and ${both === 0 ? 'none' : both} ${both === 1 ? 'does' : 'do'} both. One of the ${who} is chosen at random. What is the probability that the ${one} ${a.replace(/^(\w+)/, (w) => w)} or ${b}?`,
+      question: `Of the ${total} ${who} in a survey, ${aOnly + both} ${a}, ${bOnly + both} ${b}, and ${both === 0 ? 'none' : both} ${both === 1 ? 'does' : 'do'} both. One of the ${who} is chosen at random. What is the probability that the ${one} ${aSg} or ${bSg}?`,
       mentions: [`${total} ${who}`, `${aOnly + both} ${a}`, `${bOnly + both} ${b}`],
     };
   };

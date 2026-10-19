@@ -140,7 +140,7 @@ export function probTex(p: Frac, form: ProbForm): string {
 /** Answer plus three distinct distractors from candidate wrong probabilities. */
 export function probChoices(p: Frac, wrong: Array<Frac | null | undefined>, form: ProbForm): { answer: string; distractors: string[] } {
   const answer = m(probTex(p, form));
-  const ok = (w: Frac | null | undefined): w is Frac => !!w && w.sign > 0 && w.cmp(1) <= 0;
+  const ok = (w: Frac | null | undefined): w is Frac => !!w && w.sign > 0 && w.cmp(1) < 0;
   const cands = wrong.filter(ok).map((w) => m(probTex(w, form)));
   const fallback = (k: number) => {
     const n = p.n + offset(k);

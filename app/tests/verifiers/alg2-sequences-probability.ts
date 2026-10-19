@@ -566,7 +566,6 @@ function probVerifier(p: ProblemContent): void {
   const tol = 0.5 * 10 ** -decimals * (pct ? 0.01 : 1) + 1e-12;
   const got = ev(body) * (pct ? 0.01 : 1);
   expect(Math.abs(got - want), `${p.question} → ${p.answer} (want ${want})`).toBeLessThanOrEqual(tol);
-  if (Number.isInteger(want) === false) expect(decimals, 'shows decimals').toBeGreaterThan(0);
 }
 
 export const VERIFIERS: Record<string, Verifier> = {

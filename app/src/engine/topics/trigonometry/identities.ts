@@ -149,7 +149,8 @@ export const sumDifferenceIdentities = defineTopic({
         const th = 30 * k + 15;
         return th === 0 ? null : th;
       });
-      const [A, op, B] = decompose(theta);
+      const dec = decompose(theta);
+      const [A, op, B] = fn === 'tan' && cosExact(dec[0]).isZero() ? ([theta + 45, '-', 45] as const) : dec;
       const v = trigExact(fn, theta)!;
       const answer = m(v.toTex());
       const parts = sumDiffValue(fn, A, op, B);

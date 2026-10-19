@@ -237,16 +237,19 @@ function graphedSets(d: Diagram): { domain: { lo: number; hi: number; loOpen: bo
     const hi = side(k, 1);
     return { lo: lo.value, hi: hi.value, loOpen: lo.open, hiOpen: hi.open };
   };
-  // vertical line test
-  const sorted = [...pts].sort((a, b) => a[0] - b[0]);
-  let fn = true;
-  for (let i = 0; i < sorted.length && fn; i++) {
-    for (let j = i + 1; j < sorted.length && sorted[j]![0] - sorted[i]![0] < 0.02; j++) {
-      if (Math.abs(sorted[j]![1] - sorted[i]![1]) > 0.3) {
-        fn = false;
-        break;
-      }
+  // vertical line test: intersect the drawn paths with many vertical lines
+  const segs: Array<[readonly [number, number], readonly [number, number]]> = [];
+  for (const { pts: path } of curvePaths(d)) for (let i = 0; i + 1 < path.length; i++) segs.push([path[i]!, path[i + 1]!]);
+  let fn = !segs.some(([a, b2]) => Math.abs(a[0] - b2[0]) < 1e-12 && Math.abs(a[1] - b2[1]) > 1e-9);
+  for (let c = -20.0137; c < 20 && fn; c += 0.05) {
+    const ys: number[] = [];
+    for (const [a, b2] of segs) {
+      const lo = Math.min(a[0], b2[0]);
+      const hi = Math.max(a[0], b2[0]);
+      if (c < lo || c > hi || hi === lo) continue;
+      ys.push(a[1] + ((b2[1] - a[1]) * (c - a[0])) / (b2[0] - a[0]));
     }
+    if (ys.length && Math.max(...ys) - Math.min(...ys) > 1e-3) fn = false;
   }
   return { domain: iv(0), range: iv(1), fn };
 }

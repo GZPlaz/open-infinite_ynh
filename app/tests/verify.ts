@@ -692,9 +692,36 @@ Object.assign(VERIFIERS, {
       got.forEach((g, i) => expect(close(g, (sol as number[])[i]!), p.answer).toBe(true));
     } else {
       expect(sol === 'none' ? NO_SOLUTION.test(p.answer) : /infinitely many/i.test(p.answer), p.answer).toBe(true);
+      // rank(A) < n always; rank([A|b]) > rank(A) exactly when there is no solution
+      const zero = Object.fromEntries(vars.map((v) => [v, 0]));
+      const g = rows.map((r) => {
+        const [l, rr] = sides(r);
+        return (env: Record<string, number>) => evalReal(l, { vars: env }) - evalReal(rr, { vars: env });
+      });
+      const A = g.map((f) => vars.map((v) => f({ ...zero, [v]: 1 }) - f(zero)));
+      const Ab = g.map((f, i) => [...A[i]!, -f(zero)]);
+      expect(rank(A), `${p.question}: coefficient rank`).toBeLessThan(vars.length);
+      expect(rank(Ab) > rank(A), `${p.question}: consistency`).toBe(sol === 'none');
     }
   },
 } satisfies Record<string, Verifier>);
+
+function rank(m: number[][]): number {
+  const a = m.map((r) => [...r]);
+  let r = 0;
+  for (let c = 0; c < (a[0]?.length ?? 0) && r < a.length; c++) {
+    const piv = a.slice(r).findIndex((row) => Math.abs(row[c]!) > 1e-9);
+    if (piv < 0) continue;
+    [a[r], a[r + piv]] = [a[r + piv]!, a[r]!];
+    for (let i = 0; i < a.length; i++) {
+      if (i === r) continue;
+      const k = a[i]![c]! / a[r]![c]!;
+      a[i] = a[i]!.map((x, j) => x - k * a[r]![j]!);
+    }
+    r++;
+  }
+  return r;
+}
 
 /** Pack-specific verifiers (tests/verifiers/<pack>.ts) register themselves here. */
 export function registerVerifiers(extra: Record<string, Verifier>): void {

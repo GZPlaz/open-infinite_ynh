@@ -229,3 +229,60 @@ export function linSubTex(e: Lin, x: number): string {
   const head = e.a === 1 ? xs : e.a === -1 ? `-${xs}` : `${e.a}(${x})`;
   return e.b === 0 ? head : `${head} ${e.b < 0 ? '-' : '+'} ${Math.abs(e.b)}`;
 }
+
+/** Incenter of a triangle. */
+export function incenter(P: readonly Pt[]): Pt {
+  const [A, B, C] = P as [Pt, Pt, Pt];
+  const a = dist(B, C);
+  const b = dist(A, C);
+  const c = dist(A, B);
+  const s = a + b + c;
+  return [(a * A[0] + b * B[0] + c * C[0]) / s, (a * A[1] + b * B[1] + c * C[1]) / s];
+}
+
+/**
+ * Triangle with vertex names and an angle label at each vertex (null = none).
+ * Labels go inside the angle when they fit (the figure grows up to `maxPx`
+ * to make room); otherwise they sit just outside the vertex, beyond its name.
+ * Extra points (e.g. an extended side) are included in the size.
+ */
+export function labelledTriangle(
+  P: readonly Pt[],
+  names: readonly (string | null)[] | null,
+  labels: readonly (string | null)[],
+  opts: { sizePx?: number; maxPx?: number; extra?: readonly Pt[]; draw?: (b: DiagramBuilder) => void } = {},
+): DiagramBuilder {
+  const all = [...P, ...(opts.extra ?? [])];
+  const xs = all.map((p) => p[0]);
+  const ys = all.map((p) => p[1]);
+  const ext = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  const I = incenter(P);
+  const need = P.map((v, i) => {
+    const t = labels[i];
+    if (!t) return 0;
+    const half = (angleAt(P[(i + 1) % 3]!, v, P[(i + 2) % 3]!) * Math.PI) / 360;
+    return ((labelWidthPx(t) / 2 + 6) / Math.max(Math.sin(half), 0.05) + 8) / (0.62 * dist(v, I));
+  });
+  const base = (opts.sizePx ?? 170) / ext;
+  const maxScale = (opts.maxPx ?? 250) / ext;
+  const want = Math.max(base, ...need.filter((n) => n <= maxScale));
+  const b = new DiagramBuilder(Math.min(want, maxScale));
+  b.polygon([...P], { weight: 1.4 });
+  opts.draw?.(b);
+  P.forEach((v, i) => {
+    const a = P[(i + 1) % 3]!;
+    const c = P[(i + 2) % 3]!;
+    const away = unit(sub(v, I));
+    const name = names?.[i];
+    const t = labels[i];
+    if (t && need[i]! <= b.scale + 1e-9) angleLabel(b, v, a, c, t, { radiusPx: 13, maxPx: 400 });
+    else if (t) {
+      b.angleArc(v, a, c, 13);
+      const w = labelWidthPx(t);
+      const off = (name ? 15 : 6) + Math.abs(away[0]) * (w / 2) + Math.abs(away[1]) * 8;
+      b.label(add(v, mul(away, b.px(off))), t, 'c');
+    }
+    if (name) b.label(add(v, mul(away, b.px(9))), name, 'c');
+  });
+  return b;
+}

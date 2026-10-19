@@ -2,6 +2,7 @@
 import type { TopicGenerator } from '../../types';
 import { evaluatingExpressions } from '../prealgebra/evaluating';
 import { convertingFdp, decimalOperations, simplifyingFractions } from '../prealgebra/fdp';
+import { evaluatingExponents, scientificNotation, squareRoots } from '../prealgebra/exponents';
 import { fractionOperations } from '../prealgebra/fractions';
 import { absoluteValue, addSubIntegers, mulDivIntegers } from '../prealgebra/integers';
 import { gcfLcm, primeFactorization } from '../prealgebra/number-theory';
@@ -31,6 +32,10 @@ const topics: TopicGenerator[] = [
   percentProblems,
   percentChange,
   simpleInterest,
+  // Exponents and Roots
+  evaluatingExponents,
+  scientificNotation,
+  squareRoots,
   // Equations and Inequalities
   twoStepEquations,
 ];

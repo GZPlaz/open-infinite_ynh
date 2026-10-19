@@ -107,7 +107,7 @@ export const trigFunctionsAnyAngle = defineTopic({
         const x = Math.round(Math.cos((a * Math.PI) / 180));
         const y = Math.round(Math.sin((a * Math.PI) / 180));
         steps.push(`The terminal side passes through ${m(tuple([x, y]))} on the unit circle.`);
-        steps.push(v ? m(`${fnAt(fn, angleTex(deg, unit))} = ${v.toTex()}`) : `${m(`\\${fn}`)} divides by ${m('0')} here, so the value is undefined.`);
+        steps.push(v ? m(`${fnAt(fn, angleTex(deg, unit))} = ${v.toTex()}`) : `${m(`\\${fn}`)} divides by ${m('0')} here, so it has no value (Undefined).`);
       }
       const ref = referenceAngle(a);
       const swapRef = a % 90 === 0 ? a + 90 : a % 180 < 90 ? a - ref + (90 - ref) : a + ref - (90 - ref);

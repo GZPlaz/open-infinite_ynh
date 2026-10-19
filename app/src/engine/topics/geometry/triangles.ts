@@ -13,6 +13,7 @@ import {
   dirDeg,
   dist,
   fitted,
+  labelledTriangle,
   letters,
   linDeg,
   linFor,
@@ -260,25 +261,16 @@ export const triangleAngleSum = defineTopic({
     let b: DiagramBuilder;
     const angles: Array<[Pt, Pt, Pt, string]> = [];
     if (task === 'interior') {
-      b = drawPolygon(P, names);
-      [0, 1, 2].forEach((i) => {
-        angleLabel(b, P[i]!, P[(i + 1) % 3]!, P[(i + 2) % 3]!, qDeg(qs[i]!), { radiusPx: 13 });
-        angles.push([P[(i + 1) % 3]!, P[i]!, P[(i + 2) % 3]!, qTex(qs[i]!)]);
-      });
+      b = labelledTriangle(P, names, qs.map(qDeg));
+      [0, 1, 2].forEach((i) => angles.push([P[(i + 1) % 3]!, P[i]!, P[(i + 2) % 3]!, qTex(qs[i]!)]));
     } else {
       // extend side P1→P2 beyond P2; the exterior angle at P2 is between the extension and P2→P0
-      const ext = add(P[2]!, mul(unit(sub(P[2]!, P[1]!)), dist(P[0]!, P[1]!) * 0.55));
-      b = fitted([...P, ext], 170);
-      b.polygon(P, { weight: 1.4 });
-      b.segment(P[2]!, ext, { weight: 1.4 });
-      nameVertices(b, P, names.slice(0, 3));
+      const ext = add(P[2]!, mul(unit(sub(P[2]!, P[1]!)), dist(P[0]!, P[1]!) * 0.6));
+      b = labelledTriangle(P, names.slice(0, 3), [qDeg(qs[0]!), qDeg(qs[1]!), null], { extra: [ext], draw: (bb) => bb.segment(P[2]!, ext, { weight: 1.4 }) });
       b.dot(ext);
       b.label(add(ext, mul(unit(sub(ext, P[2]!)), b.px(10))), names[3]!, 'c');
-      [0, 1].forEach((i) => {
-        angleLabel(b, P[i]!, P[(i + 1) % 3]!, P[(i + 2) % 3]!, qDeg(qs[i]!), { radiusPx: 13 });
-        angles.push([P[(i + 1) % 3]!, P[i]!, P[(i + 2) % 3]!, qTex(qs[i]!)]);
-      });
-      angleLabel(b, P[2]!, ext, P[0]!, qDeg(qs[2]!), { radiusPx: 13 });
+      [0, 1].forEach((i) => angles.push([P[(i + 1) % 3]!, P[i]!, P[(i + 2) % 3]!, qTex(qs[i]!)]));
+      angleLabel(b, P[2]!, ext, P[0]!, qDeg(qs[2]!), { radiusPx: 13, maxPx: 300 });
       angles.push([ext, P[2]!, P[0]!, qTex(qs[2]!)]);
     }
     const fig = b.build(task === 'interior' ? `Triangle ${names.join('')} with its angles labelled` : `Triangle ${names.slice(0, 3).join('')} with side extended to ${names[3]}; exterior angle labelled`);

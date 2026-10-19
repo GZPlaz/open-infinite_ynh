@@ -54,7 +54,7 @@ export const simplifyRadicals = defineTopic({
       if (o === 1 && !Object.values(exps).some((e) => e >= index)) return null;
       return { c, k, o, inside, exps };
     });
-    const { c, k, o, inside, exps } = built;
+    const { c, k, o, exps } = built;
     const vars = Object.keys(exps);
     const question = `${k === 1 ? '' : k}${radTex(index, radicandTex(c, exps))}`;
     const ans = simplifyRootMono(c, exps, index, k);

@@ -20,7 +20,7 @@ function prep(tex: string): string {
     .replace(/\\alpha/g, 'a')
     .replace(/\\beta/g, 'b')
     .replace(/\\theta/g, 't')
-    .replace(/\\(sin|cos|tan|sec|csc|cot)(\^\{\d+\}|\^\d)?\s*(\d+)\s*([a-z])/g, '\\$1$2($3$4)');
+    .replace(/\\(sin|cos|tan|sec|csc|cot)(\^\{\d+\}|\^\d)?\s*(\d+)\s*([a-z]|\\pi)/g, '\\$1$2($3$4)');
 }
 
 const mod = (x: number, n: number) => ((x % n) + n) % n;

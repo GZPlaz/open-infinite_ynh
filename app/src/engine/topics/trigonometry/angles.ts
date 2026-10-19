@@ -435,8 +435,8 @@ export const coterminalAngles = defineTopic({
       const range = { easy: [0, 360], medium: [-720, 720], hard: [-1440, 1440] }[difficulty] as [number, number];
       const deg = randomAngle(rng, difficulty, unit, range[0], range[1], true);
       const a = mod360(deg);
-      const pos = deg > 0 && deg < 360 ? deg + 360 : a === 0 ? 360 : a;
-      const negA = deg < 0 && deg > -360 ? deg - 360 : a - 360;
+      const pos = [a, a + 360, a + 720].find((x) => x > 0 && x !== deg)!;
+      const negA = [a - 360, a - 720].find((x) => x !== deg)!;
       const fmt = (p: number, n: number) => m(`${A(p)}, ${A(n)}`);
       const answer = fmt(pos, negA);
       const ks = (x: number) => (x - deg) / 360;

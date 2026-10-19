@@ -110,7 +110,7 @@ export const derivativeDefinition = defineTopic({
         dTex = `-\\frac{${2 * a}}{x^{3}}`.replace('-\\frac{-', '\\frac{');
         dAt = (x) => new Frac(-2 * a, x ** 3);
         steps.push(m(ds(H(`\\frac{1}{h}\\left(\\frac{${a}}{(x + h)^{2}} - \\frac{${a}}{x^{2}}\\right)`))));
-        steps.push(m(ds(H(`\\frac{${-a}(2x + h)}{x^{2}(x + h)^{2}}`))));
+        steps.push(m(ds(H(`\\frac{${lead(-a)}(2x + h)}{x^{2}(x + h)^{2}}`))));
         steps.push(m(ds(`f'(x) = ${dTex}`)));
         wrongs = [`\\frac{${2 * a}}{x^{3}}`, `-\\frac{${a}}{x^{3}}`, `\\frac{${2 * a}}{x}`, `-\\frac{${2 * a}}{x^{2}}`];
         domainOk = (x) => x !== 0;
@@ -248,7 +248,8 @@ export const productRule = defineTopic({
     }
     const du = fderiv(u);
     const dv = fderiv(v);
-    const d = fnorm([...fmul(du, v), ...fmul(u, dv)]);
+    let d = fnorm([...fmul(du, v), ...fmul(u, dv)]);
+    if (d.every((t) => !t.atoms.length)) d = [...d].sort((x, y) => y.p.cmp(x.p));
     const dTex = ftex(d);
     const steps = [
       `$u = ${ftex(u)}$, $u' = ${ftex(du)}$; $v = ${ftex(v)}$, $v' = ${ftex(dv)}$`,
@@ -307,7 +308,7 @@ export const quotientRule = defineTopic({
       dTex = `\\frac{${top.toTex()}}{(${D.toTex()})^{2}}`;
       steps.push(m(ds(`${DYDX} = \\frac{(${D.toTex()})(${N.derivative().toTex()}) - (${N.toTex()})(${D.derivative().toTex()})}{(${D.toTex()})^{2}}`)));
       const swapped = top.scale(-1);
-      wrongs = [`\\frac{${swapped.toTex()}}{(${D.toTex()})^{2}}`, `\\frac{${top.toTex()}}{${D.toTex()}}`, `\\frac{${N.derivative().toTex()}}{${D.derivative().toTex()}}`, `\\frac{${N.derivative().mul(D).add(N.mul(D.derivative())).toTex()}}{(${D.toTex()})^{2}}`];
+      wrongs = [`\\frac{${swapped.toTex()}}{(${D.toTex()})^{2}}`, `\\frac{${top.toTex()}}{${D.toTex()}}`, N.derivative().degree === 0 ? num(N.derivative().coef(0).div(D.derivative().coef(0))) : `\\frac{${N.derivative().toTex()}}{${D.derivative().toTex()}}`, `\\frac{${N.derivative().mul(D).add(N.mul(D.derivative())).toTex()}}{(${D.toTex()})^{2}}`];
     } else if (kind === 'trans') {
       // (c·atom or c·x^k) / x^n
       const n = rng.int(1, 3);
@@ -416,7 +417,7 @@ export const chainRule = defineTopic({
           dTex = `${lead(coef)}${prim}${pw}`;
           if (!prim && coef.eq(1)) dTex = pw;
           steps.push(`Let $u = ${t}$, so $u' = ${pp}$.`);
-          steps.push(m(ds(`${DYDX} = ${c * n}(${t})^{${n - 1}} \\cdot ${paren0(pp)}`.replace(`^{1}`, ''))));
+          steps.push(m(ds(`${DYDX} = ${lead(c * n)}(${t})^{${n - 1}} \\cdot ${paren0(pp)}`.replace(`^{1}`, ''))));
           wrongs = [`${lead(c * n)}${pw}`, `${lead(coef)}${prim}(${t})^{${n}}`, `${lead(coef.neg())}${prim}${pw}`, `${lead(coef)}${prim}(${t})^{${n + 1}}`];
         } else {
           fTex = `\\frac{${c}}{(${t})^{${n}}}`;
@@ -425,7 +426,8 @@ export const chainRule = defineTopic({
           dTex = top.startsWith('-') ? `-\\frac{${top.slice(1)}}{(${t})^{${n + 1}}}` : `\\frac{${top}}{(${t})^{${n + 1}}}`;
           steps.push(m(ds(`y = ${lead(c)}(${t})^{-${n}}`)));
           steps.push(m(ds(`${DYDX} = ${lead(-c * n)}(${t})^{-${n + 1}} \\cdot ${paren0(pp)}`)));
-          const alt = (num_: string, e: number) => (num_.startsWith('-') ? `-\\frac{${num_.slice(1)}}{(${t})^{${e}}}` : `\\frac{${num_}}{(${t})^{${e}}}`);
+          const pe = (e: number) => (e === 1 ? `(${t})` : `(${t})^{${e}}`);
+          const alt = (num_: string, e: number) => (num_.startsWith('-') ? `-\\frac{${num_.slice(1)}}{${pe(e)}}` : `\\frac{${num_}}{${pe(e)}}`);
           wrongs = [alt(top, n - 1), alt(top.startsWith('-') ? top.slice(1) : `-${top}`, n + 1), alt(String(-c * n), n + 1), alt(top, n)];
         }
         break;
@@ -478,7 +480,7 @@ export const chainRule = defineTopic({
           case 'exp':
             fTex = `e^{${t}}`;
             dTex = `${lc(coef)}${prim}e^{${t}}`;
-            wrongs = [`e^{${t}}`, `(${t})e^{${p.sub(Poly.of(1)).toTex()}}`, `${lc(coef)}${prim}e^{${dp}}`, `${lc(coef.neg())}${prim}e^{${t}}`];
+            wrongs = [`e^{${t}}`, `(${t})e^{${p.sub(Poly.of(1)).toTex()}}`, p.derivative().degree === 0 ? `${lc(coef)}${prim}e^{${t}} + 1` : `${lc(coef)}${prim}e^{${dp}}`, `${lc(coef.neg())}${prim}e^{${t}}`];
             break;
           default:
             fTex = `\\ln(${t})`;
