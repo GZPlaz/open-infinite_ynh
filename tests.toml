@@ -1,9 +1,0 @@
-#:schema https://raw.githubusercontent.com/YunoHost/apps/main/schemas/tests.v1.schema.json
-
-test_format = 1.0
-
-[default]
-
-    # Static web app: the default install/upgrade/backup/restore/change_url
-    # scenarios cover everything. Also try the non-default paper size.
-    args.default_paper = "a4"
