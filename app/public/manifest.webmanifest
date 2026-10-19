@@ -1,0 +1,11 @@
+{
+  "name": "OpenInfinite",
+  "short_name": "OpenInfinite",
+  "description": "Printable math worksheets with answer keys, generated in your browser.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f4f6",
+  "theme_color": "#2856c4",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
