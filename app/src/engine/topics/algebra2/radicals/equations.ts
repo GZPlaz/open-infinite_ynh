@@ -224,10 +224,11 @@ export const rationalExponentEquations = defineTopic({
     const e = new Frac(neg ? -p : p, q);
     const lhsPow = `${base}^{${e.toTex()}}`;
     const lhs = sum([{ coef, sym: lhsPow }, { coef: shift }]);
-    const rhsVal = neg ? new Frac(1, K) : new Frac(coef * K + shift);
+    const target = neg ? new Frac(1, K) : new Frac(K);
+    const rhsVal = target.mul(coef).add(shift);
     const question = `${lhs} = ${num(rhsVal)}`;
     const steps: string[] = [];
-    if (shift !== 0 || coef !== 1) steps.push(m(`${lhsPow} = ${num(K)}`));
+    if (shift !== 0 || coef !== 1) steps.push(m(`${lhsPow} = ${num(target)}`));
     if (neg) steps.push(m(`${base}^{${new Frac(p, q).toTex()}} = ${num(K)}`));
     const recip = new Frac(q, p);
     if (none) {

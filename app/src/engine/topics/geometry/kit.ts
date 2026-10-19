@@ -108,8 +108,12 @@ export function angleLabel(b: DiagramBuilder, v: Pt, a: Pt, c: Pt, tex: string, 
 }
 
 /** Label placed beside segment ac (outside, relative to `inside`), offset further for long labels. */
-export function sideText(b: DiagramBuilder, a: Pt, c: Pt, tex: string, inside: Pt): void {
-  b.sideLabel(a, c, tex, inside);
+export function sideText(b: DiagramBuilder, a: Pt, c: Pt, tex: string, inside: Pt, gapPx = 6): void {
+  const mm = mid(a, c);
+  const d = unit(sub(c, a));
+  let n: Pt = [-d[1], d[0]];
+  if ((inside[0] - mm[0]) * n[0] + (inside[1] - mm[1]) * n[1] > 0) n = mul(n, -1);
+  b.label(add(mm, mul(n, b.px(gapPx))), tex, posToward(n));
 }
 
 /** Line through p and q drawn past both points with arrowheads. */

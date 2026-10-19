@@ -2,7 +2,7 @@
 import { attempt, defineTopic, distinctDistractors, offset, strOpt } from '../../generator';
 import { Poly } from '../../polynomial';
 import type { Rng } from '../../rng';
-import { linear, m, sum } from '../../tex';
+import { m } from '../../tex';
 import type { Difficulty, ProblemContent } from '../../types';
 
 interface Part {
@@ -30,8 +30,6 @@ function partsTex(parts: readonly Part[]): string {
   }
   return out;
 }
-
-const denOf = (pt: Part) => pt.base.powInt(pt.power);
 
 function combine(parts: readonly Part[]): { N: Poly; D: Poly } {
   // common denominator: product of the highest power of each base
@@ -138,6 +136,8 @@ export const partialFractions = defineTopic({
     const generic = parts.map((pt) => (pt.num.degree === 1 ? `\\frac{${letters[li++]}x + ${letters[li++]}}{${factorTex(pt.base, pt.power)}}` : `\\frac{${letters[li++]}}{${factorTex(pt.base, pt.power)}}`));
     steps.push(m(`\\frac{${N.toTex()}}{${factoredDen(parts)}} = ${generic.join(' + ')}`));
     steps.push(`Multiply by ${m(factoredDen(parts))} and match coefficients (or substitute the zeros of the factors).`);
+    const vals = parts.flatMap((pt) => (pt.num.degree === 1 ? [pt.num.coef(1), pt.num.coef(0)] : [pt.num.coef(0)]));
+    steps.push(m(vals.map((v, i) => `${letters[i]} = ${v.toTex()}`).join(',\\ ')));
     steps.push(answer);
     const swap = parts.length >= 2 ? [{ ...parts[0]!, num: parts[1]!.num.degree === 0 ? parts[1]!.num : parts[0]!.num }, { ...parts[1]!, num: parts[1]!.num.degree === 0 ? parts[0]!.num : parts[1]!.num }, ...parts.slice(2)] : parts;
     const negOne = (i: number) => parts.map((pt, j) => (j === i ? { ...pt, num: pt.num.scale(-1) } : pt));
@@ -153,5 +153,3 @@ export const partialFractions = defineTopic({
     };
   },
 });
-
-export { denOf as _denOf, linear as _linear, sum as _sum };

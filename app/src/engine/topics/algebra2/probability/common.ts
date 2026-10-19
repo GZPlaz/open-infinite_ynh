@@ -110,6 +110,7 @@ export const probFormOption: SelectOptionDef = {
     { value: 'decimal', label: 'Decimal (nearest thousandth)' },
     { value: 'percent', label: 'Percent (nearest tenth)' },
   ],
+  help: 'Very small probabilities keep two significant digits.',
 };
 
 export type ProbForm = 'fraction' | 'decimal' | 'percent';

@@ -1,5 +1,6 @@
 /** Pre-Algebra topics, in curriculum order (grouped by category in the picker). */
 import type { TopicGenerator } from '../../types';
+import { multiStepEquations, oneStepEquations, oneTwoStepInequalities } from '../prealgebra/equations';
 import { evaluatingExpressions } from '../prealgebra/evaluating';
 import { convertingFdp, decimalOperations, simplifyingFractions } from '../prealgebra/fdp';
 import { evaluatingExponents, scientificNotation, squareRoots } from '../prealgebra/exponents';
@@ -37,7 +38,10 @@ const topics: TopicGenerator[] = [
   scientificNotation,
   squareRoots,
   // Equations and Inequalities
+  oneStepEquations,
   twoStepEquations,
+  multiStepEquations,
+  oneTwoStepInequalities,
 ];
 
 export default topics;

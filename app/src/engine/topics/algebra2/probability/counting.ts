@@ -370,7 +370,7 @@ export const permutations = defineTopic({
     const task = tOpt === 'evaluate' || tOpt === 'word' || tOpt === 'letters' ? tOpt : rng.pick(['evaluate', 'word', 'letters'] as const);
     if (task === 'evaluate') {
       const pick = () => {
-        const n = rng.int(d === 'easy' ? 3 : 5, d === 'easy' ? 7 : d === 'medium' ? 10 : 14);
+        const n = rng.int(d === 'easy' ? 3 : 5, d === 'easy' ? 9 : d === 'medium' ? 10 : 14);
         return [n, rng.int(1, Math.min(n, d === 'easy' ? 4 : 5))] as const;
       };
       const [n, r] = pick();

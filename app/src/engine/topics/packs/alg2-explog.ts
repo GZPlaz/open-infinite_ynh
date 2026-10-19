@@ -6,6 +6,7 @@ import { inversesExpLog } from '../algebra2/explog/inverses';
 import { logEqHard, logEqSimple } from '../algebra2/explog/log-equations';
 import { evaluateLogs, expLogForms, logExpInverses } from '../algebra2/explog/logs';
 import { logProperties, logsInTermsOfOthers } from '../algebra2/explog/properties';
+import { continuousGrowth, discreteGrowth } from '../algebra2/explog/word-problems';
 
 const topics: TopicGenerator[] = [
   expGraph,
@@ -20,6 +21,8 @@ const topics: TopicGenerator[] = [
   logEqSimple,
   logEqHard,
   logGraph,
+  discreteGrowth,
+  continuousGrowth,
 ];
 
 export default topics;

@@ -194,7 +194,109 @@ function pointsIn(rich: string): number[][] {
   return mathSegments(rich).map((s) => listItems(s).map((t) => evalReal(t)));
 }
 
+/** Top-level `\\frac{a}{b}` → [a, b] (brace matched), or null. */
+function fracParts(t: string): [string, string] | null {
+  const s = t.trim();
+  if (!s.startsWith('\\frac{')) return null;
+  const groups: string[] = [];
+  let i = 5;
+  while (groups.length < 2 && s[i] === '{') {
+    let depth = 0;
+    const start = i + 1;
+    do {
+      if (s[i] === '{') depth++;
+      else if (s[i] === '}') depth--;
+      i++;
+    } while (depth > 0 && i < s.length);
+    groups.push(s.slice(start, i - 1));
+  }
+  return groups.length === 2 && i === s.length ? [groups[0]!, groups[1]!] : null;
+}
+
+/** Vectors `\\mathbf{u} = \\left\\langle … \\right\\rangle` named in a rich string. */
+function vectorsIn(rich: string, vars: Record<string, number> = {}): Record<string, number[] | string[]> {
+  const out: Record<string, number[] | string[]> = {};
+  for (const s of mathSegments(rich)) {
+    const mm = /\\mathbf\{(\w)\} = \\left\\langle (.*) \\right\\rangle$/.exec(s.trim());
+    if (mm) out[mm[1]!] = splitTop(mm[2]!, [',']).parts;
+  }
+  void vars;
+  return out;
+}
+const vdot = (a: number[], b: number[]) => a.reduce((s, x, i) => s + x * b[i]!, 0);
+
 export const VERIFIERS: Record<string, Verifier> = {
+  'precalculus.vectors'(p) {
+    const task = p.check!.task as string;
+    const raw = vectorsIn(p.question) as Record<string, string[]>;
+    const num = (name: string, env: Record<string, number> = {}) => raw[name]!.map((t) => evalReal(t, { vars: env }));
+    const ans = mathSegments(p.answer);
+    if (task === 'dot') {
+      expect(close(evalReal(rhsOf(ans[0]!)), vdot(num('u'), num('v'))), p.answer).toBe(true);
+    } else if (task === 'angle') {
+      const u = num('u');
+      const v = num('v');
+      const want = (Math.acos(vdot(u, v) / Math.sqrt(vdot(u, u) * vdot(v, v))) * 180) / Math.PI;
+      const { parts, rels } = splitTop(ans[0]!, ['=', '\\approx']);
+      const got = evalReal(parts[1]!.replace(/\^\\circ/, ''));
+      expect(Math.abs(got - want), p.answer).toBeLessThanOrEqual(rels[0] === '=' ? 1e-9 : 0.0500001);
+    } else if (task === 'classify') {
+      const u = num('u');
+      const v = num('v');
+      const n = (w: number[]) => Math.sqrt(vdot(w, w));
+      const orth = Math.abs(vdot(u, v)) < 1e-9;
+      const par = Math.abs(Math.abs(vdot(u, v)) - n(u) * n(v)) < 1e-9;
+      expect(p.answer, p.question).toBe(orth && par ? 'Both parallel and orthogonal' : orth ? 'Orthogonal' : par ? 'Parallel' : 'Neither');
+    } else if (task === 'findK') {
+      const k = evalReal(rhsOf(ans[0]!));
+      expect(Math.abs(vdot(num('u', { k }), num('v', { k }))) < 1e-9, `${p.question} at k=${k}`).toBe(true);
+    } else {
+      const u = num('u');
+      const v = num('v');
+      const s = vdot(u, v) / vdot(v, v);
+      const got = listItems(rhsOf(ans[0]!).replace(/\\left\\langle|\\right\\rangle/g, '')).map((t) => evalReal(t));
+      expect(got.length === v.length && got.every((g, i) => close(g, s * v[i]!)), p.answer).toBe(true);
+    }
+  },
+
+  /** One-variable inequality; answer in interval notation or as inequalities. */
+  'precalculus.solset'(p) {
+    const q = onlyMath(p.question);
+    const segs = mathSegments(p.answer);
+    const interval = segs.length === 1 && /^\s*(\(|\[|\\\{|\\varnothing)/.test(segs[0]!);
+    const inSet = interval ? intervalSet(segs[0]!) : (x: number) => setHolds(p.answer, 'x', x);
+    const extra = (p.check!.probes as number[] | undefined) ?? [];
+    for (const x of probesAround([...anchors(segs.join(', ')), ...extra])) {
+      let qv: boolean;
+      try {
+        qv = chainHolds(q, { x });
+      } catch {
+        qv = false;
+      }
+      expect(qv, `${q} vs ${p.answer} at x=${x}`).toBe(inSet(x));
+    }
+  },
+
+  /** Equivalent to the question and really decomposed into proper partial fractions. */
+  'precalculus.partialFractions'(p) {
+    const q = onlyMath(p.question);
+    const a = onlyMath(p.answer);
+    expectEquivalent(q, a, ['x']);
+    const terms = splitTop(a, ['+', '-']).parts.filter((t) => t.trim());
+    expect(terms.length, a).toBeGreaterThanOrEqual(2);
+    const dens = new Set<string>();
+    for (const t of terms) {
+      const fr = fracParts(t);
+      expect(fr, `term ${t} is a fraction`).toBeTruthy();
+      const [n, d] = fr!;
+      expect(d).toMatch(/x/);
+      dens.add(d);
+      const quadratic = /^x\^\{2\} \+ \d+$/.test(d);
+      if (!quadratic) expect(n, `${t}: constant numerator over a linear factor`).not.toMatch(/x/);
+    }
+    expect(dens.size, 'distinct denominators').toBe(terms.length);
+  },
+
   /** Asymptotes, holes, intercepts and graph of a rational function. */
   'precalculus.rationalGraph'(p) {
     const fTex = rhsOf(onlyMath(p.question));

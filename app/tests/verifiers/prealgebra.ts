@@ -1,6 +1,6 @@
 /** Pre-Algebra verifiers: recompute every answer from the rendered question text. */
 import { expect } from 'vitest';
-import type { Verifier } from '../verify';
+import { VERIFIERS as GENERIC, type Verifier } from '../verify';
 import { close, evalReal, mathSegments, onlyMath } from '../evaluator';
 
 /** Strip money signs, digit-group commas, percent signs and \text{…}. */
@@ -268,6 +268,29 @@ export const VERIFIERS: Record<string, Verifier> = {
     } else {
       near(segs[0]!, Math.round(q * 10) / 10, 1e-9, `${p.question} → ${p.answer}`);
     }
+  },
+
+  /** Solution set matches the question; the graphed ray starts at the boundary with the right dot and direction. */
+  'prealgebra.inequality'(p) {
+    GENERIC.solset!(p);
+    if (!p.answerDiagram) return;
+    const a = onlyMath(p.answer);
+    const mm = /^[a-z] (<|>|\\le|\\ge) (-?\d+)$/.exec(a)!;
+    expect(mm, a).not.toBeNull();
+    const x0 = Number(mm[2]);
+    const strict = mm[1] === '<' || mm[1] === '>';
+    const right = mm[1] === '>' || mm[1] === '\\ge';
+    const dots = p.answerDiagram.items.filter((it) => it.t === 'dot' && it.ink === 'accent');
+    expect(dots.length).toBe(1);
+    const dot = dots[0] as { p: readonly [number, number]; open?: boolean };
+    expect(dot.p[0], 'dot at the boundary').toBe(x0);
+    expect(!!dot.open, 'open dot iff strict').toBe(strict);
+    const rays = p.answerDiagram.items.filter((it) => it.t === 'arrow' && it.ink === 'accent') as Array<{ from: readonly number[]; to: readonly number[] }>;
+    expect(rays.length).toBe(1);
+    expect(rays[0]!.from[0]).toBe(x0);
+    expect(rays[0]!.to[0]! > x0, 'ray direction').toBe(right);
+    // the blank question figure has no solution marks
+    expect(p.diagram?.items.some((it) => it.ink === 'accent')).toBe(false);
   },
 };
 

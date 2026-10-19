@@ -93,9 +93,9 @@ export function pickAG(rng: Rng, kind: SeqKind, d: Difficulty, negatives: boolea
     const a1 = new Frac(rng.signedInt(1, 3, neg) * den ** (d === 'hard' ? 5 : 4));
     return { kind, a1, k };
   }
-  const ratios = d === 'easy' ? [2, 3] : d === 'medium' ? [2, 3, 4] : [2, 3, 4, 5];
+  const ratios = d === 'easy' ? [2, 3, 4] : d === 'medium' ? [2, 3, 4] : [2, 3, 4, 5];
   const r = rng.pick(ratios) * (neg && rng.bool(0.4) ? -1 : 1);
-  const a1 = new Frac(rng.signedInt(1, d === 'easy' ? 5 : 8, neg));
+  const a1 = new Frac(rng.signedInt(1, 8, neg));
   return { kind, a1, k: new Frac(r) };
 }
 

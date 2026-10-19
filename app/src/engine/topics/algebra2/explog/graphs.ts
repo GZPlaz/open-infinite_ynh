@@ -90,7 +90,7 @@ export const expGraph = defineTopic({
     const growth = b.value > 1;
     const steps = [
       `Horizontal asymptote: ${m(`y = ${k}`)} (the vertical shift).`,
-      `y-intercept: ${m(`y = ${plusK(withA(a, powNum(b, -h), false), k)} = ${num(yint)}`)}`,
+      `y-intercept: ${m(`y = ${[plusK(withA(a, powNum(b, -h), false), k), num(yint)].filter((t, i, all) => i === 0 || t !== all[0]).join(' = ')}`)}`,
       `Key point at ${m(`x = ${h}`)}: ${m(tuple([h, a.add(k)]))}; next point ${m(tuple([h + 1, a.mul(b).add(k)]))}.`,
       `The base ${m(baseTex(b))} ${growth ? 'is greater than 1' : 'is between 0 and 1'} and ${m(`a ${above ? '>' : '<'} 0`)}, so the graph ${growth === above ? 'rises' : 'falls'} from left to right and lies ${above ? 'above' : 'below'} the asymptote.`,
     ];
@@ -162,7 +162,7 @@ export const logGraph = defineTopic({
     if (boolOpt(ctx, 'domainRange')) answer += `; domain: ${m(`x > ${h}`)}; range: all real numbers`;
     const steps = [
       `Vertical asymptote: ${m(`x = ${h}`)} (where the argument ${m(inner)} is 0).`,
-      `x-intercept: ${m(`${withA(a, logOf(b, inner), true)} = ${-k}`)}, so ${m(`${logOf(b, inner)} = ${p.e}`)} and ${m(`x = ${plusK(powNum(b, p.e), h)}`)}, giving ${m(tuple([xint, 0]))}.`,
+      `x-intercept: ${a.eq(1) ? '' : `${m(`${withA(a, logOf(b, inner), true)} = ${-k}`)}, so `}${m(`${logOf(b, inner)} = ${p.e}`)}, so ${m(`x = ${plusK(powNum(b, p.e), h)}`)}, giving ${m(tuple([xint, 0]))}.`,
       `Key point: ${m(tuple([h + 1, k]))}; then ${m(tuple([b.add(h), a.add(k)]))}.`,
       `Domain ${m(`x > ${h}`)}; the graph approaches the asymptote but never touches it.`,
     ];

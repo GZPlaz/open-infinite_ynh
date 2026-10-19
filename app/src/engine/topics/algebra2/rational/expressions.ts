@@ -1,5 +1,5 @@
 /** Rational expressions: simplifying, multiplying/dividing, adding/subtracting and complex fractions. */
-import { Frac } from '../../../fraction';
+import { Frac, gcd } from '../../../fraction';
 import { attempt, boolOpt, defineTopic, distinctDistractors, opt, pickVar } from '../../../generator';
 import { Poly } from '../../../polynomial';
 import type { Rng } from '../../../rng';
@@ -29,8 +29,21 @@ export function factorPool(rng: Rng, count: number, d: Difficulty, allowLead = d
 
 /** `\frac{N}{D}` with both expanded (D = 1 → N). */
 function fracTexExpanded(N: Poly, D: Poly, v: string): string {
-  if (D.degree === 0 && D.coef(0).eq(1)) return N.toTex(v);
+  if (D.degree === 0 && D.coef(0).eq(1)) return N.c.filter((c) => !c.isZero()).length > 1 ? `(${N.toTex(v)})` : N.toTex(v);
   return `\\frac{${N.toTex(v)}}{${D.toTex(v)}}`;
+}
+
+/** Parenthesize a factor that is a bare sum or starts with a minus sign. */
+function factorParen(t: string): string {
+  if (t.startsWith('-')) return `\\left(${t}\\right)`;
+  let depth = 0;
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i]!;
+    if (ch === '{' || ch === '(') depth++;
+    else if (ch === '}' || ch === ')') depth--;
+    else if (depth === 0 && (ch === '+' || ch === '-') && i > 0) return `(${t})`;
+  }
+  return t;
 }
 
 function sortedRoots(p: Poly): Frac[] {
@@ -82,9 +95,9 @@ export const simplifyRational = defineTopic({
       if (cf.length + nf.length > 3 || cf.length + df.length > 3) return null;
       const g = rng.bool(difficulty === 'easy' ? 0.5 : 0.4) ? rng.int(2, 4) : 1;
       const cn = g * (rng.bool(0.3) ? rng.int(1, 3) : 1);
-      const cd = g * (rng.bool(0.3) ? rng.int(1, 3) : 1) * (difficulty === 'hard' && rng.bool(0.2) ? -1 : 1);
       // opposite factor: c − x in the numerator (hard)
       const flip = difficulty === 'hard' && rng.bool(0.3);
+      const cd = g * (rng.bool(0.3) ? rng.int(1, 3) : 1) * (difficulty === 'hard' && !flip && rng.bool(0.2) ? -1 : 1);
       const nfac = [...cf.map((f, i) => (flip && i === 0 ? f.scale(-1) : f)), ...nf];
       const N = prod(nfac).scale(cn);
       const D = prod([...cf, ...df]).scale(cd);
@@ -99,7 +112,8 @@ export const simplifyRational = defineTopic({
     const exTex = (rs: Frac[]) => m(`${v} \\neq ${rs.map((r) => num(r)).join(', ')}`);
     const suffix = excluded ? `; ${exTex(ex)}` : '';
     const answer = m(ans.tex(v)) + suffix;
-    const steps = [m(`= \\frac{${polyFactoredTex(N, v)}}{${polyFactoredTex(D, v)}}`), m(`= ${ans.tex(v)}`)];
+    const factoredQ = `\\frac{${polyFactoredTex(N, v)}}{${polyFactoredTex(D, v)}}`;
+    const steps = [...(factoredQ === question ? [] : [m(`= ${factoredQ}`)]), m(`= ${ans.tex(v)}`)];
     if (excluded) steps.push(`Excluded values make the original denominator zero: ${exTex(ex)}.`);
     const sign1 = (fs: Poly[]) => (fs.length ? [fs[0]!.add(Poly.of(-2 * fs[0]!.coef(0).value)), ...fs.slice(1)] : fs);
     const cands: Array<Rat | null> = [
@@ -194,7 +208,7 @@ export const multiplyDivideRational = defineTopic({
     const f1 = fracTexExpanded(N1, D1, v);
     const f2 = fracTexExpanded(N2, D2, v);
     const question = `${f1} ${divide ? '\\div' : '\\cdot'} ${f2}`;
-    const ft = (N: Poly, D: Poly) => (D.degree === 0 && D.coef(0).eq(1) ? polyFactoredTex(N, v) : `\\frac{${polyFactoredTex(N, v)}}{${polyFactoredTex(D, v)}}`);
+    const ft = (N: Poly, D: Poly) => (D.degree === 0 && D.coef(0).eq(1) ? factorParen(polyFactoredTex(N, v)) : `\\frac{${polyFactoredTex(N, v)}}{${polyFactoredTex(D, v)}}`);
     const steps: string[] = [];
     if (divide) steps.push(m(`= ${f1} \\cdot ${fracTexExpanded(D2, N2, v)}`));
     steps.push(m(`= ${ft(N1, D1)} \\cdot ${divide ? ft(D2, N2) : ft(N2, D2)}`));
@@ -254,7 +268,7 @@ export const addSubtractRational = defineTopic({
       let D2: Poly;
       const kind = difficulty === 'easy' ? rng.pick(['like', 'mono']) : difficulty === 'medium' ? rng.pick(['linear', 'linear', 'shared', 'like']) : rng.pick(['shared', 'quad', 'linear']);
       const pool = factorPool(rng, 3, difficulty, false);
-      const smallLin = () => (rng.bool(0.5) ? Poly.of(rng.signedInt(1, 9, true)) : lin(rng.int(1, 4), rng.int(-6, 6)));
+      const smallLin = () => (rng.bool(0.5) ? Poly.of(rng.int(1, 9)) : lin(rng.int(1, 4), rng.int(-6, 6)));
       if (kind === 'like') {
         D1 = D2 = rng.bool(0.6) ? pool[0]! : Poly.of(...Array(rng.int(1, 2)).fill(0), rng.int(1, 6));
         N1 = smallLin();
@@ -347,9 +361,18 @@ export const complexFractions = defineTopic({
       let bot: CTerm;
       const form = difficulty === 'easy' ? rng.pick(['mono', 'mono', 'const']) : difficulty === 'medium' ? rng.pick(['const', 'square', 'recip']) : rng.pick(['shift', 'recip', 'square']);
       if (form === 'mono') {
-        top = monoTerm(rng.int(1, 9), rng.int(0, 2), rng.int(1, 6), rng.int(0, 2), v);
-        bot = monoTerm(rng.int(1, 9), rng.int(0, 2), rng.int(1, 6), rng.int(0, 2), v);
-        if (!top.tex.includes('frac') || !bot.tex.includes('frac')) return null;
+        const mono = () => {
+          const c = rng.int(1, 9);
+          const d = rng.int(2, 9);
+          if (gcd(c, d) !== 1) return null;
+          const e = rng.int(1, 3);
+          return rng.bool() ? monoTerm(c, e, d, 0, v) : monoTerm(c, 0, d, e, v);
+        };
+        const t1 = mono();
+        const t2 = mono();
+        if (!t1 || !t2) return null;
+        top = t1;
+        bot = t2;
       } else if (form === 'const') {
         // (c0 + c1/x) / (d1/x)  or  (c1/x) / (d0 + d1/x²)
         top = sumTerms([monoTerm(rng.signedInt(1, 6, true), 0, 1, 0, v), monoTerm(rng.signedInt(1, 6, true), 0, 1, 1, v)]);
@@ -394,7 +417,7 @@ export const complexFractions = defineTopic({
     const question = `\\dfrac{${top.tex}}{${bot.tex}}`;
     const steps = [
       m(`= \\dfrac{${top.r.tex(v)}}{${bot.r.tex(v)}}`),
-      m(`= ${top.r.tex(v)} \\cdot ${bot.r.inv().tex(v)}`),
+      m(`= ${factorParen(top.r.tex(v))} \\cdot ${factorParen(bot.r.inv().tex(v))}`),
       m(`= ${ans.tex(v)}`),
     ];
     const answer = m(ans.tex(v));

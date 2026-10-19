@@ -65,7 +65,7 @@ export const means = defineTopic({
         const rs = k === 4 ? [2, 3, -2] : d === 'easy' ? [2, 3, 4] : [2, 3, 4, 5, -2, -3];
         const fractional = d !== 'easy' && rng.bool(0.25);
         const r = fractional ? new Frac(rng.pick(negatives ? [1, -1] : [1]), rng.pick([2, 3])) : new Frac(rng.pick(rs.filter((x) => negatives || x > 0)));
-        const a = new Frac(rng.signedInt(1, k === 4 ? 3 : 6, negatives) * (fractional ? r.d ** (k + 1) : 1));
+        const a = new Frac(rng.signedInt(1, k === 4 ? 3 : d === 'easy' ? 10 : 6, negatives) * (fractional ? r.d ** (k + 1) : 1));
         const terms = Array.from({ length: k }, (_, i) => a.mul(r.pow(i + 1)));
         const b = a.mul(r.pow(k + 1));
         if (Math.abs(b.value) > 20000) return null;

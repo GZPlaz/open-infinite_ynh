@@ -83,7 +83,7 @@ export const graphRational = defineTopic({
       if (kind !== 'hole' && holePts.length > 0) return null;
       const ha = red.N.degree < red.D.degree ? Frac.ZERO : red.N.lead().div(red.D.lead());
       if (red.N.degree > red.D.degree) return null;
-      const xi = distinctRoots(red.N).filter((x) => !va.some((y) => y.eq(x)));
+      const xi = distinctRoots(red.N).filter((x) => !va.some((y) => y.eq(x)) && !holePts.some((h) => h[0].eq(x)));
       const zeroBad = [...va, ...holePts.map((p) => p[0])].some((x) => x.isZero());
       const yi = zeroBad ? null : red.N.eval(0).div(red.D.eval(0));
       const inWin = (f: Frac, lim = 8) => Math.abs(f.value) <= lim;

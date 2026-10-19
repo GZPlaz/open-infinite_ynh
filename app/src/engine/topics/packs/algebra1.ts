@@ -4,6 +4,7 @@ import { orderOfOperationsAlg1, simplifyingExpressions } from '../algebra1/begin
 import { absoluteValueInequalities, compoundInequalities } from '../algebra1/compound';
 import { absoluteValueEquations, oneStepEquations } from '../algebra1/equations';
 import { continuousRelations, discreteRelations, evaluatingFunctions } from '../algebra1/relations';
+import { graphingAbsoluteValue, graphingLinearInequalities, graphingLines, slopeFromPoints, variation, writingLines } from '../algebra1/linear';
 import { distanceWordProblems, mixtureWordProblems, systemsWordProblems, workWordProblems } from '../algebra1/words';
 import { exponentProperties } from '../algebra1/exponents';
 import { factoringTrinomials } from '../algebra1/factoring';
@@ -31,6 +32,13 @@ const topics: TopicGenerator[] = [
   discreteRelations,
   continuousRelations,
   evaluatingFunctions,
+  // Linear Relations and Functions
+  slopeFromPoints,
+  graphingLines,
+  writingLines,
+  graphingAbsoluteValue,
+  graphingLinearInequalities,
+  variation,
   // Systems of Equations and Inequalities
   systemsWordProblems,
   systemsOfEquations,

@@ -268,7 +268,153 @@ function domainRangeParts(answer: string): { dom: string; ran: string; verdict: 
   return { dom: parts[0]!.slice(8), ran: parts[1]!.slice(7), verdict: parts[2] ?? null };
 }
 
+/** Every ordered pair written in the rich text (`(1, 2)` or `\\left(1, 2\\right)`). */
+function pairsIn(rich: string): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  for (const seg of mathSegments(rich)) {
+    for (const mm of seg.matchAll(/(?:\\left)?\(([^()]*)(?:\\right)?\)/g)) {
+      const items = mm[1]!.replace(/\\right$/, '').split(',');
+      if (items.length === 2) out.push([evalReal(items[0]!), evalReal(items[1]!)]);
+    }
+  }
+  return out;
+}
+
+function onPolyline(pt: readonly [number, number], d: Diagram | undefined): boolean {
+  for (const { pts } of curvePaths(d)) {
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const [a, b2] = [pts[i]!, pts[i + 1]!];
+      const vx = b2[0] - a[0];
+      const vy = b2[1] - a[1];
+      const L2 = vx * vx + vy * vy || 1;
+      const t = Math.max(0, Math.min(1, ((pt[0] - a[0]) * vx + (pt[1] - a[1]) * vy) / L2));
+      if (Math.hypot(a[0] + t * vx - pt[0], a[1] + t * vy - pt[1]) < 1e-6) return true;
+    }
+  }
+  return false;
+}
+
+function curveOnEquation(eq: string, d: Diagram | undefined): void {
+  const { F } = relation(eq);
+  const pts = curvePoints(d);
+  expect(pts.length, 'curve drawn').toBeGreaterThan(5);
+  for (const [x, y] of pts) expect(Math.abs(F(x, y)) < 1e-6, `(${x}, ${y}) on ${eq}`).toBe(true);
+}
+
+/** Slope of the line F(x, y) = 0 (null when vertical). */
+function slopeOf(F: (x: number, y: number) => number): number | null {
+  const a = F(1, 0) - F(0, 0);
+  const b2 = F(0, 1) - F(0, 0);
+  return Math.abs(b2) < 1e-12 ? null : -a / b2;
+}
+
 export const VERIFIERS: Record<string, Verifier> = {
+  'algebra1.slope'(p) {
+    const pts = p.diagram ? (p.diagram.items.filter((it) => it.t === 'dot') as Array<{ p: readonly [number, number] }>).map((dd) => [dd.p[0], dd.p[1]] as [number, number]) : pairsIn(p.question);
+    expect(pts.length).toBe(2);
+    const [[x1, y1], [x2, y2]] = pts as [[number, number], [number, number]];
+    if (p.diagram) pts.forEach((q) => expect(onPolyline(q, p.diagram), 'marked point on the line').toBe(true));
+    if (x1 === x2) expect(p.answer).toBe('Undefined');
+    else expect(close(evalReal(onlyMath(p.answer)), (y2 - y1) / (x2 - x1)), `${p.question} → ${p.answer}`).toBe(true);
+  },
+
+  'algebra1.lineGraph'(p) {
+    const eq = onlyMath(p.question);
+    curveOnEquation(eq, p.answerDiagram);
+    const { F } = relation(eq);
+    const pts = pairsIn(p.answer);
+    expect(pts.length).toBe(2);
+    expect(pts[0]![0] !== pts[1]![0] || pts[0]![1] !== pts[1]![1], 'distinct points').toBe(true);
+    for (const q of pts) {
+      expect(Math.abs(F(q[0], q[1])) < 1e-9, `${p.answer} on ${eq}`).toBe(true);
+      expect(onPolyline(q, p.answerDiagram), `${q} on the drawn line`).toBe(true);
+    }
+  },
+
+  /** Equation of a line from point(s), a slope, a parallel/perpendicular line, or a graph. */
+  'algebra1.lineThrough'(p) {
+    const { F } = relation(onlyMath(p.answer));
+    const segs = mathSegments(p.question);
+    let pts = pairsIn(p.question);
+    if (p.diagram) pts = (p.diagram.items.filter((it) => it.t === 'dot') as Array<{ p: readonly [number, number] }>).map((dd) => [dd.p[0], dd.p[1]]);
+    expect(pts.length).toBeGreaterThan(0);
+    for (const q of pts) expect(Math.abs(F(q[0], q[1])) < 1e-9, `${p.answer} through (${q})`).toBe(true);
+    if (p.diagram) pts.forEach((q) => expect(onPolyline(q, p.diagram), 'marked point on the line').toBe(true));
+    let slope: number | null | undefined;
+    const given = segs.find((s2) => /m = /.test(s2));
+    if (given) slope = evalReal(given.split('=')[1]!);
+    const line = segs.find((s2) => /[xy]/.test(s2) && s2.includes('='));
+    if (line && /parallel|perpendicular/.test(p.question)) {
+      const g = slopeOf(relation(line).F);
+      slope = /parallel/.test(p.question) ? g : g === null ? 0 : Math.abs(g) < 1e-12 ? null : -1 / g;
+    }
+    if (pts.length < 2) expect(slope, 'a slope is determined').not.toBe(undefined);
+    const P = pts[0]!;
+    if (slope !== undefined) {
+      if (slope === null) expect(Math.abs(F(P[0], P[1] + 1)) < 1e-9, 'vertical').toBe(true);
+      else expect(Math.abs(F(P[0] + 1, P[1] + slope)) < 1e-9, `slope ${slope}`).toBe(true);
+    }
+    // a genuine line, not an identity
+    expect(Math.abs(F(1, 0) - F(0, 0)) + Math.abs(F(0, 1) - F(0, 0)), 'non-degenerate').toBeGreaterThan(1e-9);
+  },
+
+  'algebra1.absGraph'(p) {
+    const eq = onlyMath(p.question);
+    curveOnEquation(eq, p.answerDiagram);
+    const [V] = pairsIn(p.answer);
+    const { F } = relation(eq);
+    expect(Math.abs(F(V![0], V![1])) < 1e-9, `vertex ${V} on ${eq}`).toBe(true);
+    const ys = curvePoints(p.answerDiagram).map((q) => q[1]);
+    const up = /opens up/.test(p.answer);
+    expect(/opens (up|down)/.test(p.answer)).toBe(true);
+    if (up) expect(Math.min(...ys)).toBeGreaterThanOrEqual(V![1] - 1e-9);
+    else expect(Math.max(...ys)).toBeLessThanOrEqual(V![1] + 1e-9);
+  },
+
+  /** Shaded half-plane(s) agree with the question's inequality (or aligned system of inequalities). */
+  'algebra1.shading'(p) {
+    const q = onlyMath(p.question);
+    const rows = q.includes('\\begin{aligned}')
+      ? q
+          .replace(/\\begin\{aligned\}|\\end\{aligned\}/g, '')
+          .split('\\\\')
+          .map((r) => r.replace(/&/g, '').trim())
+      : [q];
+    expectShading(rows, p.answerDiagram, p.check!.range as number, p.question);
+    if (rows.length === 1) {
+      const strict = /[<>]/.test(relation(q).rel);
+      expect(p.answer.startsWith(strict ? 'Dashed' : 'Solid'), p.answer).toBe(true);
+    }
+  },
+
+  /** "y varies directly/inversely with x, and y = a when x = b. …" */
+  'algebra1.variation'(p) {
+    const segs = mathSegments(p.question);
+    const [Y, X] = segs as [string, string];
+    const direct = /directly/.test(p.question);
+    const env = assignments(segs.slice(2, 4));
+    const k = direct ? env[Y]! / env[X]! : env[Y]! * env[X]!;
+    const law = (x: number) => (direct ? k * x : k / x);
+    const task = p.check!.task as string;
+    const ans = onlyMath(p.answer);
+    if (task === 'constant') {
+      expect(ans.startsWith('k =')).toBe(true);
+      expect(close(evalReal(ans.slice(3)), k), `${p.question} → ${p.answer}`).toBe(true);
+    } else if (task === 'equation') {
+      const [l, r] = sides(ans);
+      expect(l).toBe(Y);
+      for (const x of [-2.5, 1.3, 4.1]) expect(close(evalReal(r, { vars: { [X]: x } }), law(x)), `${p.answer} at ${X}=${x}`).toBe(true);
+    } else {
+      const target = segs[4]!;
+      const known = assignments([segs[5]!]);
+      const [l, r] = sides(ans);
+      expect(l).toBe(target);
+      const got = evalReal(r);
+      if (target === Y) expect(close(got, law(known[X]!)), `${p.question} → ${p.answer}`).toBe(true);
+      else expect(close(law(got), known[Y]!), `${p.question} → ${p.answer}`).toBe(true);
+    }
+  },
+
   'algebra1.relation'(p) {
     const pairs = relationPairs(p);
     expect(pairs.length).toBeGreaterThan(2);

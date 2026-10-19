@@ -47,6 +47,10 @@ export function assignments(rich: string): Assignment[] {
   return out;
 }
 
+function sub(a: Pt, b: Pt): Pt {
+  return [a[0] - b[0], a[1] - b[1]];
+}
+
 function angleAt(a: Pt, v: Pt, c: Pt): number {
   const u = [a[0] - v[0], a[1] - v[1]];
   const w = [c[0] - v[0], c[1] - v[1]];
@@ -208,8 +212,53 @@ function questionNumbers(p: ProblemContent): number[] {
     .map(Number);
 }
 
+/** Postulate implied by the congruent parts S (sides, side i opposite vertex i) and A (angles). */
+function congruenceCriterion(S: number[], A: number[], right: number | null): string {
+  const has = (xs: number[], i: number) => xs.includes(i);
+  if (S.length === 3) return 'SSS';
+  if (A.length >= 2 && S.length >= 1) {
+    // a side between the two known angles (not opposite either) gives ASA, otherwise AAS
+    const s = S[0]!;
+    return A.length >= 3 || !has(A, s) ? 'ASA' : 'AAS';
+  }
+  if (S.length === 2) {
+    const k = [0, 1, 2].find((i) => !has(S, i))!;
+    if (has(A, k)) return 'SAS';
+    if (right !== null && has(A, right) && has(S, right)) return 'HL';
+  }
+  return 'Not enough information';
+}
+
 export const VERIFIERS: Record<string, Verifier> = {
   'geometry.solve': solveCheck,
+
+  /** The drawn triangles are congruent; the criterion follows from the marked plus shared/vertical parts. */
+  'geometry.congruence'(p) {
+    const c = p.check!;
+    const T1 = c.T1 as Pt[];
+    const T2 = c.T2 as Pt[];
+    const d = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const side = (T: Pt[], i: number) => d(T[(i + 1) % 3]!, T[(i + 2) % 3]!);
+    const angle = (T: Pt[], i: number) => angleAt(T[(i + 1) % 3]!, T[i]!, T[(i + 2) % 3]!);
+    for (let i = 0; i < 3; i++) expect(close(side(T1, i), side(T2, i)), 'drawn triangles congruent').toBe(true);
+    const S = [...(c.S as number[])];
+    const A = [...(c.A as number[])];
+    const same = (a: Pt, b: Pt) => d(a, b) < 1e-9;
+    for (let i = 0; i < 3; i++) {
+      const [a1, b1] = [T1[(i + 1) % 3]!, T1[(i + 2) % 3]!];
+      const [a2, b2] = [T2[(i + 1) % 3]!, T2[(i + 2) % 3]!];
+      if ((same(a1, a2) && same(b1, b2)) || (same(a1, b2) && same(b1, a2))) S.push(i);
+      if (same(T1[i]!, T2[i]!)) {
+        // vertical angles: each ray of one angle is opposite a ray of the other
+        const u = [sub(T1[(i + 1) % 3]!, T1[i]!), sub(T1[(i + 2) % 3]!, T1[i]!)];
+        const w = [sub(T2[(i + 1) % 3]!, T2[i]!), sub(T2[(i + 2) % 3]!, T2[i]!)];
+        const opposite = (x: Pt, y: Pt) => Math.abs(x[0] * y[1] - x[1] * y[0]) < 1e-9 * Math.hypot(...x) * Math.hypot(...y) && x[0] * y[0] + x[1] * y[1] < 0;
+        if ((opposite(u[0]!, w[0]!) && opposite(u[1]!, w[1]!)) || (opposite(u[0]!, w[1]!) && opposite(u[1]!, w[0]!))) A.push(i);
+      }
+    }
+    const right = [0, 1, 2].find((i) => Math.abs(angle(T1, i) - 90) < 1e-6) ?? null;
+    expect(p.answer, JSON.stringify({ S, A, right })).toBe(congruenceCriterion([...new Set(S)], [...new Set(A)], right));
+  },
 
   /** Classification from the drawn triangle, or from side lengths via the converse of the Pythagorean theorem. */
   'geometry.classifyTriangle'(p) {

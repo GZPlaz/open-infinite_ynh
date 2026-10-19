@@ -13,6 +13,13 @@ const POOL = ['0', '1', '-1', '\\frac{1}{2}', '-\\frac{1}{2}', '\\frac{\\sqrt{2}
 const poolFallback = (k: number) => (k <= POOL.length ? m(POOL[k - 1]!) : m(String(k)));
 const ex = (e: Exact | null) => (e ? m(e.toTex()) : null);
 const p = (t: string) => (t.startsWith('-') || /[+-]/.test(t.slice(1)) ? `\\left(${t}\\right)` : t);
+/** Product of two factors with unit factors dropped. */
+const pp = (x: string, y: string) => {
+  const f = [x, y].filter((t) => t !== '1');
+  if (f.length === 0) return '1';
+  if (f.length === 1) return p(f[0]!);
+  return f.map(p).join('');
+};
 
 // ---------------------------------------------------------------- given values
 
@@ -68,12 +75,12 @@ function sumDiffValue(fn: 'sin' | 'cos' | 'tan', A: number, op: '+' | '-', B: nu
   const sB = sinExact(B);
   const cB = cosExact(B);
   const sg = op === '+' ? 1 : -1;
-  if (fn === 'sin') return { expand: `${p(sA.toTex())}${p(cB.toTex())} ${op} ${p(cA.toTex())}${p(sB.toTex())}`, wrong: sA.add(sB.scale(sg)), signErr: sA.mul(cB).sub(cA.mul(sB).scale(sg)) };
-  if (fn === 'cos') return { expand: `${p(cA.toTex())}${p(cB.toTex())} ${op === '+' ? '-' : '+'} ${p(sA.toTex())}${p(sB.toTex())}`, wrong: cA.add(cB.scale(sg)), signErr: cA.mul(cB).add(sA.mul(sB).scale(sg)) };
+  if (fn === 'sin') return { expand: `${pp(sA.toTex(), cB.toTex())} ${op} ${pp(cA.toTex(), sB.toTex())}`, wrong: sA.add(sB.scale(sg)), signErr: sA.mul(cB).sub(cA.mul(sB).scale(sg)) };
+  if (fn === 'cos') return { expand: `${pp(cA.toTex(), cB.toTex())} ${op === '+' ? '-' : '+'} ${pp(sA.toTex(), sB.toTex())}`, wrong: cA.add(cB.scale(sg)), signErr: cA.mul(cB).add(sA.mul(sB).scale(sg)) };
   const tA = sA.div(cA);
   const tB = sB.div(cB);
   return {
-    expand: `\\frac{${tA.toTex()} ${op} ${p(tB.toTex())}}{1 ${op === '+' ? '-' : '+'} ${p(tA.toTex())}${p(tB.toTex())}}`,
+    expand: `\\frac{${tA.toTex()} ${op} ${p(tB.toTex())}}{1 ${op === '+' ? '-' : '+'} ${pp(tA.toTex(), tB.toTex())}}`,
     wrong: tA.add(tB.scale(sg)),
     signErr: Exact.ONE.sub(tA.mul(tB).scale(sg)).isZero() ? null : tA.add(tB.scale(sg)).div(Exact.ONE.add(tA.mul(tB).scale(sg))),
   };

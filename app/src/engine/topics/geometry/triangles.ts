@@ -27,6 +27,7 @@ import {
   orient,
   posToward,
   sub,
+  sideText,
   ticks,
   unit,
   type Lin,
@@ -334,14 +335,20 @@ export const isoscelesEquilateral = defineTopic({
     });
     const base = (180 - apex) / 2;
     const P = place(rng, trianglePts(base, base), 20);
-    const b = drawPolygon(P, names);
-    ticks(b, P[0]!, P[2]!, 1);
-    ticks(b, P[1]!, P[2]!, 1);
-    if (equi) ticks(b, P[0]!, P[1]!, 1);
+    const angLabels: Array<string | null> = [null, null, null];
+    const sideTexts: Array<[number, number, string]> = [];
     const angleTri = (i: number): [Pt, Pt, Pt] => [P[(i + 1) % 3]!, P[i]!, P[(i + 2) % 3]!];
     const angName = (i: number) => `m\\angle ${names[i]}`;
     const sideName = (i: number, j: number) => `${names[i]}${names[j]}`;
-    const fig = (alt: string) => b.build(alt);
+    const fig = (alt: string) =>
+      labelledTriangle(P, names, angLabels, {
+        draw: (b) => {
+          ticks(b, P[0]!, P[2]!, 1);
+          ticks(b, P[1]!, P[2]!, 1);
+          if (equi) ticks(b, P[0]!, P[1]!, 1);
+          for (const [i, j, t] of sideTexts) sideText(b, P[i]!, P[j]!, t, centroid(P));
+        },
+      }).build(alt);
 
     if (difficulty === 'easy') {
       // numbers: find x (an angle) from one given angle
@@ -349,9 +356,9 @@ export const isoscelesEquilateral = defineTopic({
       const fmt = (v: number) => m(`x = ${v}`);
       if (equi) {
         const i = rng.int(0, 2);
-        angleLabel(b, ...angleTri(i), 'x^\\circ', { radiusPx: 13 });
+        angLabels[i] = 'x^\\circ';
         return {
-          question: 'Find $x$. (All three sides are marked congruent.)',
+          question: 'Find $x$.',
           answer: fmt(60),
           steps: ['An equilateral triangle is equiangular.', m('3x = 180'), m('x = 60')],
           distractors: numChoices(fmt, 60, [45, 90, 120, 30]),
@@ -362,8 +369,8 @@ export const isoscelesEquilateral = defineTopic({
       const xi = givenApex ? rng.int(0, 1) : 2;
       const gi = givenApex ? 2 : rng.int(0, 1);
       const val = xi === 2 ? apex : base;
-      angleLabel(b, ...angleTri(gi), deg(gi === 2 ? apex : base), { radiusPx: 13 });
-      angleLabel(b, ...angleTri(xi), 'x^\\circ', { radiusPx: 13 });
+      angLabels[gi] = deg(gi === 2 ? apex : base);
+      angLabels[xi] = 'x^\\circ';
       const known = gi === 2 ? apex : base;
       return {
         question: 'Find $x$.',
@@ -381,7 +388,7 @@ export const isoscelesEquilateral = defineTopic({
     }
 
     // medium / hard: expressions; ask for x and a measure
-    const sideMode = rng.bool(0.4);
+    const sideMode = equi || rng.bool(0.4);
     const built = attempt('iso', () => {
       const x = rng.int(3, difficulty === 'hard' ? 18 : 12);
       if (sideMode) {
@@ -403,8 +410,7 @@ export const isoscelesEquilateral = defineTopic({
       // legs P0P2 and P1P2 (and base for equilateral)
       const segs: Array<[number, number, Lin]> = [[0, 2, e1!], [1, 2, e2!]];
       if (equi) segs.push([0, 1, e3!]);
-      const inside = centroid(P);
-      for (const [i, j, e] of segs) b.sideLabel(P[i]!, P[j]!, linTex(e), inside);
+      for (const [i, j, e] of segs) sideTexts.push([i, j, linTex(e)]);
       const tName = sideName(...([[0, 2], [1, 2], [0, 1]][rng.int(0, equi ? 2 : 1)] as [number, number]));
       const lAt = (w: number) => linVal(e1!, w);
       const fmt = (w: number) => `${m(`x = ${w}`)}, ${m(`${tName} = ${lAt(w)}`)}`;
@@ -426,12 +432,12 @@ export const isoscelesEquilateral = defineTopic({
     }
     // angle expressions: base angle at P0 (and apex P2 when hard)
     const bi = rng.int(0, 1);
-    angleLabel(b, ...angleTri(bi), linDeg(e1!), { radiusPx: 13 });
+    angLabels[bi] = linDeg(e1!);
     const angles: Array<[Pt, Pt, Pt, string]> = [[...angleTri(bi), linTex(e1!)]];
     let eq: string;
     let steps: string[];
     if (e2) {
-      angleLabel(b, ...angleTri(2), linDeg(e2), { radiusPx: 13 });
+      angLabels[2] = linDeg(e2);
       angles.push([...angleTri(2), linTex(e2)]);
       eq = equi ? `${linTex(e1!)} = ${linTex(e2)}` : `2(${linTex(e1!)}) + (${linTex(e2)}) = 180`;
       steps = [equi ? 'All angles of an equilateral triangle are congruent:' : 'The base angles are congruent, and the angles add up to $180^\\circ$:', m(eq), m(`x = ${x}`)];
@@ -440,7 +446,7 @@ export const isoscelesEquilateral = defineTopic({
       steps = ['Each angle of an equilateral triangle measures $60^\\circ$:', m(eq), m(`x = ${x}`)];
     } else {
       const other = 1 - bi;
-      angleLabel(b, ...angleTri(other), deg(base), { radiusPx: 13 });
+      angLabels[other] = deg(base);
       angles.push([...angleTri(other), String(base)]);
       eq = `${linTex(e1!)} = ${base}`;
       steps = ['The base angles are congruent:', m(eq), m(`x = ${x}`)];
@@ -550,7 +556,7 @@ export const triangleInequality = defineTopic({
       // integer side lengths roughly proportional to the true ones
       const s = [0, 1, 2].map((i) => Math.round(sideLen(i) * (20 / Math.max(sideLen(0), sideLen(1), sideLen(2)))));
       if (new Set(s).size < 3) s[s.indexOf(Math.max(...s))]! += 1;
-      [0, 1, 2].forEach((i) => b.sideLabel(P[(i + 1) % 3]!, P[(i + 2) % 3]!, String(s[i]), centroid(P)));
+      [0, 1, 2].forEach((i) => sideText(b, P[(i + 1) % 3]!, P[(i + 2) % 3]!, String(s[i]), centroid(P)));
       order = [0, 1, 2].sort((i, j) => s[i]! - s[j]!);
       item = (i) => `\\angle ${names[i]}`;
       question = `Order the angles of $${tri}$ from smallest to largest.`;
@@ -640,8 +646,8 @@ export const midsegments = defineTopic({
       const findMid = rng.bool();
       const known = findMid ? 2 * half : half;
       const val = findMid ? half : 2 * half;
-      b.sideLabel(P[0]!, P[1]!, findMid ? String(known) : 'x', inside);
-      b.sideLabel(D, E, findMid ? 'x' : String(known), mid(P[0]!, P[1]!));
+      sideText(b, P[0]!, P[1]!, findMid ? String(known) : 'x', inside);
+      sideText(b, D, E, findMid ? 'x' : String(known), P[2]!);
       const fmt = (v: number) => m(`x = ${v}`);
       return {
         question: 'Find $x$.',
@@ -665,8 +671,8 @@ export const midsegments = defineTopic({
     });
     const { em, et } = exprs;
     const tTex = et ? linTex(et) : String(2 * half);
-    b.sideLabel(P[0]!, P[1]!, tTex, inside);
-    b.sideLabel(D, E, linTex(em), mid(P[0]!, P[1]!));
+    sideText(b, P[0]!, P[1]!, tTex, inside);
+    sideText(b, D, E, linTex(em), P[2]!);
     const targetMid = rng.bool();
     const tName = targetMid ? ms : third;
     const tVal = (w: number) => (targetMid ? linVal(em, w) : 2 * linVal(em, w));
@@ -808,7 +814,7 @@ export const centroids = defineTopic({
     const label = (nm: string, tex: string) => {
       const [p, q] = seg[nm]!;
       if (nm === AD) return; // whole median is described in the question
-      b.label(add(mid(p, q), mul(nrm, -b.px(4))), tex, posToward(mul(nrm, -1)));
+      b.label(add(mid(p, q), mul(nrm, -b.px(7))), tex, posToward(mul(nrm, -1)));
     };
     if (difficulty === 'easy') {
       const fmt = (v: number) => m(`${tName} = ${v}`);

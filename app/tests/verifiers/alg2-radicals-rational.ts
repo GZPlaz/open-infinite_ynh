@@ -258,14 +258,17 @@ export const VERIFIERS: Record<string, Verifier> = {
         `${p.question}: real root ${r} missing from ${p.answer}`,
       ).toBe(true);
     }
+    const [l, r] = sides(eq);
     for (const x of (p.check!.extraneous as number[] | undefined) ?? []) {
-      let ok = true;
+      let holds = false;
       try {
-        satisfies(eq, { [v]: x }, '');
+        const a = evaluate(l, { vars: { [v]: x } });
+        const b = evaluate(r, { vars: { [v]: x } });
+        holds = roughlyReal(a) && roughlyReal(b) && close(a.re, b.re, 1e-9);
       } catch {
-        ok = false;
+        holds = false;
       }
-      expect(ok, `${x} should be extraneous for ${p.question}`).toBe(false);
+      expect(holds, `${x} should be extraneous for ${p.question}`).toBe(false);
     }
   },
 
@@ -290,7 +293,10 @@ export const VERIFIERS: Record<string, Verifier> = {
     expect(dom && ran, p.answer).toBeTruthy();
     const ends = endpoints(dom, 'x');
     const probes: number[] = [];
-    for (let x = -30; x <= 30; x += 0.37) probes.push(x);
+    for (let i = 0; i <= 162; i++) {
+      const x = -30 + 0.37 * i;
+      if (!ends.some((e) => Math.abs(x - e) < 1e-6)) probes.push(x);
+    }
     for (const e of ends) probes.push(e - 0.4, e - 1e-4, e, e + 1e-4, e + 0.4);
     const ys: number[] = [];
     for (const x of probes) {
@@ -306,8 +312,10 @@ export const VERIFIERS: Record<string, Verifier> = {
     for (const y of ys) expect(inSet(ran, 'y', y), `y=${y} outside ${ran}`).toBe(true);
     const rEnds = endpoints(ran, 'y');
     for (const e of rEnds) expect(ys.some((y) => Math.abs(y - e) < 1e-9), `range endpoint ${e} attained`).toBe(true);
-    expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(2);
-    if (rEnds.length === 0) expect(Math.max(...ys) > 1 && Math.min(...ys) < -1).toBe(true);
+    const sorted = [...ys].sort((a, b) => a - b);
+    const med = sorted[sorted.length >> 1]!;
+    if (rEnds.length === 0) expect(sorted.at(-1)! - med > 2 && med - sorted[0]! > 2, `range unbounded both ways: ${ran}`).toBe(true);
+    else expect(sorted.at(-1)! - sorted[0]!).toBeGreaterThan(2);
   },
 
   /**

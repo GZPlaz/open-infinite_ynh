@@ -29,10 +29,25 @@ export function exactDiv(a: Poly, b: Poly): Poly {
   return q;
 }
 
-/** Monic gcd. */
+/**
+ * Monic gcd, built from common rational roots (plus a common irreducible
+ * leftover). Exact and overflow-free for the split polynomials used here.
+ */
 export function pgcd(a: Poly, b: Poly): Poly {
-  while (!b.isZero()) [a, b] = [b, divmod(a, b).r];
-  return a.isZero() ? ONE : a.scale(a.lead().inv());
+  if (a.isZero()) return b.isZero() ? ONE : b.scale(b.lead().inv());
+  if (b.isZero()) return a.scale(a.lead().inv());
+  const ra = rationalRoots(a);
+  const rb = rationalRoots(b);
+  const left = [...rb.roots];
+  let g = ONE;
+  for (const r of ra.roots) {
+    const k = left.findIndex((x) => x.eq(r));
+    if (k < 0) continue;
+    left.splice(k, 1);
+    g = g.mul(Poly.linear(1, r.neg()));
+  }
+  if (ra.rest.degree > 0 && ra.rest.eq(rb.rest)) g = g.mul(ra.rest.scale(ra.rest.lead().inv()));
+  return g;
 }
 
 /** p = c · prim with prim integral, coefficient gcd 1 and positive leading coefficient. */

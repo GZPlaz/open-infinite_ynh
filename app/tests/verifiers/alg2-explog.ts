@@ -271,4 +271,33 @@ export const VERIFIERS: Record<string, Verifier> = {
     expect(ans, 'answer uses only the given values').not.toMatch(/\\log|\\ln/);
     expect(close(evalReal(ans, { vars: env }), evalReal(target, { vars: baseEnv }), 1e-9), `${p.question} → ${p.answer}`).toBe(true);
   },
+
+  /**
+   * Growth / decay word problem. The expected value is recomputed from the
+   * model parameters (each given value must appear in the question) and
+   * compared with the displayed answer within its rounding.
+   */
+  'alg2-explog.word'(p) {
+    const c = p.check! as Record<string, number | string | boolean | string[]>;
+    for (const g of (c.given as string[]) ?? []) expect(p.question, `question shows ${g}`).toContain(g);
+    const P = c.P as number;
+    const A = c.A as number;
+    const t = c.t as number;
+    let want: number;
+    if (c.model === 'continuous') {
+      const r = c.r as number;
+      want = { A: P * Math.exp(r * t), t: Math.log(A / P) / r, r: Math.log(A / P) / t, P: A / Math.exp(r * t) }[c.unknown as 'A']!;
+    } else {
+      const g = c.g as number;
+      const per = c.period as number;
+      want = { A: P * g ** (t / per), t: (per * Math.log(A / P)) / Math.log(g), r: (A / P) ** (1 / t) - 1, P: A / g ** (t / per) }[c.unknown as 'A']!;
+    }
+    if (c.absolute) want = Math.abs(want);
+    if (c.percent) want *= 100;
+    const tex = onlyMath(p.answer).replace(/\{,\}/g, '').replace(/\\%/g, '');
+    const { parts } = splitTop(tex, ['=', '\\approx']);
+    const got = evalReal(parts.at(-1)!);
+    const tol = 0.5 * 10 ** -(c.places as number) + 1e-9 * Math.max(1, Math.abs(want));
+    expect(Math.abs(got - want), `${p.question} → ${p.answer} (want ${want})`).toBeLessThanOrEqual(tol);
+  },
 };
