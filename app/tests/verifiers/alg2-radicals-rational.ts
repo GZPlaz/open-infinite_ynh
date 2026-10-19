@@ -83,6 +83,14 @@ function scanRoots(eq: string, v: string, lo: number, hi: number, n = 360): numb
       return NaN;
     }
   };
+  /** A crossing at a removable singularity (e.g. a cancelled denominator factor) is not a root. */
+  const undefinedNear = (x: number): boolean => {
+    for (let d = 1; d <= 12; d++) {
+      const s = Math.round(x * d) / d;
+      if (Math.abs(s - x) < 1e-6) return !Number.isFinite(f(s));
+    }
+    return false;
+  };
   const roots: number[] = [];
   let x0 = lo;
   let f0 = f(x0);
@@ -112,7 +120,7 @@ function scanRoots(eq: string, v: string, lo: number, hi: number, n = 360): numb
         } else b = mid;
       }
       const x = (a + b) / 2;
-      if (ok && Math.abs(f(x)) < 1e-6) roots.push(x);
+      if (ok && Math.abs(f(x)) < 1e-6 && !undefinedNear(x)) roots.push(x);
     }
     x0 = x1;
     f0 = f1;
@@ -327,7 +335,15 @@ export const VERIFIERS: Record<string, Verifier> = {
     const v = p.check!.variable as string;
     const q = onlyMath(p.question);
     const segs = mathSegments(p.answer);
-    expectEquivalent(q, segs[0]!, [v]);
+    let compared = 0;
+    for (const x of [-3.71, -2.63, -1.37, -0.53, 0.47, 1.29, 2.21, 3.43, 4.67]) {
+      const a = evaluate(q, { vars: { [v]: x } });
+      const b = evaluate(segs[0]!, { vars: { [v]: x } });
+      if (!roughlyReal(a) || !roughlyReal(b) || Math.abs(a.re) > 1e6 || Math.abs(b.re) > 1e6) continue;
+      expect(close(a.re, b.re, 1e-7), `${q} vs ${segs[0]} at ${v}=${x}`).toBe(true);
+      compared++;
+    }
+    expect(compared, 'enough sample points').toBeGreaterThanOrEqual(5);
     if (segs.length === 1) return;
     expect(segs.length).toBe(2);
     const { parts, rels } = splitTop(segs[1]!, ['\\neq']);

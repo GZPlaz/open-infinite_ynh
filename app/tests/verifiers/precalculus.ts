@@ -225,7 +225,70 @@ function vectorsIn(rich: string, vars: Record<string, number> = {}): Record<stri
 }
 const vdot = (a: number[], b: number[]) => a.reduce((s, x, i) => s + x * b[i]!, 0);
 
+/** Polar LaTeX → evaluator input in the variable t (θ). */
+function polarTex(tex: string): string {
+  return tex
+    .replace(/\\theta/g, 't')
+    .replace(/\\(sin|cos|tan|sec|csc|cot) (\d+)t/g, '\\$1($2t)');
+}
+
+const THETAS = [0.37, 1.13, 2.03, 2.71, 3.67, 4.4, 5.3, 5.9];
+
+/** Points (x, y) on a polar curve `r = f(θ)`, `r^{2} = f(θ)` or `θ = c`. */
+function polarSamples(eq: string): Array<[number, number]> {
+  const [l, r] = sides(polarTex(eq));
+  const out: Array<[number, number]> = [];
+  if (l.trim() === 't') {
+    const c = evalReal(r);
+    for (const rr of [-2.5, 1, 3.2]) out.push([rr * Math.cos(c), rr * Math.sin(c)]);
+    return out;
+  }
+  expect(['r', 'r^{2}']).toContain(l.trim());
+  for (const t of THETAS) {
+    let v = realAt(r, { t });
+    if (v === null) continue;
+    if (l.trim() === 'r^{2}') {
+      if (v < 0) continue;
+      v = Math.sqrt(v);
+    }
+    out.push([v * Math.cos(t), v * Math.sin(t)]);
+  }
+  return out;
+}
+
 export const VERIFIERS: Record<string, Verifier> = {
+  /** A polar and a rectangular equation describe the same curve (sampled from the polar side). */
+  'precalculus.polarEq'(p) {
+    const eqs = [...mathSegments(p.question), ...mathSegments(p.answer)];
+    const polar = eqs.find((e) => /\\theta|^r/.test(e.trim()))!;
+    const rect = eqs.find((e) => e !== polar)!;
+    expect(polar && rect, `${p.question} → ${p.answer}`).toBeTruthy();
+    expect(rect).not.toMatch(/\\theta|\br\b/);
+    const [l, r] = sides(rect);
+    const resid = (x: number, y: number) => evalReal(l, { vars: { x, y } }) - evalReal(r, { vars: { x, y } });
+    const pts = polarSamples(polar);
+    expect(pts.length).toBeGreaterThanOrEqual(3);
+    for (const [x, y] of pts) expect(Math.abs(resid(x, y)) < 1e-7 * Math.max(1, x * x + y * y), `(${x}, ${y}) from ${polar} on ${rect}`).toBe(true);
+    // the rectangular equation is not an identity
+    expect([[0.37, 1.91], [-2.3, 0.77], [1.4, -3.2]].some(([x, y]) => Math.abs(resid(x!, y!)) > 1e-6), rect).toBe(true);
+  },
+
+  /** (r, θ) ↔ (x, y): both points name the same location. */
+  'precalculus.polarPoint'(p) {
+    const q = pointsIn(p.question)[0]!;
+    const a = pointsIn(p.answer)[0]!;
+    const toPolar = p.check!.dir === 'toPolar';
+    const [polar, rect] = toPolar ? [a, q] : [q, a];
+    const tol = (p.check!.tol as number | undefined) ?? 1e-9;
+    const x = polar[0]! * Math.cos(polar[1]!);
+    const y = polar[0]! * Math.sin(polar[1]!);
+    expect(Math.abs(x - rect[0]!) <= tol && Math.abs(y - rect[1]!) <= tol, `${p.question} → ${p.answer}`).toBe(true);
+    if (toPolar) {
+      expect(a[0]!, 'r > 0').toBeGreaterThan(0);
+      expect(a[1]! >= -1e-12 && a[1]! < 2 * Math.PI - 1e-12, 'θ in [0, 2π)').toBe(true);
+    }
+  },
+
   'precalculus.vectors'(p) {
     const task = p.check!.task as string;
     const raw = vectorsIn(p.question) as Record<string, string[]>;

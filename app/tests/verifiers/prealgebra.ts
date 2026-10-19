@@ -292,7 +292,76 @@ export const VERIFIERS: Record<string, Verifier> = {
     // the blank question figure has no solution marks
     expect(p.diagram?.items.some((it) => it.ink === 'accent')).toBe(false);
   },
+
+  /** Words ↔ algebra, via an independent phrase parser that also rejects ambiguous phrases. */
+  'prealgebra.verbal'(p) {
+    const task = p.check!.task as string;
+    const ev = (tex: string) => (n: number) => evalReal(tex, { vars: { n } });
+    const probes = [1.7, 2.9, -3.3, 6.1];
+    const agree = (f: (n: number) => number, g: (n: number) => number, what: string) =>
+      probes.forEach((n) => expect(close(f(n), g(n)), `${what} at n=${n}`).toBe(true));
+    if (task === 'toWords') {
+      agree(phraseValue(p.answer), ev(onlyMath(p.question)), `${p.question} → ${p.answer}`);
+    } else if (task === 'toAlgebra') {
+      agree(phraseValue(p.question), ev(onlyMath(p.answer)), `${p.question} → ${p.answer}`);
+    } else {
+      const mm = /^(.*) (is|equals|is equal to) (\$-?\d+\$)\.$/.exec(p.question)!;
+      expect(mm, p.question).not.toBeNull();
+      const [l, r] = onlyMath(p.answer).split('=');
+      agree(phraseValue(mm[1]!), ev(l!), `${p.question} → ${p.answer}`);
+      expect(evalReal(r!), p.answer).toBe(evalReal(mathSegments(mm[3]!)[0]!));
+    }
+  },
 };
+
+type Fn = (n: number) => number;
+
+/** All readings of a phrase from the grammar used by the generator (must be unique up to equivalence). */
+function readings(s: string): Fn[] {
+  s = s.trim();
+  const out: Fn[] = [];
+  if (s === 'a number') out.push((n) => n);
+  const k = /^\$(\d+)\$$/.exec(s);
+  if (k) out.push(() => Number(k[1]));
+  const pre = (prefix: string, f: (x: Fn) => Fn) => {
+    if (s.startsWith(prefix)) for (const r of readings(s.slice(prefix.length))) out.push(f(r));
+  };
+  pre('twice ', (x) => (n) => 2 * x(n));
+  pre('the square of ', (x) => (n) => x(n) ** 2);
+  const binary: Array<[RegExp, string, (x: number, y: number) => number]> = [
+    [/^the sum of /, ' and ', (x, y) => x + y],
+    [/^the difference of /, ' and ', (x, y) => x - y],
+    [/^the product of /, ' and ', (x, y) => x * y],
+    [/^the quotient of /, ' and ', (x, y) => x / y],
+  ];
+  for (const [re, sep, op] of binary) {
+    if (!re.test(s)) continue;
+    const body = s.replace(re, '');
+    splits(body, sep).forEach(([l, r]) => readings(l).forEach((x) => readings(r).forEach((y) => out.push((n) => op(x(n), y(n))))));
+  }
+  const infix: Array<[string, (x: number, y: number) => number]> = [
+    [' more than ', (x, y) => y + x],
+    [' less than ', (x, y) => y - x],
+    [' times ', (x, y) => x * y],
+  ];
+  for (const [sep, op] of infix) splits(s, sep).forEach(([l, r]) => readings(l).forEach((x) => readings(r).forEach((y) => out.push((n) => op(x(n), y(n))))));
+  return out;
+}
+
+function splits(s: string, sep: string): Array<[string, string]> {
+  const out: Array<[string, string]> = [];
+  for (let i = s.indexOf(sep); i >= 0; i = s.indexOf(sep, i + 1)) out.push([s.slice(0, i), s.slice(i + sep.length)]);
+  return out;
+}
+
+/** The unique reading of a capitalised phrase. */
+function phraseValue(rich: string): Fn {
+  const s = rich.charAt(0).toLowerCase() + rich.slice(1);
+  const rs = readings(s.replace(/\.$/, ''));
+  expect(rs.length, `no reading of "${rich}"`).toBeGreaterThan(0);
+  for (const r of rs.slice(1)) for (const n of [1.7, 2.9, -3.3]) expect(close(r(n), rs[0]!(n)), `ambiguous phrase "${rich}"`).toBe(true);
+  return rs[0]!;
+}
 
 /** Percent-aware value: `12.5\%` → 0.125; mixed numbers allowed. */
 function pctValue(tex: string): number {

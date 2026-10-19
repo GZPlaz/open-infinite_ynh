@@ -39,7 +39,11 @@ export function assignments(rich: string): Assignment[] {
   for (const seg of mathSegments(rich)) {
     for (const item of splitTop(seg, [',']).parts) {
       const { parts, rels } = splitTop(item, ['=', '\\approx']);
-      if (rels.length === 0) continue;
+      if (rels.length === 0) {
+        // a bare value: the unnamed unknown (lhs '')
+        out.push({ lhs: '', value: evalReal(noDeg(stripUnits(item))), approx: false });
+        continue;
+      }
       const rhs = noDeg(stripUnits(parts[parts.length - 1]!));
       out.push({ lhs: norm(parts[0]!), value: evalReal(rhs), approx: rels.includes('\\approx') });
     }
@@ -231,6 +235,15 @@ function congruenceCriterion(S: number[], A: number[], right: number | null): st
 
 export const VERIFIERS: Record<string, Verifier> = {
   'geometry.solve': solveCheck,
+
+  /** Acute / right / obtuse / not a triangle from the listed side lengths. */
+  'geometry.converse'(p) {
+    const v = splitTop(mathSegments(p.question)[0]!, [',']).parts.map((t) => evalReal(t)).sort((a, b) => a - b);
+    expect(v.length).toBe(3);
+    const sq = v.map((x) => Math.round(x * x));
+    const want = v[0]! + v[1]! <= v[2]! + 1e-12 ? 'Not a triangle' : sq[0]! + sq[1]! === sq[2]! ? 'Right' : sq[0]! + sq[1]! > sq[2]! ? 'Acute' : 'Obtuse';
+    expect(p.answer, p.question).toBe(want);
+  },
 
   /** The drawn triangles are congruent; the criterion follows from the marked plus shared/vertical parts. */
   'geometry.congruence'(p) {

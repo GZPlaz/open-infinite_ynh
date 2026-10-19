@@ -12,7 +12,7 @@ const GR = 10;
 /** A random non-vertical line with a visible pair of lattice points. */
 function randomLine(rng: Rng, d: Difficulty, opts: { fractions?: boolean; maxB?: number } = {}): Line {
   return attempt('line', () => {
-    const den = opts.fractions ?? d !== 'easy' ? rng.pick([1, 1, 2, 3, 4, 5]) : 1;
+    const den = !(opts.fractions ?? d !== 'easy') ? 1 : d === 'hard' ? rng.pick([1, 2, 3, 4]) : rng.pick([1, 1, 2, 3, 4, 5]);
     const mm = new Frac(rng.signedInt(1, den === 1 ? (d === 'easy' ? 4 : 5) : 2 * den, true), den);
     const b = new Frac(rng.int(-(opts.maxB ?? 6), opts.maxB ?? 6));
     const l = lineY(mm, b);

@@ -199,7 +199,7 @@ export const radiansDegrees = defineTopic({
     const to = dir === 'toRad' || dir === 'toDeg' ? dir : rng.bool() ? 'toRad' : 'toDeg';
     const decimalForm = strOpt(ctx, 'form') === 'decimal';
     const lim = { easy: 360, medium: 720, hard: 1080 }[difficulty];
-    const neg = difficulty !== 'easy';
+    const neg = true;
     const steps: { easy: number[]; medium: number[]; hard: number[] } = { easy: [30, 45], medium: [15, 20, 18], hard: [1, 5, 9, 22.5, 7.5] };
     const pickDeg = () =>
       attempt('deg', () => {

@@ -1,9 +1,9 @@
 /** Derivatives of trig, exponential, log and inverse trig functions; implicit and higher-order derivatives. */
 import { Frac, gcdAll } from '../../fraction';
-import { attempt, defineTopic, distinctDistractors, offset, strOpt } from '../../generator';
+import { attempt, defineTopic, offset, strOpt } from '../../generator';
 import { Poly } from '../../polynomial';
 import type { Rng } from '../../rng';
-import { m, num } from '../../tex';
+import { m } from '../../tex';
 import type { Difficulty, ProblemContent } from '../../types';
 import { atom, DYDX, fderiv, fnorm, ft, ftex, ftweak, joinSigned, lead, lhsDistractors, lin, polyFactor, randPoly, type AtomFn, type FTerm, type Signed } from './common';
 
@@ -148,7 +148,7 @@ export const trigDerivatives = defineTopic({
     } else {
       const f = rng.pick(pool.filter((t) => t !== 'csc' && t !== 'cot'));
       const n = rng.int(2, 5);
-      const a = rng.int(1, 4);
+      const a = rng.int(1, 3);
       const c = rng.signedInt(1, 3, true);
       const u = lin(a);
       fTex = joinSigned([sterm(c, 0, [trigTex(f, u, n)])]);
@@ -282,7 +282,7 @@ export const expLogDerivatives = defineTopic({
         const dp = p.derivative();
         fTex = `e^{${t}}`;
         dTex = `${dp.degree === 0 ? lead(dp.coef(0)) : polyFactor(dp)}e^{${t}}`;
-        wrongs = [`e^{${t}}`, `(${t})e^{${p.sub(Poly.of(1)).toTex()}}`, `${dp.degree === 0 ? lead(dp.coef(0).neg()) : `-${polyFactor(dp)}`}e^{${t}}`, `${dp.degree === 0 ? lead(dp.coef(0)) : polyFactor(dp)}e^{${dp.toTex()}}`];
+        wrongs = [`e^{${t}}`, `(${t})e^{${p.sub(Poly.of(1)).toTex()}}`, `${dp.degree === 0 ? lead(dp.coef(0).neg()) : polyFactor(dp.scale(-1))}e^{${t}}`, `${dp.degree === 0 ? lead(dp.coef(0)) : polyFactor(dp)}e^{${dp.toTex()}}`];
         steps.push(`Chain rule with $u = ${t}$: $${ds(`${DYDX} = e^{u} \\cdot u'`)}$`);
         break;
       }
@@ -379,14 +379,14 @@ export const inverseTrigDerivatives = defineTopic({
       case 'axk': {
         const k = kind === 'ax' ? 1 : rng.int(2, 3);
         const a = rng.int(kind === 'ax' && difficulty === 'easy' ? 1 : 2, 5);
+        const c = rng.int(1, 3);
         const u = k === 1 ? lin(a) : `${a === 1 ? '' : a}x^{${k}}`;
         const u2 = `${a * a === 1 ? '' : a * a}x^{${2 * k}}`;
-        const top = `${a * k}${k - 1 === 0 ? '' : k - 1 === 1 ? 'x' : `x^{${k - 1}}`}`;
-        fTex = inv(u);
+        const xk = k - 1 === 0 ? '' : k - 1 === 1 ? 'x' : `x^{${k - 1}}`;
+        const top = `${c * a * k === 1 && xk ? '' : c * a * k}${xk}`;
+        fTex = `${c === 1 ? '' : c}${inv(u)}`;
         dTex = `${sgn}\\frac{${top}}{${denom(u2)}}`;
-        wrongs = [`${sgn}\\frac{1}{${denom(u2)}}`, `${sgn}\\frac{${top}}{${f === 'tan' ? `1 - ${u2}` : `1 - ${u2}`}}`, `${sgn ? '' : '-'}\\frac{${top}}{${denom(u2)}}`, `${sgn}\\frac{${top}}{${denom(`${a === 1 ? '' : a}x^{${2 * k}}`.replace('x^{2}', 'x^{2}'))}}`];
-        if (a === 1) wrongs[3] = `${sgn}\\frac{${top}}{${f === 'tan' ? `1 + ${u}` : radical(`1 - ${u}`)}}`;
-        R = (0.9 / a) ** (1 / k);
+        wrongs = [`${sgn}\\frac{${c}}{${denom(u2)}}`, `${sgn}\\frac{${top}}{1 - ${u2}}`, `${sgn ? '' : '-'}\\frac{${top}}{${denom(u2)}}`, `${sgn}\\frac{${top}}{${f === 'tan' ? `1 + ${u}` : radical(`1 - ${u}`)}}`];
         steps.push(`$\\frac{d}{dx}${f === 'tan' ? '\\tan' : `\\${f}`}^{-1} u = ${rule}$ with $u = ${u}$, $u' = ${top}$`);
         break;
       }

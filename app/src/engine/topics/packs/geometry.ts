@@ -7,6 +7,7 @@ import { triangleCongruence } from '../geometry/congruence';
 import { coordinateGeometry } from '../geometry/coordinate';
 import { parallelPerpendicular, parallelTransversal } from '../geometry/parallel';
 import { pythagoreanTheorem } from '../geometry/pythagorean';
+import { elevationDepression, pythagoreanConverse, specialRightTriangles } from '../geometry/right-triangles';
 import { transformations } from '../geometry/transformations';
 import { trigRatios } from '../geometry/trig-ratios';
 import { centroids, classifyTriangles, isoscelesEquilateral, midsegments, triangleAngleSum, triangleInequality } from '../geometry/triangles';
@@ -33,7 +34,10 @@ const topics: TopicGenerator[] = [
   centroids,
   // Right Triangles and Trigonometry
   pythagoreanTheorem,
+  pythagoreanConverse,
+  specialRightTriangles,
   trigRatios,
+  elevationDepression,
   // Polygons and Quadrilaterals
   areaPerimeter,
   // Transformations

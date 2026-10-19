@@ -123,7 +123,10 @@ function ambiguous(rng: Rng): { g: Givens; sols: Tri[] } {
     if (obtuse) a = count === 1 ? rng.int(b + 1, b + 15) : rng.int(Math.max(3, b - 15), b);
     else if (count === 0) a = rng.int(3, Math.max(3, Math.floor(h - 0.5)));
     else if (count === 1) a = rng.int(b, b + 15);
-    else a = rng.int(Math.ceil(h + 0.5), b - 1);
+    else {
+      if (Math.ceil(h + 0.5) > b - 1) return null;
+      a = rng.int(Math.ceil(h + 0.5), b - 1);
+    }
     const g: Givens = { A, a, b };
     const sols = solveTriangle(g);
     if (sols.length !== count) return null;

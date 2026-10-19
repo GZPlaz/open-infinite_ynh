@@ -5,6 +5,7 @@ import { absoluteValueInequalities, compoundInequalities } from '../algebra1/com
 import { absoluteValueEquations, oneStepEquations } from '../algebra1/equations';
 import { continuousRelations, discreteRelations, evaluatingFunctions } from '../algebra1/relations';
 import { graphingAbsoluteValue, graphingLinearInequalities, graphingLines, slopeFromPoints, variation, writingLines } from '../algebra1/linear';
+import { graphingSystemsOfInequalities, solvingSystemsByGraphing, systemsByElimination, systemsBySubstitution } from '../algebra1/systems-graphing';
 import { distanceWordProblems, mixtureWordProblems, systemsWordProblems, workWordProblems } from '../algebra1/words';
 import { exponentProperties } from '../algebra1/exponents';
 import { factoringTrinomials } from '../algebra1/factoring';
@@ -40,6 +41,10 @@ const topics: TopicGenerator[] = [
   graphingLinearInequalities,
   variation,
   // Systems of Equations and Inequalities
+  graphingSystemsOfInequalities,
+  solvingSystemsByGraphing,
+  systemsByElimination,
+  systemsBySubstitution,
   systemsWordProblems,
   systemsOfEquations,
   // Polynomials, Factoring, Exponents, Radical Expressions

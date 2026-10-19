@@ -61,9 +61,27 @@ export function primitive(p: Poly): { c: Frac; p: Poly } {
 
 function divisors(n: number): number[] {
   n = Math.abs(n);
-  const out: number[] = [];
-  for (let d = 1; d <= n; d++) if (n % d === 0) out.push(d);
-  return out;
+  const small: number[] = [];
+  const large: number[] = [];
+  for (let d = 1; d * d <= n; d++) {
+    if (n % d) continue;
+    small.push(d);
+    if (d * d !== n) large.unshift(n / d);
+  }
+  return [...small, ...large];
+}
+
+/** Exact root test with a floating-point pre-filter (avoids overflow on hopeless candidates). */
+function isRoot(P: Poly, r: Frac): boolean {
+  const x = r.value;
+  let scale = 0;
+  for (let i = 0; i <= P.degree; i++) scale += Math.abs(P.coef(i).value) * Math.abs(x) ** i;
+  if (Math.abs(P.evalNum(x)) > 1e-6 * scale) return false;
+  try {
+    return P.eval(r).isZero();
+  } catch {
+    return false;
+  }
 }
 
 /** Rational roots (with multiplicity) and the part without rational roots. */
@@ -80,7 +98,7 @@ export function rationalRoots(p: Poly): { roots: Frac[]; rest: Poly } {
       for (const n of divisors(P.coef(0).n)) {
         for (const s of [1, -1]) {
           const r = new Frac(s * n, q);
-          if (P.eval(r).isZero()) {
+          if (isRoot(P, r)) {
             roots.push(r);
             P = primitive(exactDiv(P, Poly.linear(r.d, -r.n))).p;
             continue outer;

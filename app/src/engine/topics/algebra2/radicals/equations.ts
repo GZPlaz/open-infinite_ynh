@@ -92,7 +92,7 @@ export const radicalEquations = defineTopic({
           if (p === 0 || Math.abs(q) > 60) return null;
           const valid = [x1, x2].filter((x) => x + r >= 0);
           if (valid.length === 0 && (!allowNone || rng.bool(0.6))) return null;
-          if (valid.length === 2 && difficulty === 'hard' && rng.bool(0.5)) return null;
+          if (valid.length === 2 && rng.bool(difficulty === 'hard' ? 0.6 : 0.4)) return null;
           return { r, x1, x2, p, q, valid };
         });
         const { r, x1, x2, p, q, valid } = built;

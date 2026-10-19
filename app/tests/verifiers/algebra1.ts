@@ -309,6 +309,25 @@ function slopeOf(F: (x: number, y: number) => number): number | null {
 }
 
 export const VERIFIERS: Record<string, Verifier> = {
+  /** Solving a system by graphing: the solution checks out and the figure shows the lines and the intersection. */
+  'algebra1.graphSystem'(p) {
+    BASE.system!(p);
+    const rows = onlyMath(p.question)
+      .replace(/\\begin\{aligned\}|\\end\{aligned\}/g, '')
+      .split('\\\\')
+      .map((r) => r.replace(/&/g, '').trim());
+    const Fs = rows.map((r) => relation(r).F);
+    const paths = curvePaths(p.answerDiagram);
+    expect(paths.length).toBeGreaterThan(0);
+    for (const { pts } of paths) expect(Fs.some((F) => pts.every(([x, y]) => Math.abs(F(x, y)) < 1e-6)), 'graphed line is one of the equations').toBe(true);
+    Fs.forEach((F, i) => expect(paths.some(({ pts }) => pts.every(([x, y]) => Math.abs(F(x, y)) < 1e-6)), `line ${i} graphed`).toBe(true));
+    const sol = p.check!.solution;
+    if (Array.isArray(sol)) {
+      const dots = p.answerDiagram!.items.filter((it) => it.t === 'dot') as Array<{ p: readonly [number, number] }>;
+      expect(dots.some((dd) => close(dd.p[0], sol[0] as number) && close(dd.p[1], sol[1] as number)), 'intersection marked').toBe(true);
+    }
+  },
+
   'algebra1.slope'(p) {
     const pts = p.diagram ? (p.diagram.items.filter((it) => it.t === 'dot') as Array<{ p: readonly [number, number] }>).map((dd) => [dd.p[0], dd.p[1]] as [number, number]) : pairsIn(p.question);
     expect(pts.length).toBe(2);

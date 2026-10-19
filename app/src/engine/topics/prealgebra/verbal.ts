@@ -75,19 +75,23 @@ const same = (f: (n: number) => number, g: (n: number) => number) => PROBES.ever
 
 function pickExpr(rng: Rng, d: Difficulty, v: string): { e: Expr; inner: Inner; outer: Outer | null; a: number; b: number } {
   return attempt('verbal', () => {
-    const a = rng.int(2, 12);
-    const b = rng.int(2, 12);
+    const hi = d === 'easy' ? 9 : d === 'medium' ? 12 : 20;
+    let a = rng.int(2, hi);
+    const b = rng.int(2, hi);
     if (d === 'easy') {
       // a single operation on "a number" (or a single inner phrase)
       if (rng.bool(0.4)) {
         const inner = rng.pick(INNERS.filter((i) => i.kind !== 'n'));
+        if (inner.kind === 'twice' || inner.kind === 'square') a = 2;
         return { e: build(inner, null, a, b, v), inner, outer: null, a, b };
       }
       const outer = rng.pick(OUTERS);
       return { e: build(INNERS[0]!, outer, a, b, v), inner: INNERS[0]!, outer, a, b };
     }
-    const outer = rng.pick(OUTERS);
+    const outer = rng.pick(OUTERS.filter((o) => o.kind !== 'quot'));
     const inner = rng.pick(INNERS.filter((i) => i.kind !== 'n' && outer.allowed.includes(i.cls)));
+    // inner phrases without a number of their own: neighbouring wrong readings use 2
+    if (inner.kind === 'twice' || inner.kind === 'square') a = 2;
     if (a === b) return null;
     return { e: build(inner, outer, a, b, v), inner, outer, a, b };
   });
@@ -101,7 +105,7 @@ function wrongExprs(pick: { e: Expr; inner: Inner; outer: Outer | null; a: numbe
     if (x && !same(x.f, e.f) && !out.some((y) => same(y.f, x.f))) out.push(x);
   };
   // classic slips (tex only — used where the answer is algebra)
-  if (outer?.kind === 'less' || outer?.kind === 'diff') add({ phrase: '', tex: `${b} - ${outer ? inner.tex(a, v) : ''}`.replace(/- (.+ [+-] .+)$/, '- ($1)'), f: (n) => b - inner.f(n, a), key: 'rev' });
+  if (outer?.kind === 'less' || outer?.kind === 'diff') add({ phrase: '', tex: `${b} - ${inner.tex(a, v)}`, f: (n) => b - inner.f(n, a), key: 'rev' });
   if (outer?.kind === 'quot') add({ phrase: '', tex: `\\frac{${b}}{${inner.tex(a, v)}}`, f: (n) => b / inner.f(n, a), key: 'rev' });
   if (inner.kind === 'quot') add({ phrase: '', tex: outer ? outer.tex(`\\frac{${a}}{${v}}`, 'quot', b, v) : `\\frac{${a}}{${v}}`, f: (n) => (outer ? outer.f(a / n, b) : a / n), key: 'rev' });
   if (inner.kind === 'diff' && !outer) add({ phrase: '', tex: `${a} - ${v}`, f: (n) => a - n, key: 'rev' });
@@ -113,7 +117,7 @@ function wrongExprs(pick: { e: Expr; inner: Inner; outer: Outer | null; a: numbe
   // grammar neighbours (these have phrases too)
   const outers = outer ? OUTERS.filter((o) => o.allowed.includes(inner.cls)) : [];
   for (const o of outers) add(build(inner, o, a, b, v));
-  for (const i of INNERS) if (outer && i.kind !== 'n' && outer.allowed.includes(i.cls)) add(build(i, outer, a, b, v));
+  if (outer && inner.kind !== 'n') for (const i of INNERS) if (i.kind !== 'n' && outer.allowed.includes(i.cls)) add(build(i, outer, a, b, v));
   if (outer) for (const o of outers) add(build(inner, o, b, a, v));
   if (!outer) for (const i of INNERS) if (i.kind !== 'n') add(build(i, null, a, b, v));
   if (!outer) for (const i of INNERS) if (i.kind !== 'n') add(build(i, null, a + 1, b, v));
@@ -184,9 +188,9 @@ export const writingExpressions = defineTopic({
     }
     // equation: phrase is C
     const c = attempt('verbal-equation', () => {
-      const n0 = rng.int(1, 12);
+      const n0 = rng.int(1, 8) * rng.pick([1, pick.a, pick.b]);
       const val = e.f(n0);
-      return Number.isInteger(val) && Math.abs(val) <= 200 && val !== 0 ? val : null;
+      return Number.isInteger(val) && Math.abs(val) <= 600 && val !== 0 ? val : null;
     });
     const verb = rng.pick(['is', 'is', 'equals', 'is equal to']);
     const answer = m(`${e.tex} = ${c}`);

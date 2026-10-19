@@ -125,7 +125,7 @@ function quadraticEq(rng: Rng, d: Difficulty): Eq {
   return attempt('trig quadratic', () => {
     const fn = rng.pick<F>(['sin', 'cos']);
     const roots = [new Frac(1, 2), new Frac(-1, 2), new Frac(1), new Frac(-1), new Frac(0), new Frac(2), new Frac(-2), new Frac(3, 2)];
-    const r1 = rng.pick(roots.slice(0, d === 'hard' ? 8 : 5));
+    const r1 = rng.pick(roots.slice(0, d === 'hard' ? 8 : d === 'medium' ? 6 : 5));
     const r2 = rng.pick(roots.slice(0, 5));
     if (r1.eq(r2)) return null;
     // (r1.d·f − r1.n)(r2.d·f − r2.n)
@@ -220,7 +220,7 @@ export const trigEquations = defineTopic({
     if (form === 'linear') eq = rng.bool(difficulty === 'easy' ? 0 : 0.3) ? squaredEq(rng, fns) : linearEq(rng, difficulty, 1, fns);
     else if (form === 'multiple') eq = linearEq(rng, difficulty === 'easy' ? 'medium' : difficulty, difficulty === 'hard' ? rng.pick([2, 3]) : 2, fns);
     else if (form === 'factor') eq = factorEq(rng);
-    else eq = difficulty === 'easy' && rng.bool() ? squaredEq(rng, ['sin', 'cos']) : quadraticEq(rng, difficulty);
+    else eq = rng.bool(difficulty === 'easy' ? 0.5 : difficulty === 'medium' ? 0.3 : 0) ? squaredEq(rng, difficulty === 'easy' ? ['sin', 'cos'] : fns) : quadraticEq(rng, difficulty);
 
     const sols = solveAll(eq.atoms);
     const answer = answerTex(sols, unit);

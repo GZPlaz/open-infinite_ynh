@@ -6,9 +6,9 @@ import type { Difficulty, ProblemContent } from '../../../types';
 import { CATEGORY, NAMES, grouped } from './common';
 
 type Unknown = 'A' | 't' | 'r' | 'P';
-type Fmt = 'money' | 'count' | 'mass' | 'years' | 'hours' | 'days' | 'percent';
+type Fmt = 'money' | 'count' | 'mass' | 'years' | 'hours' | 'days' | 'minutes' | 'percent';
 
-const PLACES: Record<Fmt, number> = { money: 2, count: 0, mass: 1, years: 1, hours: 1, days: 1, percent: 1 };
+const PLACES: Record<Fmt, number> = { money: 2, count: 0, mass: 1, years: 1, hours: 1, days: 1, minutes: 1, percent: 1 };
 
 /** Displayed answer for a value in a given format. */
 function show(v: number, f: Fmt, noun = ''): string {
@@ -281,7 +281,7 @@ function continuous(rng: Rng, d: Difficulty): Built {
         ? `How much must ${who} deposit now in an account paying ${pct(k)} interest compounded continuously to have ${money(goal)} after ${t} years?`
         : `${startNoAmount} After ${t} ${unit}, ${what} is ${shown(goal)}. ${kind === 'population' ? 'What was the initial population?' : kind === 'bacteria' ? 'How many bacteria were there at the start?' : 'How much was there at the start?'}`,
     answer: show(PV, fmtP, noun),
-    steps: [m(`${goal} = Pe^{${rT} \\cdot ${t}}`), m(`P = \\frac{${goal}}{e^{${decimal(r * t, 4)}}} \\approx ${grouped(PV, PLACES[fmtP], fmtP === 'money')}`)],
+    steps: [m(`${goal} = Pe^{${rT} \\cdot ${t}}`), m(`P = \\frac{${goal}}{${decimal(r * t, 4) === '1' ? 'e' : `e^{${decimal(r * t, 4)}}`}} \\approx ${grouped(PV, PLACES[fmtP], fmtP === 'money')}`)],
     wrong: [goal / (1 + r * t), goal * Math.exp(r * t), goal / (1 + r) ** t, goal / Math.exp(r * (t + 1))],
     fmt: fmtP,
     noun,
