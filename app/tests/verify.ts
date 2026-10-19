@@ -3,6 +3,7 @@
  * and throws (via expect) when the rendered answer key is wrong.
  */
 import { expect } from 'vitest';
+import type { Diagram } from '../src/engine/diagram';
 import type { ProblemContent } from '../src/engine/types';
 import {
   close,
@@ -18,7 +19,7 @@ import {
   type C,
 } from './evaluator';
 
-type Verifier = (p: ProblemContent) => void;
+export type Verifier = (p: ProblemContent) => void;
 
 const SAMPLE_POINTS = [-2.7, -1.3, 0.6, 1.7, 3.1];
 const POSITIVE_POINTS = [0.7, 1.3, 1.9, 2.6, 3.4];
@@ -512,6 +513,222 @@ VERIFIERS.integral = (p) => {
   }
 };
 
+// ---------------------------------------------------------------- generic kinds
+
+const TEXT_OR = '\\text{ or }';
+const TEXT_AND = '\\text{ and }';
+
+/** Every math segment of a rich string, joined with ", ". */
+function allMath(rich: string): string {
+  return mathSegments(rich).join(', ');
+}
+
+/** Top-level items of `v = a, b` / `a, b` / `v = a \text{ or } v = b` / `\{a, b\}`. */
+export function answerValues(rich: string, variable?: string): string[] {
+  const items: string[] = [];
+  for (const seg of mathSegments(rich)) {
+    for (const part of splitTop(seg, [TEXT_OR, TEXT_AND]).parts) {
+      let t = part.trim();
+      if (variable) t = t.replace(new RegExp(`^${variable.replace(/\\/g, '\\\\')}\\s*=`), '');
+      t = splitTop(t, ['=', '\\approx']).parts.at(-1)!;
+      for (const it of listItems(t)) if (it.trim()) items.push(stripUnits(it.trim()));
+    }
+  }
+  return items;
+}
+
+const NO_SOLUTION = /no solution|no real solution/i;
+
+function sameSet(actual: C[], expected: C[], what: string, tol = 1e-6): void {
+  expect(actual.length, `${what}: count`).toBe(expected.length);
+  const left = [...expected];
+  for (const a of actual) {
+    const k = left.findIndex((e) => closeC(a, e, tol));
+    expect(k, `${what}: unexpected value ${JSON.stringify(a)}`).toBeGreaterThanOrEqual(0);
+    left.splice(k, 1);
+  }
+}
+
+function satisfies(eq: string, env: Record<string, number | C>, what: string): void {
+  const [l, r] = sides(eq);
+  const lv = evaluate(l, { vars: env });
+  const rv = evaluate(r, { vars: env });
+  const scale = Math.max(1, Math.hypot(lv.re, lv.im), Math.hypot(rv.re, rv.im));
+  expect(closeC(lv, rv, 1e-7 * scale), `${what}: ${eq} at ${JSON.stringify(env)}`).toBe(true);
+}
+
+/** All points of the paths marked `role: 'curve'`. */
+function curvePoints(d: Diagram | undefined): Array<readonly [number, number]> {
+  const out: Array<readonly [number, number]> = [];
+  for (const it of d?.items ?? []) if (it.t === 'path' && it.role === 'curve') out.push(...it.pts);
+  return out;
+}
+
+/** Truth of an answer like `x < 2 \text{ or } x \ge 5`, "All real numbers" or "No solution". */
+function setHolds(rich: string, v: string, x: number): boolean {
+  if (/all real numbers/i.test(rich)) return true;
+  if (NO_SOLUTION.test(rich)) return false;
+  const tex = mathSegments(rich).join(TEXT_AND);
+  return orAnd(tex, { [v]: x });
+}
+
+function orAnd(tex: string, vars: Record<string, number>): boolean {
+  return splitTop(tex, [TEXT_OR]).parts.some((alt) => splitTop(alt, [TEXT_AND]).parts.every((c) => chainHolds(c, vars)));
+}
+
+Object.assign(VERIFIERS, {
+  /**
+   * Equation solutions. check: { variable, equation?: tex (default: the
+   * question's math), solutions?: number[] | {re, im}[] (expected set; [] for
+   * "No solution") }. Every listed answer must satisfy the equation.
+   */
+  roots(p) {
+    const v = p.check!.variable as string;
+    const eq = (p.check!.equation as string | undefined) ?? onlyMath(p.question);
+    const none = NO_SOLUTION.test(p.answer);
+    const vals = none ? [] : answerValues(p.answer, v).map((t) => evaluate(t));
+    vals.forEach((r) => satisfies(eq, { [v]: r }, p.answer));
+    const sol = p.check!.solutions as Array<number | C> | undefined;
+    if (sol) sameSet(vals, sol.map((s) => (typeof s === 'number' ? { re: s, im: 0 } : s)), `${p.question} → ${p.answer}`);
+    else expect(vals.length || none, p.answer).toBeTruthy();
+  },
+
+  /** Numeric answer items (after the last '=' of each segment) vs check.values, in order. */
+  expect(p) {
+    const want = (p.check!.values as number[] | undefined) ?? [p.check!.value as number];
+    const got = answerValues(p.answer).map((t) => evalReal(t));
+    const tol = (p.check!.tol as number | undefined) ?? 1e-6;
+    expect(got.length, `${p.answer} vs ${want.join(', ')}`).toBe(want.length);
+    got.forEach((g, i) => expect(Math.abs(g - want[i]!) <= tol * Math.max(1, Math.abs(want[i]!)), `${p.answer}: item ${i} = ${g}, want ${want[i]}`).toBe(true));
+  },
+
+  /** Ordered pairs / triples in the answer vs check.points (any order). */
+  points(p) {
+    const want = p.check!.points as number[][];
+    const tuples = [...allMath(p.answer).matchAll(/\\left\(([^()]*(?:\([^()]*\)[^()]*)*)\\right\)|\(([^()]*(?:\{[^{}]*\}[^()]*)*)\)/g)].map((mm) => listItems(`(${mm[1] ?? mm[2]})`).map((t) => evalReal(t)));
+    if (NO_SOLUTION.test(p.answer)) expect(want.length).toBe(0);
+    else expect(tuples.length, `${p.answer}: tuples`).toBe(want.length);
+    const left = [...want];
+    for (const t of tuples) {
+      const k = left.findIndex((w) => w.length === t.length && w.every((x, i) => close(x, t[i]!, 1e-6)));
+      expect(k, `${p.answer}: unexpected point (${t.join(', ')})`).toBeGreaterThanOrEqual(0);
+      left.splice(k, 1);
+    }
+  },
+
+  /** Complex value: the answer equals check.expr (default: the question's math). */
+  cvalue(p) {
+    const q = evaluate((p.check!.expr as string | undefined) ?? onlyMath(p.question));
+    const a = evaluate(rhs(allMath(p.answer)));
+    expect(closeC(q, a, 1e-7), `${p.question} → ${p.answer}`).toBe(true);
+  },
+
+  /**
+   * Graphed curve. Every point of the role:'curve' paths in the answer figure
+   * (check.where = 'diagram' for the question figure) satisfies check.eq in x, y.
+   */
+  curve(p) {
+    const fig = p.check!.where === 'diagram' ? p.diagram : p.answerDiagram;
+    const pts = curvePoints(fig);
+    expect(pts.length, 'curve drawn').toBeGreaterThan(5);
+    const eqs = (Array.isArray(p.check!.eq) ? p.check!.eq : [p.check!.eq]) as string[];
+    for (const [x, y] of pts) {
+      const ok = eqs.some((eq) => {
+        const [l, r] = sides(eq);
+        const d = evalReal(l, { vars: { x, y } }) - evalReal(r, { vars: { x, y } });
+        return Math.abs(d) <= 1e-6 * Math.max(1, Math.abs(evalReal(l, { vars: { x, y } })));
+      });
+      expect(ok, `point (${x}, ${y}) not on ${eqs.join(' | ')}`).toBe(true);
+    }
+  },
+
+  /** Inverse function: f(answer(x)) = x. check: { f: tex in x, positive?: boolean } */
+  inverse(p) {
+    const f = p.check!.f as string;
+    const g = rhs(mathSegments(p.answer)[0]!);
+    const pts = p.check!.positive ? POSITIVE_POINTS : SAMPLE_POINTS;
+    for (const x of pts) {
+      const gx = evaluate(g, { vars: { x } });
+      const fgx = evaluate(f, { vars: { x: gx } });
+      expect(closeC(fgx, { re: x, im: 0 }, 1e-7), `f(g(${x})) for f = ${f}, g = ${g}`).toBe(true);
+    }
+  },
+
+  /**
+   * Solution set of a one-variable inequality, compound ("or"/"and") ones
+   * included. check: { variable, relation?: tex (default: question math),
+   * probes?: number[] }. Answers may be "All real numbers" / "No solution".
+   */
+  solset(p) {
+    const v = p.check!.variable as string;
+    const q = (p.check!.relation as string | undefined) ?? onlyMath(p.question);
+    const nums = [...allMath(p.answer).matchAll(/-?\d+(?:\.\d+)?/g)].map((mm) => Number(mm[0]));
+    const probes = [...nums, ...((p.check!.probes as number[] | undefined) ?? [])].flatMap((b) => [b - 2.3, b - 0.4, b - 1e-4, b, b + 1e-4, b + 0.4, b + 2.3]);
+    for (let x = -30; x <= 30; x += 0.73) probes.push(x);
+    for (const x of probes) {
+      expect(orAnd(q, { [v]: x }), `${q} vs ${p.answer} at ${v}=${x}`).toBe(setHolds(p.answer, v, x));
+    }
+  },
+
+  /**
+   * Linear system in any number of variables. The question's aligned rows are
+   * equations in check.vars; check.solution is the unique solution, or
+   * 'none' / 'all'.
+   */
+  systemN(p) {
+    const vars = p.check!.vars as string[];
+    const rows = (p.check!.rows as string[] | undefined) ??
+      onlyMath(p.question)
+        .replace(/\\begin\{aligned\}|\\end\{aligned\}|\\left\\\{|\\right\.|\\begin\{cases\}|\\end\{cases\}/g, '')
+        .split('\\\\')
+        .map((r) => r.replace(/&/g, '').trim())
+        .filter(Boolean);
+    const sol = p.check!.solution;
+    if (Array.isArray(sol)) {
+      const env = Object.fromEntries(vars.map((v, i) => [v, (sol as number[])[i]!]));
+      rows.forEach((r) => satisfies(r, env, p.question));
+      const got = answerValues(p.answer).map((t) => evalReal(t));
+      expect(got.length, p.answer).toBe(vars.length);
+      got.forEach((g, i) => expect(close(g, (sol as number[])[i]!), p.answer).toBe(true));
+    } else {
+      expect(sol === 'none' ? NO_SOLUTION.test(p.answer) : /infinitely many/i.test(p.answer), p.answer).toBe(true);
+      // rank(A) < n always; rank([A|b]) > rank(A) exactly when there is no solution
+      const zero = Object.fromEntries(vars.map((v) => [v, 0]));
+      const g = rows.map((r) => {
+        const [l, rr] = sides(r);
+        return (env: Record<string, number>) => evalReal(l, { vars: env }) - evalReal(rr, { vars: env });
+      });
+      const A = g.map((f) => vars.map((v) => f({ ...zero, [v]: 1 }) - f(zero)));
+      const Ab = g.map((f, i) => [...A[i]!, -f(zero)]);
+      expect(rank(A), `${p.question}: coefficient rank`).toBeLessThan(vars.length);
+      expect(rank(Ab) > rank(A), `${p.question}: consistency`).toBe(sol === 'none');
+    }
+  },
+} satisfies Record<string, Verifier>);
+
+function rank(m: number[][]): number {
+  const a = m.map((r) => [...r]);
+  let r = 0;
+  for (let c = 0; c < (a[0]?.length ?? 0) && r < a.length; c++) {
+    const piv = a.slice(r).findIndex((row) => Math.abs(row[c]!) > 1e-9);
+    if (piv < 0) continue;
+    [a[r], a[r + piv]] = [a[r + piv]!, a[r]!];
+    for (let i = 0; i < a.length; i++) {
+      if (i === r) continue;
+      const k = a[i]![c]! / a[r]![c]!;
+      a[i] = a[i]!.map((x, j) => x - k * a[r]![j]!);
+    }
+    r++;
+  }
+  return r;
+}
+
+/** Pack-specific verifiers (tests/verifiers/<pack>.ts) register themselves here. */
+export function registerVerifiers(extra: Record<string, Verifier>): void {
+  for (const k of Object.keys(extra)) if (k in VERIFIERS && VERIFIERS[k] !== extra[k]) throw new Error(`verifier ${k} registered twice`);
+  Object.assign(VERIFIERS, extra);
+}
+
 export function verify(p: ProblemContent): void {
   const kind = p.check?.kind as string | undefined;
   if (!kind) throw new Error('problem has no check');
@@ -520,5 +737,5 @@ export function verify(p: ProblemContent): void {
   fn(p);
 }
 
-export { evalReal, mathSegments, stripUnits };
+export { allMath, chainHolds, curvePoints, evalReal, mathSegments, onlyMath, rhs, satisfies, setHolds, sides, stripUnits };
 export type { C };

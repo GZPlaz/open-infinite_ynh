@@ -75,6 +75,7 @@ type Shape = 'product' | 'quotient' | 'power' | 'power-product' | 'power-quotien
 export const exponentProperties = defineTopic({
   id: 'alg1.exponents',
   subject: 'algebra1',
+  category: 'Exponents',
   title: 'Properties of Exponents',
   description: 'Product, quotient and power rules; zero and negative exponents.',
   instruction: 'Simplify. Your answer should contain only positive exponents.',

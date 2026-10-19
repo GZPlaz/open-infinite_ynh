@@ -79,6 +79,7 @@ const NAMES = [['A', 'B', 'C'], ['J', 'K', 'L'], ['P', 'Q', 'R'], ['X', 'Y', 'Z'
 export const transformations = defineTopic({
   id: 'geo.transformations',
   subject: 'geometry',
+  category: 'Transformations',
   title: 'Transformations',
   description: 'Images of figures under translations, reflections, rotations and dilations.',
   instruction: (o) => (o.graph ? 'Find the coordinates of the image and graph it.' : 'Find the coordinates of the vertices of each image.'),

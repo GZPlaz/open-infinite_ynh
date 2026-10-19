@@ -7,12 +7,27 @@ import katex from 'katex';
 import { describe, expect, it } from 'vitest';
 import { resolveOptions } from '../src/engine/generator';
 import { Rng } from '../src/engine/rng';
-import { TOPICS } from '../src/engine/topics';
 import { DIFFICULTIES, type OptionValues, type TopicGenerator } from '../src/engine/types';
 import { mathSegments } from './evaluator';
-import { verify } from './verify';
+import { registerVerifiers, verify, type Verifier } from './verify';
 
 const SEEDS = Number(process.env.FUZZ_SEEDS ?? 120);
+/** PACK=<name> fuzzes one pack (src/engine/topics/packs/<name>.ts); TOPIC=<id prefix> narrows further. */
+const PACK = process.env.PACK;
+const ONLY = process.env.TOPIC;
+
+const packs = import.meta.glob<{ default: TopicGenerator[] }>('../src/engine/topics/packs/*.ts');
+const verifierModules = import.meta.glob<{ VERIFIERS: Record<string, Verifier> }>('./verifiers/*.ts');
+for (const [path, load] of Object.entries(verifierModules)) {
+  if (!PACK || path.endsWith(`/${PACK}.ts`)) registerVerifiers((await load()).VERIFIERS);
+}
+let TOPICS: readonly TopicGenerator[];
+if (PACK) {
+  const load = packs[`../src/engine/topics/packs/${PACK}.ts`];
+  if (!load) throw new Error(`no pack ${PACK}`);
+  TOPICS = (await load()).default;
+} else TOPICS = (await import('../src/engine/topics')).TOPICS;
+if (ONLY) TOPICS = TOPICS.filter((t) => t.id.startsWith(ONLY));
 
 /** Defaults, plus each option flipped / each choice selected one at a time. */
 function optionVariants(t: TopicGenerator): OptionValues[] {
@@ -32,7 +47,7 @@ function optionVariants(t: TopicGenerator): OptionValues[] {
 const SMELLS: Array<[RegExp, string]> = [
   [/\+\s*-/, '"+ -"'],
   [/-\s*-(?!\\infty)/, '"- -"'],
-  [/(?<![\d.{^_])1(?=[a-z(]|\\sqrt)/i, 'coefficient 1'],
+  [/(?<![\d.{^_])(?<!\^\{-)1(?=[a-z(]|\\sqrt)/i, 'coefficient 1'],
   [/[a-zA-Z)]\^\{1\}/, 'exponent 1'],
   [/(?<![\d.])0[a-z]/, 'zero coefficient'],
   [/\$\$/, 'empty math'],
@@ -58,6 +73,7 @@ function checkRich(rich: string, where: string): void {
 describe.each(TOPICS.map((t) => [t.id, t] as const))('%s', (_id, topic) => {
   it('has sane metadata', () => {
     expect(topic.title.length).toBeGreaterThan(3);
+    expect(topic.category?.length, 'category').toBeGreaterThan(2);
     expect(topic.defaultCount).toBeGreaterThan(0);
   });
 

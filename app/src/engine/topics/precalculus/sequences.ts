@@ -47,6 +47,7 @@ function pickSeq(rng: Rng, kind: Kind, d: Difficulty): Seq {
 export const sequencesSeries = defineTopic({
   id: 'precalc.sequences',
   subject: 'precalculus',
+  category: 'Sequences and Series',
   title: 'Arithmetic & Geometric Sequences',
   description: 'nth terms, explicit formulas, partial sums, sigma notation and infinite geometric series.',
   instruction: 'Each sequence or series is arithmetic or geometric. Answer as indicated.',

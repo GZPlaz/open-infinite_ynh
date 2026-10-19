@@ -80,8 +80,12 @@ function style(it: { ink?: Ink; dash?: boolean; weight?: number }, extra: string
 
 function itemToTikz(it: DiagramItem): string {
   switch (it.t) {
-    case 'path':
-      return `\\draw${style(it)} ${it.pts.map(pt).join(' -- ')}${it.closed ? ' -- cycle' : ''};`;
+    case 'path': {
+      const coords = `${it.pts.map(pt).join(' -- ')}${it.closed ? ' -- cycle' : ''}`;
+      if (it.fill && it.noStroke) return `\\fill[${INK[it.fill]}, opacity=0.18] ${coords};`;
+      if (it.fill) return `\\filldraw${style(it, [`fill=${INK[it.fill]}`, 'fill opacity=0.18'])} ${coords};`;
+      return `\\draw${style(it)} ${coords};`;
+    }
     case 'circle':
       return `\\draw${style(it)} ${pt(it.c)} circle (${f(it.r)});`;
     case 'ellipse': {

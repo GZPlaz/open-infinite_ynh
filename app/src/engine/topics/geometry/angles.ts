@@ -71,6 +71,7 @@ function triangleFigure(A: number, B: number, names: [string, string, string]): 
 export const angleRelationships = defineTopic({
   id: 'geo.angles',
   subject: 'geometry',
+  category: 'Basics of Geometry',
   title: 'Angle Relationships',
   description: 'Complementary and supplementary angles, linear pairs, vertical angles, triangle angle sum.',
   instruction: 'Find the value of x.',

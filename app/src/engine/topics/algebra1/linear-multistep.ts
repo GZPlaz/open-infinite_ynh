@@ -302,7 +302,8 @@ function answerText(sol: Solution, v: string): string {
 export const linearMultiStep = defineTopic({
   id: 'alg1.linear.multistep',
   subject: 'algebra1',
-  title: 'Multi-Step Linear Equations',
+  category: 'Equations and Inequalities',
+  title: 'Multi-Step Equations',
   description: 'Distribute, combine like terms and solve, with variables on one or both sides.',
   instruction: 'Solve each equation.',
   multipleChoice: true,

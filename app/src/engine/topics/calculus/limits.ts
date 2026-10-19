@@ -48,6 +48,7 @@ const KINDS: Record<Difficulty, Kind[]> = {
 export const limits = defineTopic({
   id: 'calc.limits',
   subject: 'calculus',
+  category: 'Limits and Continuity',
   title: 'Evaluating Limits',
   description: 'Direct substitution, factoring and cancelling, conjugates, limits at infinity.',
   instruction: 'Evaluate each limit.',

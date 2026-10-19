@@ -34,6 +34,7 @@ function polyTex(p: Poly, v: string): string {
 export const polynomialOperations = defineTopic({
   id: 'alg1.polynomial-ops',
   subject: 'algebra1',
+  category: 'Polynomials',
   title: 'Adding, Subtracting & Multiplying Polynomials',
   description: 'Combine like terms, distribute, FOIL, special products.',
   instruction: 'Simplify each expression.',

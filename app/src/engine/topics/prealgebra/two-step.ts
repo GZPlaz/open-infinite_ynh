@@ -3,12 +3,14 @@ import { Frac } from '../../fraction';
 import { attempt, boolOpt, defineTopic, distinctDistractors, offset, opt, pickVar } from '../../generator';
 import { linear, m, num, sum } from '../../tex';
 import type { ProblemContent } from '../../types';
+import { CAT } from './common';
 
 type Form = 'ax+b' | 'b-ax' | 'x/a+b' | '(x+b)/a' | 'frac-coef';
 
 export const twoStepEquations = defineTopic({
   id: 'prealg.two-step',
   subject: 'prealgebra',
+  category: CAT.equations,
   title: 'Two-Step Equations',
   description: 'Undo addition/subtraction, then multiplication/division.',
   instruction: 'Solve each equation.',

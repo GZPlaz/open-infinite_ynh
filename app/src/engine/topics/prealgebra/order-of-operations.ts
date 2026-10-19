@@ -3,6 +3,7 @@ import { attempt, boolOpt, defineTopic, distinctDistractors, offset } from '../.
 import type { Rng } from '../../rng';
 import { m } from '../../tex';
 import type { Difficulty, ProblemContent } from '../../types';
+import { CAT } from './common';
 
 type Op = '+' | '-' | '*' | '/' | '^';
 type Node = { k: 'num'; v: number } | { k: 'op'; op: Op; l: Node; r: Node };
@@ -143,6 +144,7 @@ function ok(n: Node, negatives: boolean): boolean {
 export const orderOfOperations = defineTopic({
   id: 'prealg.order-of-operations',
   subject: 'prealgebra',
+  category: CAT.integers,
   title: 'Order of Operations',
   description: 'Evaluate integer expressions with parentheses, exponents, ×, ÷, + and −.',
   instruction: 'Evaluate each expression.',

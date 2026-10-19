@@ -27,6 +27,7 @@ function overRoot(k: number, n: number): string {
 export const vectors = defineTopic({
   id: 'precalc.vectors',
   subject: 'precalculus',
+  category: 'Vectors',
   title: 'Vectors',
   description: 'Component form, magnitude, linear combinations, dot products, angles and unit vectors.',
   instruction: (o) => (o.answerForm === 'exact' ? 'Answer as indicated. Leave radicals in simplest form.' : 'Answer as indicated. Round to the nearest tenth.'),

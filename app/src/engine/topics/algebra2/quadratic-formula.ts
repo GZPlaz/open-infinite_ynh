@@ -107,7 +107,8 @@ function rearranged(rng: Rng, q: Quad, v: string): string {
 export const quadraticFormula = defineTopic({
   id: 'alg2.quadratic.formula',
   subject: 'algebra2',
-  title: 'Using the Quadratic Formula',
+  category: 'Quadratic Functions and Inequalities',
+  title: 'Solving Equations with the Quadratic Formula',
   description: 'Solve ax² + bx + c = 0 exactly: rational, irrational or complex roots.',
   instruction: (o) =>
     o.complex ? 'Solve each equation with the quadratic formula. Include non-real solutions.' : 'Solve each equation with the quadratic formula.',

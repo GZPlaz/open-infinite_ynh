@@ -14,5 +14,8 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
     testTimeout: 300_000,
+    // tests/topics.test.ts discovers packs and verifiers with import.meta.glob;
+    // a cached transform would miss newly added files.
+    fsModuleCache: false,
   },
 });

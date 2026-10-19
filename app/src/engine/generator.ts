@@ -21,6 +21,34 @@ export function defineTopic(t: TopicGenerator): TopicGenerator {
   return t;
 }
 
+/**
+ * A topic that is another topic with some options fixed — e.g. "Compound
+ * inequalities" is the inequalities generator with the form preset. Fixed
+ * options disappear from the UI and are merged in before generating.
+ */
+export function variant(
+  base: TopicGenerator,
+  v: Partial<Pick<TopicGenerator, 'subject' | 'description' | 'category' | 'defaultCount' | 'instruction'>> & {
+    id: string;
+    title: string;
+    fixed: OptionValues;
+  },
+): TopicGenerator {
+  const merge = (o: OptionValues): OptionValues => ({ ...o, ...v.fixed });
+  return defineTopic({
+    ...base,
+    id: v.id,
+    title: v.title,
+    subject: v.subject ?? base.subject,
+    description: v.description ?? base.description,
+    category: v.category ?? base.category,
+    defaultCount: v.defaultCount ?? base.defaultCount,
+    options: base.options.filter((o) => !(o.id in v.fixed)),
+    instruction: v.instruction ?? (typeof base.instruction === 'function' ? (o: OptionValues) => (base.instruction as (o: OptionValues) => string)(merge(o)) : base.instruction),
+    generate: (ctx) => base.generate({ ...ctx, options: merge(ctx.options) }),
+  });
+}
+
 export function boolOpt(ctx: GeneratorContext, id: string): boolean {
   return ctx.options[id] === true;
 }

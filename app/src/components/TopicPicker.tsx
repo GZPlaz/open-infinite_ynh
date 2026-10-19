@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { topicsFor } from '../engine/topics';
-import { DIFFICULTIES, SUBJECTS, type Difficulty } from '../engine/types';
+import { categoriesFor, topicsFor } from '../engine/topics';
+import { DIFFICULTIES, SUBJECTS, type Difficulty, type SubjectId } from '../engine/types';
 import type { ProblemFormat } from '../engine/worksheet';
 import { useDispatch } from '../state/store';
 import { Dialog } from './Dialog';
@@ -14,13 +14,30 @@ export function TopicPicker({ open, onClose }: { open: boolean; onClose: () => v
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [format, setFormat] = useState<ProblemFormat>('free');
 
+  const [subjectId, setSubjectId] = useState<SubjectId>(SUBJECTS[0]!.id);
+
+  /** Searching spans every subject; otherwise the active subject tab is shown. */
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return SUBJECTS.map((s) => ({
-      subject: s,
-      topics: topicsFor(s.id).filter((t) => !q || `${t.title} ${t.description} ${s.title}`.toLowerCase().includes(q)),
-    })).filter((g) => g.topics.length);
-  }, [query]);
+    const words = q.split(/\s+/).filter(Boolean);
+    return SUBJECTS.filter((s) => q || s.id === subjectId)
+      .map((s) => ({
+        subject: s,
+        categories: categoriesFor(s.id)
+          .map(({ category, topics }) => ({
+            category,
+            topics: topics.filter((t) => {
+              const hay = `${t.title} ${t.description} ${category} ${s.title}`.toLowerCase();
+              return words.every((w) => hay.includes(w));
+            }),
+          }))
+          .filter((c) => c.topics.length),
+      }))
+      .filter((g) => g.categories.length);
+  }, [query, subjectId]);
+
+  const pickedIn = (id: SubjectId) => topicsFor(id).filter((t) => picked.includes(t.id)).length;
+  const setAll = (ids: string[], on: boolean) => setPicked((p) => (on ? [...new Set([...p, ...ids])] : p.filter((id) => !ids.includes(id))));
 
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   const close = () => {
@@ -79,33 +96,62 @@ export function TopicPicker({ open, onClose }: { open: boolean; onClose: () => v
         aria-label="Search topics"
         autoFocus
       />
+      {!query.trim() && (
+        <div className="picker-tabs" role="tablist" aria-label="Subjects">
+          {SUBJECTS.map((s) => {
+            const n = pickedIn(s.id);
+            return (
+              <button
+                key={s.id}
+                type="button"
+                role="tab"
+                aria-selected={s.id === subjectId}
+                className={`picker-tab${s.id === subjectId ? ' is-active' : ''}`}
+                onClick={() => setSubjectId(s.id)}
+              >
+                {s.title}
+                <span className="picker-count">{n ? `${n}/` : ''}{topicsFor(s.id).length}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       <div className="picker-groups">
-        {groups.map(({ subject, topics }) => {
-          const all = topics.every((t) => picked.includes(t.id));
+        {groups.map(({ subject, categories }) => {
+          const ids = categories.flatMap((c) => c.topics.map((t) => t.id));
+          const all = ids.every((id) => picked.includes(id));
           return (
-            <fieldset key={subject.id} className="picker-group">
-              <legend>
-                <label className="picker-all">
-                  <input
-                    type="checkbox"
-                    checked={all}
-                    onChange={() =>
-                      setPicked((p) => (all ? p.filter((id) => !topics.some((t) => t.id === id)) : [...new Set([...p, ...topics.map((t) => t.id)])]))
-                    }
-                  />
-                  {subject.title}
-                </label>
-              </legend>
-              {topics.map((t) => (
-                <label key={t.id} className={`picker-topic${picked.includes(t.id) ? ' is-picked' : ''}`}>
-                  <input type="checkbox" checked={picked.includes(t.id)} onChange={() => toggle(t.id)} />
-                  <span>
-                    <span className="picker-title">{t.title}</span>
-                    <span className="picker-desc">{t.description}</span>
-                  </span>
-                </label>
-              ))}
-            </fieldset>
+            <section key={subject.id} className="picker-subject" aria-label={subject.title}>
+              <label className="picker-all picker-subject-all">
+                <input type="checkbox" checked={all} onChange={() => setAll(ids, !all)} />
+                {query.trim() ? subject.title : `All ${subject.title} topics`}
+              </label>
+              <div className="picker-categories">
+                {categories.map(({ category, topics }) => {
+                  const catIds = topics.map((t) => t.id);
+                  const catAll = catIds.every((id) => picked.includes(id));
+                  return (
+                    <fieldset key={category} className="picker-group">
+                      <legend>
+                        <label className="picker-all">
+                          <input type="checkbox" checked={catAll} onChange={() => setAll(catIds, !catAll)} />
+                          {category || 'Other'}
+                        </label>
+                      </legend>
+                      {topics.map((t) => (
+                        <label key={t.id} className={`picker-topic${picked.includes(t.id) ? ' is-picked' : ''}`}>
+                          <input type="checkbox" checked={picked.includes(t.id)} onChange={() => toggle(t.id)} />
+                          <span>
+                            <span className="picker-title">{t.title}</span>
+                            <span className="picker-desc">{t.description}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </fieldset>
+                  );
+                })}
+              </div>
+            </section>
           );
         })}
         {!groups.length && <p className="muted">No topics match “{query}”.</p>}
