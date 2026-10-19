@@ -1,6 +1,0 @@
-node_modules/
-app/dist/
-app/e2e/output/
-release/
-*.log
-.DS_Store
