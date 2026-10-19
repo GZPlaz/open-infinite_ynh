@@ -1,0 +1,74 @@
+name: Release
+
+# Builds the reproducible static archive that the YunoHost package installs,
+# attaches it to the GitHub release and points manifest.toml/.json at it.
+#
+# Runs when a vX.Y.Z tag is pushed — including when you create the release in
+# the GitHub UI — or by hand (Actions → Release → Run workflow) for a tag that
+# already exists, e.g. to attach a missing archive.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build and attach the archive to (e.g. v0.1.0)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22.22.0
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Tag matches app/package.json
+        run: |
+          version="$(node -p "require('./app/package.json').version")"
+          test "v$version" = "$TAG" || { echo "Tag $TAG does not match app version $version"; exit 1; }
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: Build the reproducible archive
+        run: tools/build-release.sh
+      - name: Attach the archive to the GitHub release
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # Release already exists (e.g. created in the GitHub UI): add or replace the archive.
+            gh release upload "$TAG" release/openinfinite-*.tar.gz --clobber
+          else
+            gh release create "$TAG" release/openinfinite-*.tar.gz --title "OpenInfinite $TAG" --generate-notes
+          fi
+      - name: Point the YunoHost manifest at this release
+        run: |
+          archive="release/openinfinite-$VERSION.tar.gz"
+          sha="$(sha256sum "$archive" | cut -d' ' -f1)"
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/$TAG/openinfinite-$VERSION.tar.gz"
+          {
+            echo "### YunoHost source"
+            echo '```toml'
+            echo "url = \"$url\""
+            echo "sha256 = \"$sha\""
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          git checkout "$DEFAULT_BRANCH"
+          python3 tools/sync_manifest.py set-source "$VERSION" "$url" "$sha"
+          if git diff --quiet; then
+            echo "Manifest already points at this archive."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Use release $TAG"
+          git push origin "HEAD:$DEFAULT_BRANCH" || echo "::warning::Could not push the manifest update; apply the snippet in the job summary by hand."
