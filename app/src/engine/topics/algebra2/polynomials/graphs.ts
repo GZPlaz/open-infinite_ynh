@@ -18,7 +18,7 @@ const SCALES = [2, 1, new Frac(1, 2), new Frac(1, 3), new Frac(1, 4), new Frac(1
 
 function buildGraphable(rng: Rng, d: Difficulty, opts: { exits: boolean; integerOnly?: boolean }): Graphable {
   return attempt('graphable', () => {
-    const count = d === 'easy' ? rng.int(2, 3) : rng.int(2, 4);
+    const count = d === 'easy' ? rng.int(2, 3) : d === 'medium' ? rng.int(2, 4) : rng.int(3, 4);
     const pool = rng.sample([-4, -3, -2, -1, 0, 1, 2, 3, 4], count).sort((a, b) => a - b);
     const roots = pool.map((r) => ({ r, e: 1 }));
     if (d !== 'easy' && rng.bool(0.6)) rng.pick(roots).e = d === 'hard' && rng.bool(0.4) ? 3 : 2;

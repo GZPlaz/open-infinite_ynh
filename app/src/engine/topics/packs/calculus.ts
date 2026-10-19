@@ -3,6 +3,7 @@ import type { TopicGenerator } from '../../types';
 import { derivatives } from '../calculus/derivatives';
 import { integrals } from '../calculus/integrals';
 import { limits } from '../calculus/limits';
+import { chainRule, derivativeDefinition, productRule, quotientRule } from '../calculus/diff-rules';
 import { continuity, limitsAtInfinity, oneSidedLimits, trigLimits } from '../calculus/limits-more';
 
 const topics: TopicGenerator[] = [
@@ -13,7 +14,11 @@ const topics: TopicGenerator[] = [
   trigLimits,
   continuity,
   // Differentiation
+  derivativeDefinition,
   derivatives,
+  productRule,
+  quotientRule,
+  chainRule,
   // Integration
   integrals,
 ];

@@ -645,7 +645,7 @@ Object.assign(VERIFIERS, {
   /** Inverse function: f(answer(x)) = x. check: { f: tex in x, positive?: boolean } */
   inverse(p) {
     const f = p.check!.f as string;
-    const g = rhs(allMath(p.answer));
+    const g = rhs(mathSegments(p.answer)[0]!);
     const pts = p.check!.positive ? POSITIVE_POINTS : SAMPLE_POINTS;
     for (const x of pts) {
       const gx = evaluate(g, { vars: { x } });

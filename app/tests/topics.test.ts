@@ -47,7 +47,7 @@ function optionVariants(t: TopicGenerator): OptionValues[] {
 const SMELLS: Array<[RegExp, string]> = [
   [/\+\s*-/, '"+ -"'],
   [/-\s*-(?!\\infty)/, '"- -"'],
-  [/(?<![\d.{^_])1(?=[a-z(]|\\sqrt)/i, 'coefficient 1'],
+  [/(?<![\d.{^_])(?<!\^\{-)1(?=[a-z(]|\\sqrt)/i, 'coefficient 1'],
   [/[a-zA-Z)]\^\{1\}/, 'exponent 1'],
   [/(?<![\d.])0[a-z]/, 'zero coefficient'],
   [/\$\$/, 'empty math'],

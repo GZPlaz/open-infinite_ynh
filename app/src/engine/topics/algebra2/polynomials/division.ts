@@ -125,7 +125,7 @@ export const dividingPolynomials = defineTopic({
     const fl = divMod(n, flippedD);
     const shifted = q.mul(Poly.of(0, 1));
     const wrongs = [
-      quotientTex(fl.q, fl.r, d, v),
+      fl.q.isIntegral() && fl.r.isIntegral() ? quotientTex(fl.q, fl.r, d, v) : quotientTex(new Poly(q.c.map((c, i) => (i === 0 ? c.neg() : c))), r, d, v),
       r.isZero() ? quotientTex(q, Poly.of(rng.signedInt(1, 5, true)), d, v) : q.toTex(v),
       r.isZero() ? quotientTex(shifted, r, d, v) : quotientTex(q, r.scale(-1), d, v),
       quotientTex(shifted, r, d, v),

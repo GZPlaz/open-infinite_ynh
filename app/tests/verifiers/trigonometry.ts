@@ -1,7 +1,7 @@
 /** Verifiers for the trigonometry pack. */
 import { expect } from 'vitest';
 import type { Diagram } from '../../src/engine/diagram';
-import { close, evalReal, listItems, splitTop } from '../evaluator';
+import { close, evalReal, splitTop } from '../evaluator';
 import { answerValues, curvePoints, mathSegments, onlyMath, rhs, sides, stripUnits, type Verifier } from '../verify';
 
 const TAU = 2 * Math.PI;
@@ -454,6 +454,5 @@ export const VERIFIERS: Record<string, Verifier> = {
     for (const root of roots) expect(vals.some((v) => Math.abs(v - root) < 1e-5), `${p.question}: missing root ${root}`).toBe(true);
     // listed ascending, no repeats
     vals.forEach((v, i) => i > 0 && expect(v).toBeGreaterThan(vals[i - 1]!));
-    void listItems;
   },
 };

@@ -7,9 +7,9 @@ import type { Difficulty, GeneratorContext, ProblemContent, SelectOptionDef } fr
 import { angleTex, degTex, mod360, piTex, QUADRANTS, quadrantOf, radFrac, referenceAngle, type AngleUnit } from './exact';
 import { standardPosition } from './figures';
 
-export const unitsOpt = (def: 'deg' | 'rad' | 'mixed' = 'mixed'): SelectOptionDef => ({
+export const unitsOpt = (def: 'deg' | 'rad' | 'mixed' = 'mixed', id = 'units'): SelectOptionDef => ({
   type: 'select',
-  id: 'units',
+  id,
   label: 'Angle units',
   default: def,
   choices: [
@@ -19,8 +19,8 @@ export const unitsOpt = (def: 'deg' | 'rad' | 'mixed' = 'mixed'): SelectOptionDe
   ],
 });
 
-export function pickUnit(ctx: GeneratorContext): AngleUnit {
-  const u = strOpt(ctx, 'units');
+export function pickUnit(ctx: GeneratorContext, id = 'units'): AngleUnit {
+  const u = strOpt(ctx, id);
   return u === 'deg' || u === 'rad' ? u : ctx.rng.bool() ? 'deg' : 'rad';
 }
 

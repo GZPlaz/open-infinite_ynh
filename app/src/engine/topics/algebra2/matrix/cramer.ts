@@ -98,7 +98,7 @@ export const cramersRule = defineTopic({
       answer,
       steps,
       distractors,
-      check: { kind: 'systemN', vars, solution: sol.map((s) => s.value) },
+      check: { kind: `${KIND}.system3`, vars },
     };
   },
 });

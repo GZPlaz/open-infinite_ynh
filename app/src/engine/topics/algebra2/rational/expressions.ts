@@ -6,7 +6,7 @@ import type { Rng } from '../../../rng';
 import { m, num } from '../../../tex';
 import type { Difficulty, ProblemContent } from '../../../types';
 import { joinTerms } from '../radicals/common';
-import { lin, ONE, polyFactoredTex, prod, Rat, rationalRoots, X } from './ratpoly';
+import { lcd, lin, ONE, polyFactoredTex, prod, Rat, rationalRoots, X } from './ratpoly';
 
 export const RATIONAL_CATEGORY = 'Rational Expressions';
 
@@ -293,7 +293,7 @@ export const addSubtractRational = defineTopic({
     });
     const { N1, D1, N2, D2, F1, F2, ans, kind } = built;
     const question = `${fracTexExpanded(N1, D1, v)} ${sub ? '-' : '+'} ${fracTexExpanded(N2, D2, v)}`;
-    const steps = [`Least common denominator: ${m(polyFactoredTex(ans.D.degree >= Math.max(D1.degree, D2.degree) ? ans.D.scale(1) : D1.mul(D2), v))}`, m(`= ${ans.tex(v)}`)];
+    const steps = [`Least common denominator: ${m(polyFactoredTex(lcd(D1, D2), v))}`, m(`= ${ans.tex(v)}`)];
     if (kind !== 'like' && kind !== 'mono') steps.splice(1, 0, `Rewrite each fraction over the LCD, then ${sub ? 'subtract' : 'add'} the numerators.`);
     const answer = m(ans.tex(v));
     const naive = D1.add(D2).isZero() ? null : Rat.of(sub ? N1.sub(N2) : N1.add(N2), D1.add(D2));
@@ -380,9 +380,7 @@ export const complexFractions = defineTopic({
         if (rng.bool(0.3)) {
           const q = rng.signedInt(1, 6, true);
           if (q === p) return null;
-          bot = sumTerms([monoTerm(1, 0, 1, 0, v), { tex: `\\dfrac{${rng.int(1, 5)}}{${lin(1, q).toTex(v)}}`, r: Rat.of(Poly.of(1), lin(1, q)) }]);
-          // keep tex and value in sync
-          const c = Number(/\\dfrac\{(\d+)\}/.exec(bot.tex.slice(bot.tex.indexOf('+') + 1))![1]);
+          const c = rng.int(1, 5);
           bot = sumTerms([monoTerm(1, 0, 1, 0, v), { tex: `\\dfrac{${c}}{${lin(1, q).toTex(v)}}`, r: Rat.of(Poly.of(c), lin(1, q)) }]);
         }
       }

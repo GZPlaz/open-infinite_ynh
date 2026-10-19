@@ -308,7 +308,273 @@ function meansVerifier(p: ProblemContent): void {
   }
 }
 
+// ---------------------------------------------------------------- counting
+
+const LIMIT = 200_000;
+
+function gcd(a: number, b: number): number {
+  return b ? gcd(b, a % b) : Math.abs(a);
+}
+
+/** Ordered selections of k from n, by depth-first enumeration when small. */
+function countPerm(n: number, k: number): number {
+  let est = 1;
+  for (let i = 0; i < k; i++) est *= n - i;
+  if (est > LIMIT) return est;
+  const used = new Array<boolean>(n).fill(false);
+  const dfs = (depth: number): number => {
+    if (depth === k) return 1;
+    let c = 0;
+    for (let i = 0; i < n; i++) {
+      if (used[i]) continue;
+      used[i] = true;
+      c += dfs(depth + 1);
+      used[i] = false;
+    }
+    return c;
+  };
+  return dfs(0);
+}
+
+/** Pascal's triangle, independent of any factorial formula. */
+function pascal(n: number, k: number): number {
+  if (k < 0 || k > n) return 0;
+  let row = [1];
+  for (let i = 1; i <= n; i++) {
+    const next = [1];
+    for (let j = 1; j < i; j++) next.push(row[j - 1]! + row[j]!);
+    next.push(1);
+    row = next;
+  }
+  return row[k]!;
+}
+
+function countComb(n: number, k: number): number {
+  const est = pascal(n, k);
+  if (est > LIMIT) return est;
+  const dfs = (start: number, left: number): number => {
+    if (left === 0) return 1;
+    let c = 0;
+    for (let i = start; i <= n - left; i++) c += dfs(i + 1, left - 1);
+    return c;
+  };
+  return dfs(0, k);
+}
+
+function countRepeat(n: number, k: number): number {
+  if (n ** k > LIMIT) return n ** k;
+  const dfs = (depth: number): number => (depth === k ? 1 : Array.from({ length: n }, () => dfs(depth + 1)).reduce((a, b) => a + b, 0));
+  return dfs(0);
+}
+
+interface Factor {
+  n: number;
+  k: number;
+  mode: 'repeat' | 'perm' | 'comb';
+}
+
+const countFactor = (f: Factor) => (f.mode === 'repeat' ? countRepeat(f.n, f.k) : f.mode === 'perm' ? countPerm(f.n, f.k) : countComb(f.n, f.k));
+
+function expectMentions(p: ProblemContent): void {
+  for (const s of (p.check!.mentions as string[] | undefined) ?? []) expect(p.question, `mentions ${s}`).toContain(s);
+}
+
+/** The (last) number in the answer, thousands separators removed. */
+function lastNumber(rich: string): number {
+  const segs = mathSegments(rich);
+  expect(segs.length, rich).toBeGreaterThan(0);
+  return ev(segs.at(-1)!);
+}
+
+function countVerifier(p: ProblemContent): void {
+  const c = p.check!;
+  expectMentions(p);
+  const want = (c.factors as Factor[]).reduce((acc, f) => acc * countFactor(f), 1);
+  expect(lastNumber(p.answer), `${p.question} → ${p.answer}`).toBe(want);
+  if (c.label) expect(p.answer.startsWith(`${c.label as string};`), p.answer).toBe(true);
+}
+
+function countExprVerifier(p: ProblemContent): void {
+  const segs = mathSegments(p.question);
+  expect(segs.length).toBe(1);
+  const tex = segs[0]!
+    .replace(/\{\}_\{(\d+)\}P_\{(\d+)\}/g, (_, n: string, r: string) => `(${countPerm(Number(n), Number(r))})`)
+    .replace(/\{\}_\{(\d+)\}C_\{(\d+)\}/g, (_, n: string, r: string) => `(${countComb(Number(n), Number(r))})`);
+  expect(tex, 'all counting notation replaced').not.toMatch(/\{\}_/);
+  expectClose(lastNumber(p.answer), ev(tex), `${p.question} → ${p.answer}`);
+}
+
+/** Distinct strings of length r from a multiset of letters, by enumeration with memo. */
+function letterArrangements(word: string, r: number): number {
+  const counts = new Map<string, number>();
+  for (const ch of word) counts.set(ch, (counts.get(ch) ?? 0) + 1);
+  const keys = [...counts.keys()];
+  const memo = new Map<string, number>();
+  const rec = (state: number[], left: number): number => {
+    if (left === 0) return 1;
+    const key = `${state.join(',')}|${left}`;
+    const hit = memo.get(key);
+    if (hit !== undefined) return hit;
+    let c = 0;
+    state.forEach((k, i) => {
+      if (!k) return;
+      state[i]--;
+      c += rec(state, left - 1);
+      state[i]++;
+    });
+    memo.set(key, c);
+    return c;
+  };
+  return rec(keys.map((k) => counts.get(k)!), r);
+}
+
+function lettersVerifier(p: ProblemContent): void {
+  const word = /word ([A-Z]+)/.exec(p.question)![1]!;
+  const part = /(\d+)-letter arrangements/.exec(p.question);
+  const r = part ? Number(part[1]) : word.length;
+  expect(r).toBe(p.check!.r);
+  if (part) expect(new Set(word).size, 'no repeated letters for partial arrangements').toBe(word.length);
+  expect(lastNumber(p.answer), `${p.question} → ${p.answer}`).toBe(letterArrangements(word, r));
+}
+
+function spaceVerifier(p: ProblemContent): void {
+  const c = p.check!;
+  expectMentions(p);
+  const stages = c.stages as string[][];
+  const sep = c.sep as string;
+  const want = stages.reduce<string[]>((acc, st) => acc.flatMap((a) => st.map((x) => (a === '' ? x : `${a}${sep}${x}`))), ['']);
+  const [list, rest] = p.answer.split(';');
+  const got = list!.split(',').map((x) => x.trim());
+  expect(new Set(got).size, 'no repeated outcomes').toBe(got.length);
+  expect([...got].sort(), p.answer).toEqual([...want].sort());
+  expect(ev(mathSegments(rest!)[0]!)).toBe(want.length);
+  // every listed code is something the question offers
+  for (const st of stages) for (const x of st) if (x.length > 1) expect(p.question).toContain(x);
+}
+
+// ---------------------------------------------------------------- probability by enumeration
+
+type AttrValue = string | number;
+type Attrs = Record<string, AttrValue>;
+interface PoolSpec {
+  die?: number;
+  deck?: boolean;
+  coin?: boolean;
+  items?: Array<{ count: number; attrs: Attrs }>;
+}
+type Ev = Record<string, unknown>;
+interface Experiment {
+  pools: Record<string, PoolSpec>;
+  draws: string[];
+  replace: boolean;
+  event: Ev;
+}
+
+const DECK_RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+const DECK_SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];
+
+function poolOf(p: PoolSpec): Array<{ count: number; attrs: Attrs }> {
+  if (p.die) return Array.from({ length: p.die }, (_, i) => ({ count: 1, attrs: { value: i + 1 } }));
+  if (p.coin) return [{ count: 1, attrs: { side: 'H' } }, { count: 1, attrs: { side: 'T' } }];
+  if (p.deck) {
+    expect(DECK_RANKS.length * DECK_SUITS.length).toBe(52);
+    return DECK_RANKS.flatMap((rank) => DECK_SUITS.map((suit) => ({ count: 1, attrs: { rank, suit } })));
+  }
+  return p.items!;
+}
+
+function attrsUsed(e: Ev, out = new Set<string>()): Set<string> {
+  if (typeof e.attr === 'string') out.add(e.attr);
+  if (typeof e.sum === 'string') out.add(e.sum);
+  if (typeof e.same === 'string') out.add(e.same);
+  if (e.count) out.add((e.count as { attr: string }).attr);
+  for (const k of ['and', 'or']) if (Array.isArray(e[k])) (e[k] as Ev[]).forEach((x) => attrsUsed(x, out));
+  if (e.not) attrsUsed(e.not as Ev, out);
+  return out;
+}
+
+function evHolds(e: Ev, out: Attrs[]): boolean {
+  if ('at' in e) return (e.in as AttrValue[]).includes(out[e.at as number]![e.attr as string]!);
+  if ('and' in e) return (e.and as Ev[]).every((x) => evHolds(x, out));
+  if ('or' in e) return (e.or as Ev[]).some((x) => evHolds(x, out));
+  if ('not' in e) return !evHolds(e.not as Ev, out);
+  if ('count' in e) {
+    const cnt = e.count as { attr: string; in: AttrValue[] };
+    const k = out.filter((o) => cnt.in.includes(o[cnt.attr]!)).length;
+    return e.op === '>=' ? k >= (e.n as number) : k === e.n;
+  }
+  if ('sum' in e) {
+    const s = out.reduce((acc, o) => acc + Number(o[e.sum as string]), 0);
+    const v = e.value as number;
+    return e.op === '=' ? s === v : e.op === '>' ? s > v : e.op === '<' ? s < v : (() => { throw new Error(`op ${String(e.op)}`); })();
+  }
+  if ('same' in e) return out.every((o) => o[e.same as string] === out[0]![e.same as string]);
+  throw new Error(`unknown event ${JSON.stringify(e)}`);
+}
+
+/** Probability of the event over every sequence of draws (items grouped by the attributes the event reads). */
+function enumerate(x: Experiment): number {
+  const used = [...attrsUsed(x.event)];
+  const pools: Record<string, Array<{ count: number; attrs: Attrs }>> = {};
+  for (const [name, spec] of Object.entries(x.pools)) {
+    const groups = new Map<string, { count: number; attrs: Attrs }>();
+    for (const it of poolOf(spec)) {
+      expect(it.count).toBeGreaterThanOrEqual(0);
+      const sig = JSON.stringify(used.map((a) => it.attrs[a] ?? null));
+      const g = groups.get(sig);
+      if (g) g.count += it.count;
+      else groups.set(sig, { count: it.count, attrs: it.attrs });
+    }
+    pools[name] = [...groups.values()];
+  }
+  const out: Attrs[] = [];
+  const rec = (i: number): number => {
+    if (i === x.draws.length) return evHolds(x.event, out) ? 1 : 0;
+    const pool = pools[x.draws[i]!]!;
+    const total = pool.reduce((s, it) => s + it.count, 0);
+    let acc = 0;
+    for (const it of pool) {
+      if (!it.count) continue;
+      const w = it.count / total;
+      out.push(it.attrs);
+      if (!x.replace) it.count--;
+      acc += w * rec(i + 1);
+      if (!x.replace) it.count++;
+      out.pop();
+    }
+    return acc;
+  };
+  return rec(0);
+}
+
+function probVerifier(p: ProblemContent): void {
+  expectMentions(p);
+  const want = enumerate(p.check!.exp as Experiment);
+  const segs = mathSegments(p.answer);
+  expect(segs.length, p.answer).toBe(1);
+  const seg = segs[0]!.trim();
+  if (seg.includes('\\frac')) {
+    const mm = /^\\frac\{(\d+)\}\{(\d+)\}$/.exec(seg);
+    expect(mm, `reduced fraction: ${seg}`).toBeTruthy();
+    expect(gcd(Number(mm![1]), Number(mm![2])), `reduced: ${seg}`).toBe(1);
+    expect(Math.abs(ev(seg) - want), `${p.question} → ${p.answer} (want ${want})`).toBeLessThan(1e-12);
+    return;
+  }
+  const pct = seg.endsWith('\\%');
+  const body = seg.replace(/\\%$/, '');
+  const decimals = (body.split('.')[1] ?? '').length;
+  const tol = 0.5 * 10 ** -decimals * (pct ? 0.01 : 1) + 1e-12;
+  const got = ev(body) * (pct ? 0.01 : 1);
+  expect(Math.abs(got - want), `${p.question} → ${p.answer} (want ${want})`).toBeLessThanOrEqual(tol);
+  if (Number.isInteger(want) === false) expect(decimals, 'shows decimals').toBeGreaterThan(0);
+}
+
 export const VERIFIERS: Record<string, Verifier> = {
   [`${PFX}.seq`]: seqVerifier,
   [`${PFX}.means`]: meansVerifier,
+  [`${PFX}.count`]: countVerifier,
+  [`${PFX}.countExpr`]: countExprVerifier,
+  [`${PFX}.letters`]: lettersVerifier,
+  [`${PFX}.space`]: spaceVerifier,
+  [`${PFX}.prob`]: probVerifier,
 };

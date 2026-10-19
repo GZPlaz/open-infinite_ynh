@@ -79,7 +79,7 @@ function simple(rng: Rng, d: Difficulty, v: string, fractions: boolean, natural:
         question: m(`\\log_{${v}} ${N} = ${n}`),
         answer: ans([fr(r)]),
         steps: [`Exponential form: ${m(`${v}^{${n}} = ${N}`)}`, `A base must be positive, so ${m(`${v} = \\sqrt${n === 2 ? '' : `[${n}]`}{${N}} = ${r}`)}`],
-        wrong: [ans([new Frac(N, n)]), ans([fr(N ** 1 * n)]), ans([fr(n ** 2 === N ? r + 1 : n)]), ans([fr(-r)])],
+        wrong: [ans([new Frac(N, n)]), ans([fr(N * n)]), ans([fr(n)]), ans([fr(-r)])],
         solutions: [r],
       };
     }
@@ -130,15 +130,17 @@ function simple(rng: Rng, d: Difficulty, v: string, fractions: boolean, natural:
     const lhs = plus(term(a, `\\ln ${/[+-]/.test(inner) || p !== 1 ? `(${inner})` : inner}`), c);
     const rhs = a * n + c;
     const mk = (tex: string, val: number) => m(`${v} = ${tex} \\approx ${decimal(val, 3)}`);
-    const topW = q === 0 ? en : `${en} ${q > 0 ? '+' : '-'} ${Math.abs(q)}`;
+    const shift = (core: string, k: number) => (k === 0 ? core : `${core} ${k > 0 ? '+' : '-'} ${Math.abs(k)}`);
+    const over = (t: string) => (p === 1 ? t : `\\frac{${t}}{${p}}`);
     return {
       question: m(`${lhs} = ${rhs}`),
       answer: mk(exact, x),
-      steps: [...(a !== 1 || c !== 0 ? [m(`\\ln ${`(${inner})`} = ${n}`)] : []), `Exponential form: ${m(`${inner} = ${en}`)}`, mk(exact, x)],
+      steps: [...(a !== 1 || c !== 0 ? [m(`\\ln (${inner}) = ${n}`)] : []), `Exponential form: ${m(`${inner} = ${en}`)}`, mk(exact, x)],
       wrong: [
-        q !== 0 ? mk(p === 1 ? topW : `\\frac{${topW}}{${p}}`, (Math.exp(n) + q) / p) : null,
-        mk(p === 1 ? `${10 ** n > 1 ? '' : ''}10^{${n}} ${q > 0 ? '-' : '+'} ${Math.abs(q)}`.replace(/ [+-] 0$/, '') : `\\frac{10^{${n}}${q === 0 ? '' : ` ${q > 0 ? '-' : '+'} ${Math.abs(q)}`}}{${p}}`, (10 ** n - q) / p),
-        mk(p === 1 ? `${n}e${q === 0 ? '' : ` ${q > 0 ? '-' : '+'} ${Math.abs(q)}`}`.replace(/^1e/, 'e') : `\\frac{${n === 1 ? '' : n}e${q === 0 ? '' : ` ${q > 0 ? '-' : '+'} ${Math.abs(q)}`}}{${p}}`, (n * Math.E - q) / p),
+        q !== 0 ? mk(over(shift(en, q)), (Math.exp(n) + q) / p) : null,
+        mk(over(shift(`10^{${n}}`, -q)), (10 ** n - q) / p),
+        mk(over(shift(term(n, "e"), -q)), (n * Math.E - q) / p),
+        a !== 1 ? mk(over(shift(`e^{${rhs}}`, -q)), (Math.exp(rhs) - q) / p) : null,
       ],
       solutions: [x],
     };
@@ -226,7 +228,7 @@ function hard(rng: Rng, d: Difficulty, v: string, natural: boolean): Hard {
         roots,
         valid: roots.filter(ok),
         extraneous: roots.filter((x) => !ok(x)),
-        wrongCombine: intRoots(0, 0) && (P - p - q) % 2 === 0 ? [new Frac((P - p - q) / 2)] : null,
+        wrongCombine: (P - p - q) % 2 === 0 ? [new Frac((P - p - q) / 2)] : null,
       };
     }
     if (form === 'diff') {
@@ -238,7 +240,7 @@ function hard(rng: Rng, d: Difficulty, v: string, natural: boolean): Hard {
       const x = rng.int(-5, 12);
       const q = t - x;
       const p = P * t - x;
-      if (Math.abs(p) > 45 || q === 0 && p === 0) return null;
+      if (Math.abs(p) > 45) return null;
       const X = new Frac(x);
       const ok = t > 0;
       return {
@@ -251,7 +253,7 @@ function hard(rng: Rng, d: Difficulty, v: string, natural: boolean): Hard {
         roots: [X],
         valid: ok ? [X] : [],
         extraneous: ok ? [] : [X],
-        wrongCombine: (p + q) % 1 === 0 && P - 2 !== 0 && (P * 1 - p - q) % 2 === 0 ? [new Frac(P - p - q, 2)] : null,
+        wrongCombine: [new Frac(P - p - q, 2)],
       };
     }
     if (form === 'twice') {
@@ -270,7 +272,7 @@ function hard(rng: Rng, d: Difficulty, v: string, natural: boolean): Hard {
           `Power rule: ${m(`${logOf(base, `${v}^{2}`)} = ${logOf(base, rhsArg)}`)}`,
           `One-to-one: ${m(`${v}^{2} = ${rhsArg}`)}, so ${m(`${sum([{ coef: 1, sym: `${v}^{2}` }, { coef: -p, sym: v }, { coef: -q }])} = 0`)}`,
           `Candidates: ${m(`${v} = ${r1},\\ ${v} = ${r2}`)}`,
-          ...roots.filter((x) => !ok(x)).map((x) => `${m(`${v} = ${num(x)}`)} is extraneous (${m(logOf(base, num(x), true))} is undefined).`),
+          ...roots.filter((x) => !ok(x)).map((x) => `${m(`${v} = ${num(x)}`)} is extraneous (${m(logOf(base, num(x), true))} is not defined).`),
         ],
         roots,
         valid: roots.filter(ok),

@@ -74,7 +74,7 @@ function anglesFor(rng: Rng, a: AngleKind, s: SideKind): [number, number, number
     const big = a === 'Right' ? 90 : a === 'Acute' ? rng.int(62, 88) : rng.int(95, 140);
     const p = rng.int(15, 180 - big - 15);
     const q = 180 - big - p;
-    if (q < 15 || new Set([big, p, q]).size < 3 || Math.abs(p - q) < 6) return null;
+    if (q < 15 || new Set([big, p, q]).size < 3 || Math.abs(p - q) < 6 || (a === 'Acute' && Math.max(p, q) >= 88)) return null;
     return rng.shuffle([big, p, q]) as [number, number, number];
   });
 }
@@ -300,7 +300,7 @@ export const triangleAngleSum = defineTopic({
       };
     }
     // ask for a named angle (medium) or x and the angle (hard)
-    const t = rng.int(0, 2);
+    const t = rng.pick([0, 1, 2].filter((i) => qs[i]!.k === 'e'));
     const vName = task === 'exterior' && t === 2 ? `m\\angle ${names[0]}${names[2]}${names[3]}` : `m\\angle ${names[t]}`;
     const fmt = (w: number) => (difficulty === 'hard' ? `${m(`x = ${w}`)}, ${m(`${vName} = ${qAt(qs[t]!, w)}^\\circ`)}` : m(`${vName} = ${qAt(qs[t]!, w)}^\\circ`));
     const steps = [reason, ...solveLinearSteps(lhs, rhs, x), m(`${vName} = ${qs[t]!.k === 'e' ? `${linSubTex(qs[t]!.e, x)} = ` : ''}${qAt(qs[t]!, x)}^\\circ`)];
@@ -841,7 +841,8 @@ export const centroids = defineTopic({
     label(gName, linTex(e1));
     label(tName, linTex(e2));
     const fmt = (w: number) => (difficulty === 'hard' ? `${m(`x = ${w}`)}, ${m(`${tName} = ${linVal(e2, w)}`)}` : m(`${tName} = ${linVal(e2, w)}`));
-    const eq = `${factor[tName]}(${linTex(e1)}) = ${factor[gName]}(${linTex(e2)})`;
+    const sc = (k: number, e: Lin) => (k === 1 ? `(${linTex(e)})` : `${k}(${linTex(e)})`);
+    const eq = `${sc(factor[tName]!, e1)} = ${sc(factor[gName]!, e2)}`;
     const A2 = factor[tName]! * e1.a - factor[gName]! * e2.a;
     const B2 = factor[gName]! * e2.b - factor[tName]! * e1.b;
     const wrong = [(e2.b - e1.b) / (e1.a - e2.a), (factor[tName]! * e2.b - factor[gName]! * e1.b) / (factor[gName]! * e1.a - factor[tName]! * e2.a), (B2 + 2) / A2];

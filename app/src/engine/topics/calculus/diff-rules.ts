@@ -3,7 +3,7 @@ import { Frac } from '../../fraction';
 import { attempt, boolOpt, defineTopic, strOpt } from '../../generator';
 import { Poly } from '../../polynomial';
 import type { Rng } from '../../rng';
-import { m, num, paren, sum } from '../../tex';
+import { m, num, sum } from '../../tex';
 import type { Difficulty, ProblemContent } from '../../types';
 import {
   atom,
@@ -66,6 +66,7 @@ export const derivativeDefinition = defineTopic({
     let dAt: (a: number) => Frac;
     let wrongs: string[];
     let pts: number[] | undefined;
+    let domainOk: (x: number) => boolean = () => true;
     const a = rng.signedInt(1, difficulty === 'easy' ? 6 : 9, true);
     switch (kind) {
       case 'linear':
@@ -100,6 +101,7 @@ export const derivativeDefinition = defineTopic({
         steps.push(m(ds(`f'(x) = ${dTex}`)));
         wrongs = [`\\frac{${a}}{(${den})^{2}}`, `-\\frac{${a}}{${den}}`, `\\frac{${a}}{2(${den})}`, `-\\frac{${2 * a}}{(${den})^{2}}`];
         pts = POS_REC(b);
+        domainOk = (x) => x + b !== 0;
         break;
       }
       case 'invsq': {
@@ -110,7 +112,8 @@ export const derivativeDefinition = defineTopic({
         steps.push(m(ds(H(`\\frac{1}{h}\\left(\\frac{${a}}{(x + h)^{2}} - \\frac{${a}}{x^{2}}\\right)`))));
         steps.push(m(ds(H(`\\frac{${-a}(2x + h)}{x^{2}(x + h)^{2}}`))));
         steps.push(m(ds(`f'(x) = ${dTex}`)));
-        wrongs = [`\\frac{${2 * a}}{x^{3}}`, `-\\frac{${a}}{x^{3}}`, `\\frac{${2 * a}}{x}`.replace('\\frac{2}{x}', '\\frac{2}{x}'), `-\\frac{${2 * a}}{x^{2}}`];
+        wrongs = [`\\frac{${2 * a}}{x^{3}}`, `-\\frac{${a}}{x^{3}}`, `\\frac{${2 * a}}{x}`, `-\\frac{${2 * a}}{x^{2}}`];
+        domainOk = (x) => x !== 0;
         break;
       }
       case 'root':
@@ -121,10 +124,8 @@ export const derivativeDefinition = defineTopic({
         const inside = Poly.of(b, 1).toTex();
         fTex = `${k}\\sqrt{${inside}}`;
         dTex = `\\frac{${k / 2 === 1 ? '1' : k / 2}}{\\sqrt{${inside}}}`;
-        dAt = (x) => {
-          const r = Math.sqrt(x + b);
-          return new Frac(k / 2, Math.round(r));
-        };
+        dAt = (x) => new Frac(k / 2, Math.round(Math.sqrt(x + b)));
+        domainOk = (x) => [1, 4, 9, 16].includes(x + b);
         steps.push(m(ds(H(`\\frac{${k}\\sqrt{${inside.replace('x', 'x + h')}} - ${k}\\sqrt{${inside}}}{h}`))));
         steps.push(`Multiply by the conjugate: $${ds(H(`\\frac{${k}}{\\sqrt{${inside.replace('x', 'x + h')}} + \\sqrt{${inside}}}`))}$`);
         steps.push(m(ds(`f'(x) = ${dTex}`)));
@@ -133,25 +134,10 @@ export const derivativeDefinition = defineTopic({
       }
     }
     if (point) {
-      // pick an a where everything is a clean number
       const x0 = attempt('def-point', () => {
         const x = rng.int(-3, 6);
-        if (kind === 'root') {
-          const b = Number(/\{x(?: \+ (\d+))?\}/.exec(fTex)?.[1] ?? 0);
-          return [1, 4, 9, 16].includes(x + b) && x + b > 0 ? x : null;
-        }
-        if (kind === 'invsq' && x === 0) return null;
-        try {
-          const v = dAt(x);
-          return Number.isFinite(v.value) && !(kind === 'reciprocal' && /x \+ \d|x - \d/.test(fTex) && pts?.length === 0) ? x : null;
-        } catch {
-          return null;
-        }
+        return domainOk(x) ? x : null;
       });
-      if (kind === 'reciprocal') {
-        const b = Number(/x ([+-]) (\d+)/.exec(fTex)!.slice(1).join('').replace('+', '').replace(' ', ''));
-        if (x0 + b === 0) return derivativeDefinition.generate({ ...ctx, rng: rng.fork('retry') });
-      }
       const value = dAt(x0);
       const ans = `f'(${x0}) = ${num(value)}`;
       steps.push(m(ans));
@@ -185,12 +171,6 @@ const TRANS: AtomFn[] = ['sin', 'cos', 'exp', 'ln'];
 function randAtom(rng: Rng, fn?: AtomFn, max = 5): Atom {
   const f = fn ?? rng.pick(TRANS);
   return atom(f, f === 'ln' ? 1 : f === 'exp' ? rng.signedInt(1, max, true) : rng.int(1, max));
-}
-
-/** TeX of a factor given as terms: monomial-with-atoms, or bracketed sums. */
-function factorTex(ts: FTerm[]): string {
-  const n = fnorm(ts);
-  return n.length > 1 ? `(${ftex(n)})` : ftex(n);
 }
 
 const pFactor = (ts: FTerm[]) => (fnorm(ts).length > 1 || ftex(ts).startsWith('-') ? `(${ftex(ts)})` : ftex(ts));
@@ -272,7 +252,7 @@ export const productRule = defineTopic({
     const dTex = ftex(d);
     const steps = [
       `$u = ${ftex(u)}$, $u' = ${ftex(du)}$; $v = ${ftex(v)}$, $v' = ${ftex(dv)}$`,
-      m(ds(`${DYDX} = u'v + uv' = ${pFactor(du)}${factorTex(v).startsWith('\\') || /^[a-z]/.test(factorTex(v)) ? factorTex(v) : `\\cdot ${factorTex(v)}`} + ${pFactor(u)}${pFactor(dv)}`).replace('+ -', '- ')),
+      m(ds(`${DYDX} = u'v + uv' = (${ftex(du)})(${ftex(v)}) + (${ftex(u)})(${ftex(dv)})`)),
       m(ds(`${DYDX} = ${dTex}`)),
     ];
     const wrongs = [ftex(fmul(du, dv)), ftex([...fmul(du, v), ...fscale(fmul(u, dv), -1)]), ftex(fmul(du, v)), ftex([...fmul(du, v), ...fmul(u, dv), ...fmul(du, dv)])];
@@ -342,11 +322,12 @@ export const quotientRule = defineTopic({
       const den = denP.eq(1) ? 'x' : `x^{${denP.toTex()}}`;
       qTex = `\\frac{${ftex(U)}}{${n === 1 ? 'x' : `x^{${n}}`}}`;
       dTex = `\\frac{${ftex(Nc)}}{${den}}`;
-      steps.push(m(ds(`${DYDX} = \\frac{${pFactor(V)}${pFactor(dU)} - ${pFactor(U)}${pFactor(fderiv(V))}}{x^{${2 * n}}}`.replace('{x^{2}}', '{x^{2}}'))).replace(/\{x\^\{2\}\}\$$/, '{x^{2}}$'));
+      const Vt = n === 1 ? 'x' : `x^{${n}}`;
+      const dVt = n === 1 ? '1' : n === 2 ? '2x' : `${n}x^{${n - 1}}`;
+      steps.push(m(ds(`${DYDX} = \\frac{${Vt}(${ftex(dU)}) - (${ftex(U)})${n === 1 ? '' : `(${dVt})`}}{x^{${2 * n}}}`)));
       steps.push(`Cancel common factors of $x$: $${ds(`${DYDX} = ${dTex}`)}$`);
       const swapped = Nc.map((t) => ({ ...t, c: t.c.neg() }));
-      wrongs = [`\\frac{${ftex(swapped)}}{${den}}`, `\\frac{${ftex(Nc)}}{x^{${2 * n + 1}}}`, ftex(fscale(dU, new Frac(1, n))).replace(/^/, '') + (n === 1 ? '' : `x^{${1 - n}}`).replace('x^{0}', ''), `\\frac{${ftex(fnorm([...fmul(dU, V), ...fmul(U, fderiv(V))]).map((t) => ({ ...t, p: t.p.sub(minP) })))}}{${den}}`];
-      if (U[0]!.atoms[0]!.fn === 'ln') pts = undefined;
+      wrongs = [`\\frac{${ftex(swapped)}}{${den}}`, `\\frac{${ftex(Nc)}}{x^{${2 * n + 1}}}`, n === 1 ? ftex(dU) : `\\frac{${ftex(dU)}}{${dVt}}`, `\\frac{${ftex(fnorm([...fmul(dU, V), ...fmul(U, fderiv(V))]).map((t) => ({ ...t, p: t.p.sub(minP) })))}}{${den}}`];
     } else {
       // U / e^{ax} with U = c·x^k or c·sin(bx)
       const a = rng.int(1, 4);
@@ -357,16 +338,14 @@ export const quotientRule = defineTopic({
       const E = `e^{${lin(a)}}`;
       qTex = `\\frac{${ftex(U)}}{${E}}`;
       dTex = `\\frac{${ftex(Nc)}}{${E}}`;
-      steps.push(m(ds(`${DYDX} = \\frac{${E} \\cdot ${pFactor(dU)} - ${pFactor(U)} \\cdot ${a === 1 ? '' : a}${E}}{e^{${lin(2 * a)}}}`)).replace('\\cdot -', '\\cdot (-').replace(/\\cdot \(-([^ ]+) -/, '\\cdot (-$1) -'));
+      steps.push(m(ds(`${DYDX} = \\frac{${E}(${ftex(dU)}) - (${ftex(U)})(${a === 1 ? '' : a}${E})}{e^{${lin(2 * a)}}}`)));
       steps.push(`Divide top and bottom by $${E}$: $${ds(`${DYDX} = ${dTex}`)}$`);
       wrongs = [`\\frac{${ftex(fnorm([...dU, ...fscale(U, a)]))}}{${E}}`, `\\frac{${ftex(Nc)}}{e^{${lin(2 * a)}}}`, `\\frac{${ftex(dU)}}{${a === 1 ? '' : a}${E}}`, `\\frac{${ftex(fnorm([...fscale(dU, -1), ...fscale(U, a)]))}}{${E}}`];
     }
-    // the step strings above may contain an awkward "\cdot (-" fix; make sure no bare negatives follow an operator
-    const clean = (s: string) => s.replace(/\\cdot -([0-9a-z\\]+)/g, '\\cdot (-$1)');
     return {
       question: m(ds(`y = ${qTex}`)),
       answer: m(ds(`${DYDX} = ${dTex}`)),
-      steps: [...steps.map(clean), m(ds(`${DYDX} = ${dTex}`))].filter((s, i, arr) => arr.indexOf(s) === i),
+      steps: [...steps, m(ds(`${DYDX} = ${dTex}`))].filter((s, i, arr) => arr.indexOf(s) === i),
       distractors: lhsDistractors(DYDX, dTex, wrongs, (k) => `${dTex} + ${k}`),
       check: { kind: 'calculus.deriv', pts },
     };
@@ -438,14 +417,14 @@ export const chainRule = defineTopic({
           if (!prim && coef.eq(1)) dTex = pw;
           steps.push(`Let $u = ${t}$, so $u' = ${pp}$.`);
           steps.push(m(ds(`${DYDX} = ${c * n}(${t})^{${n - 1}} \\cdot ${paren0(pp)}`.replace(`^{1}`, ''))));
-          wrongs = [`${lead(c * n)}${pw}`, `${lead(coef)}${prim}(${t})^{${n}}`, `${lead(new Frac(c * n))}${polyFactor(p.derivative()) === pp && p.derivative().degree === 0 ? '' : ''}${pw.replace(`^{${n - 1}}`, `^{${n + 1}}`)}`.replace(/\(([^()]*)\)$/, `($1)^{2}`), `${lead(coef.neg())}${prim}${pw}`];
+          wrongs = [`${lead(c * n)}${pw}`, `${lead(coef)}${prim}(${t})^{${n}}`, `${lead(coef.neg())}${prim}${pw}`, `${lead(coef)}${prim}(${t})^{${n + 1}}`];
         } else {
           fTex = `\\frac{${c}}{(${t})^{${n}}}`;
           const { coef, prim } = derivParts(p, -c * n);
           const top = `${coef.eq(1) && prim ? '' : coef.eq(-1) && prim ? '-' : num(coef)}${prim}`;
           dTex = top.startsWith('-') ? `-\\frac{${top.slice(1)}}{(${t})^{${n + 1}}}` : `\\frac{${top}}{(${t})^{${n + 1}}}`;
-          steps.push(m(ds(`y = ${c}(${t})^{-${n}}`)));
-          steps.push(m(ds(`${DYDX} = ${-c * n}(${t})^{-${n + 1}} \\cdot ${paren0(pp)}`)));
+          steps.push(m(ds(`y = ${lead(c)}(${t})^{-${n}}`)));
+          steps.push(m(ds(`${DYDX} = ${lead(-c * n)}(${t})^{-${n + 1}} \\cdot ${paren0(pp)}`)));
           const alt = (num_: string, e: number) => (num_.startsWith('-') ? `-\\frac{${num_.slice(1)}}{(${t})^{${e}}}` : `\\frac{${num_}}{(${t})^{${e}}}`);
           wrongs = [alt(top, n - 1), alt(top.startsWith('-') ? top.slice(1) : `-${top}`, n + 1), alt(String(-c * n), n + 1), alt(top, n)];
         }
@@ -466,8 +445,9 @@ export const chainRule = defineTopic({
         const rad = idx === 2 ? `\\sqrt{${t}}` : `\\sqrt[3]{(${t})^{2}}`;
         dTex = `\\frac{${topTex}}{${coef.d === 1 ? '' : coef.d}${rad}}`;
         steps.push(m(ds(`y = ${lead(k)}(${t})^{\\frac{1}{${idx}}}`)));
-        steps.push(m(ds(`${DYDX} = ${num(new Frac(k, idx))}(${t})^{-\\frac{${idx - 1}}{${idx}}} \\cdot ${paren0(dp.toTex())}`)));
-        wrongs = [`\\frac{${k}}{${idx}${rad}}`.replace('{1}{2', '{1}{2'), `\\frac{${k === 1 ? '' : k}${dp.degree === 0 ? dp.toTex() : `(${dp.toTex()})`}}{${rad}}`.replace('{1}', '{1}'), `${lead(coef)}${primTex.includes(' ') ? `(${primTex})` : primTex}${idx === 2 ? `\\sqrt{${t}}` : `\\sqrt[3]{(${t})^{2}}`}`, `-${dTex}`];
+        steps.push(m(ds(`${DYDX} = ${lead(new Frac(k, idx))}(${t})^{-\\frac{${idx - 1}}{${idx}}} \\cdot ${paren0(dp.toTex())}`)));
+        const primParen = primTex.includes(' ') ? `(${primTex})` : primTex;
+        wrongs = [`\\frac{${k}}{${idx}${rad}}`, `\\frac{${topTex}}{${coef.d * 2}${rad}}`, `${lead(coef)}${primParen}${idx === 2 ? `\\sqrt{${t}}` : `\\sqrt[3]{(${t})^{2}}`}`, `-${dTex}`];
         pts = undefined;
         break;
       }
@@ -522,8 +502,9 @@ export const chainRule = defineTopic({
           const k = new Frac(n * a * (f === 'sin' ? 1 : -1));
           fTex = `\\${f}^{${n}}(${u})`;
           dTex = `${lead(k)}\\${f}${n - 1 === 1 ? '' : `^{${n - 1}}`}(${u})\\${g}(${u})`;
-          steps.push(`Power rule, then the chain rule twice: $${ds(`${DYDX} = ${n}\\${f}^{${n - 1}}(${u}) \\cdot ${f === 'sin' ? '' : '-'}\\${g}(${u}) \\cdot ${a}`).replace(`^{1}`, '').replace('\\cdot -', '\\cdot (-').replace(`(${u}) \\cdot ${a}`, `(${u})${f === 'sin' ? '' : ')'} \\cdot ${a}`)}$`);
-          wrongs = [`${lead(n)}\\${f}${n - 1 === 1 ? '' : `^{${n - 1}}`}(${u})`, `${lead(k.neg())}\\${f}${n - 1 === 1 ? '' : `^{${n - 1}}`}(${u})\\${g}(${u})`, `${lead(n * a)}\\${g}^{${n - 1 === 1 ? 2 : n - 1}}(${u})`.replace('^{2}', n - 1 === 1 ? '' : '^{2}'), `${lead(new Frac(n).mul(f === 'sin' ? 1 : -1))}\\${f}${n - 1 === 1 ? '' : `^{${n - 1}}`}(${u})\\${g}(${u})`];
+          const pw = n - 1 === 1 ? '' : `^{${n - 1}}`;
+          steps.push(`Power rule, then the chain rule: $${ds(`${DYDX} = ${n}\\${f}${pw}(${u}) \\cdot ${f === 'sin' ? `\\cos(${u})` : `(-\\sin(${u}))`} \\cdot ${a}`)}$`);
+          wrongs = [`${lead(n)}\\${f}${pw}(${u})`, `${lead(k.neg())}\\${f}${pw}(${u})\\${g}(${u})`, `${lead(n * a)}\\${g}${pw}(${u})`, `${lead(new Frac(n).mul(f === 'sin' ? 1 : -1))}\\${f}${pw}(${u})\\${g}(${u})`];
         } else if (choice === 'expsin') {
           fTex = `e^{\\sin(${u})}`;
           dTex = `${a}\\cos(${u})e^{\\sin(${u})}`;

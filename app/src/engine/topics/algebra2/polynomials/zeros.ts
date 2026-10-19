@@ -172,8 +172,12 @@ export const conjugateWriting = defineTopic({
     const question = zerosText(items);
     const steps = [
       ...pairs.map((p) => `By the Conjugate Root Theorem, $${p.tex[0]}$ and $${p.tex[1]}$ are both zeros: $(x - (${p.tex[0]}))(x - (${p.tex[1]})) = ${p.quad.toTex('x')}$`),
-      `$f(x) = ${factoredTex({ k: 1, mono: 0, factors: [...ints.map((r) => ({ p: Poly.linear(1, -r), e: 1 })), ...pairs.map((p) => ({ p: p.quad, e: 1 }))] }, 'x')}$`,
-      `Multiply out: $f(x) = ${f.toTex('x')}$`,
+      ...(ints.length + pairs.length > 1
+        ? [
+            `$f(x) = ${factoredTex({ k: 1, mono: 0, factors: [...ints.map((r) => ({ p: Poly.linear(1, -r), e: 1 })), ...pairs.map((p) => ({ p: p.quad, e: 1 }))] }, 'x')}$`,
+            `Multiply out: $f(x) = ${f.toTex('x')}$`,
+          ]
+        : [`$f(x) = ${f.toTex('x')}$`]),
     ];
     const answer = m(`f(x) = ${f.toTex('x')}`);
     const swapMid = (q: Poly) => new Poly(q.c.map((c, i) => (i === 1 ? c.neg() : c)));

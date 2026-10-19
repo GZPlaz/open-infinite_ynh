@@ -84,6 +84,33 @@ export function solveCheck(p: ProblemContent): void {
     env[v!] = a.value;
     if (a.approx) approx.push(v!);
   }
+  // variables the answer does not state (e.g. x when only a measure is asked for) are solved from the equations
+  const eqList = (c.eqs as string[] | undefined) ?? [];
+  for (let guard = 0; guard < 4; guard++) {
+    let missing: string | null = null;
+    for (const eq of eqList) {
+      try {
+        residual(eq, env);
+      } catch (e) {
+        const mm = /unbound variable (\S+)/.exec((e as Error).message);
+        if (!mm) throw e;
+        missing = mm[1]!;
+        // solve this equation for the missing variable if it is the only one missing (linear in it)
+        try {
+          const f = (v: number) => residual(eq, { ...env, [missing!]: v });
+          const f0 = f(0);
+          const f1 = f(1);
+          const root = -f0 / (f1 - f0);
+          expect(Math.abs(f(2.7) - (f0 + 2.7 * (f1 - f0))) < 1e-7 * Math.max(1, Math.abs(f0)), `${eq} linear in ${missing}`).toBe(true);
+          env[missing] = root;
+          break;
+        } catch {
+          missing = null;
+        }
+      }
+    }
+    if (!missing) break;
+  }
   const shown = visible(p);
   for (const g of (c.given as string[] | undefined) ?? []) expect(shown.includes(norm(g)), `"${g}" not shown in question/figure`).toBe(true);
   const eqs = (c.eqs as string[] | undefined) ?? [];

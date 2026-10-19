@@ -164,7 +164,7 @@ function plotWithArrows(b: DiagramBuilder, f: (x: number) => number, w: Window):
 /** Domain/range of a polyline (vertices in order) with optionally open endpoints. */
 function polylineSets(v: Pt[], openStart: boolean, openEnd: boolean): { domain: Interval; range: Interval } {
   const ext = (k: 0 | 1, pick: (a: number, b: number) => number) => {
-    const target = v.map((p) => p[k]).reduce(pick);
+    const target = v.map((p) => p[k]).reduce((a, b) => pick(a, b));
     const hits = v.map((p, i) => [p, i] as const).filter(([p]) => p[k] === target);
     const open = hits.every(([, i]) => (i === 0 && openStart) || (i === v.length - 1 && openEnd));
     return { target, open };
@@ -338,7 +338,7 @@ export const continuousRelations = defineTopic({
     if (verdict) steps.push(`${shape.describe}, so the relation is ${shape.fn ? '' : 'not '}a function.`);
     const flipStrict = (iv: Interval): Interval =>
       Number.isFinite(iv.lo) && iv.lo !== iv.hi ? { ...iv, loOpen: !iv.loOpen } : Number.isFinite(iv.hi) && iv.lo !== iv.hi ? { ...iv, hiOpen: !iv.hiOpen } : { lo: iv.lo === -Infinity ? 0 : iv.lo, hi: Infinity, loOpen: false, hiOpen: true };
-    const shift = (iv: Interval, k: number): Interval => ({ ...iv, lo: iv.lo - k, hi: iv.hi + k });
+    const bump = (iv: Interval, k: number): Interval => (Number.isFinite(iv.lo) || Number.isFinite(iv.hi) ? { ...iv, lo: iv.lo - k, hi: iv.hi + k } : closed(-k, k));
     const distractors = distinctDistractors(
       answer,
       [
@@ -347,7 +347,7 @@ export const continuousRelations = defineTopic({
         contAnswer(flipStrict(shape.domain), flipStrict(shape.range), fn),
         verdict ? contAnswer(shape.range, shape.domain, !shape.fn) : contAnswer(shape.domain, flipStrict(shape.range), null),
       ],
-      (k) => contAnswer(shift(shape.domain, k), shape.range, fn),
+      (k) => (k % 2 ? contAnswer(bump(shape.domain, (k + 1) / 2), shape.range, fn) : contAnswer(shape.domain, bump(shape.range, k / 2), fn)),
     );
     return { question: 'The relation graphed below.', answer, steps, distractors, diagram, check: { kind: 'algebra1.contRelation', verdict, range: RANGE } };
   },
@@ -370,7 +370,12 @@ interface Fn {
 
 function fnTex(f: Fn, v: string): string {
   if (f.kind === 'abs') return sum([{ coef: f.scale, sym: `\\left|${f.poly.toTex(v)}\\right|` }, { coef: f.c }]);
-  if (f.kind === 'exponential') return sum([{ coef: f.scale, sym: `${f.c}^{${v}}` }, { coef: f.poly.coef(0) }]);
+  if (f.kind === 'exponential') {
+    const base = `${f.c}^{${v}}`;
+    const lead = f.scale === 1 ? base : f.scale === -1 ? `-${base}` : `${f.scale} \\cdot ${base}`;
+    const k = f.poly.coef(0);
+    return k.isZero() ? lead : `${lead} ${k.sign < 0 ? '-' : '+'} ${num(k.abs())}`;
+  }
   return f.poly.toTex(v);
 }
 

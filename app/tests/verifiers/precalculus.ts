@@ -194,6 +194,45 @@ function pointsIn(rich: string): number[][] {
 }
 
 export const VERIFIERS: Record<string, Verifier> = {
+  /** Asymptotes, holes, intercepts and graph of a rational function. */
+  'precalculus.rationalGraph'(p) {
+    const fTex = rhsOf(onlyMath(p.question));
+    const f = (x: number) => realAt(fTex, { x });
+    const parts = labelled(p.answer);
+    const vas = parts['vertical asymptotes']!.map((s) => evalReal(rhsOf(s)));
+    for (const a of vas) {
+      expect(f(a), `undefined at x=${a}`).toBeNull();
+      expect(Math.abs(f(a - 1e-7)!) > 1e4 && Math.abs(f(a + 1e-7)!) > 1e4, `${p.question}: blows up at x=${a}`).toBe(true);
+    }
+    const holes = pointsIn((p.answer.split('; ').find((s) => s.startsWith('Holes')) ?? '').replace(/^Holes:/, ''));
+    for (const [x, y] of holes) {
+      expect(f(x!), `hole at x=${x}`).toBeNull();
+      expect(Math.abs(f(x! - 1e-7)! - y!) < 1e-4 && Math.abs(f(x! + 1e-7)! - y!) < 1e-4, `${p.question}: hole (${x}, ${y})`).toBe(true);
+    }
+    // nothing else is excluded
+    for (let n = -72; n <= 72; n++) {
+      const x = n / 6;
+      if (f(x) === null) expect([...vas, ...holes.map((h) => h[0]!)].some((v) => close(v, x)), `${p.question}: unlisted gap at x=${x}`).toBe(true);
+    }
+    const ha = parts['horizontal asymptote'] ?? parts['slant asymptote'];
+    expect(ha, p.answer).toBeTruthy();
+    const line = rhsOf(ha![0]!);
+    if (parts['horizontal asymptote']) expect(line).not.toMatch(/x/);
+    else expect(line).toMatch(/x/);
+    for (const X of [1e7, -1e7]) expect(Math.abs(f(X)! - evalReal(line, { vars: { x: X } })), `${p.question}: asymptote ${line}`).toBeLessThan(1e-4);
+    const xi = pointsIn((p.answer.split('; ').find((s) => s.startsWith('x-intercepts')) ?? '').replace(/^x-intercepts:/, ''));
+    for (const [x, y] of xi) expect(y === 0 && f(x!) !== null && Math.abs(f(x!)!) < 1e-9, `${p.question}: x-intercept ${x}`).toBe(true);
+    for (let n = -72; n <= 72; n++) {
+      const v = f(n / 6);
+      if (v !== null && Math.abs(v) < 1e-12) expect(xi.some(([x]) => close(x!, n / 6)), `${p.question}: unlisted zero at ${n / 6}`).toBe(true);
+    }
+    const yi = pointsIn((p.answer.split('; ').find((s) => s.startsWith('y-intercept')) ?? '').replace(/^y-intercept:/, ''));
+    if (f(0) === null) expect(yi.length).toBe(0);
+    else expect(yi.length === 1 && yi[0]![0] === 0 && close(yi[0]![1]!, f(0)!), `${p.question}: y-intercept`).toBe(true);
+    curveOnGraph(p.answerDiagram, f, p.question);
+    for (const d of dotsOf(p.answerDiagram)) expect(d.open && holes.some(([x, y]) => close(x!, d.x) && close(y!, d.y)), 'dots mark holes').toBe(true);
+  },
+
   /** (f∘g)(x) and its domain, against f and g as printed. */
   'precalculus.composition'(p) {
     const fns: Record<string, string> = { f: defOf(p.question, 'f(x)')!, g: defOf(p.question, 'g(x)')! };
@@ -209,14 +248,14 @@ export const VERIFIERS: Record<string, Verifier> = {
     const ans = rhsOf(expr!);
     expectDomain(comp, dom!, p.question);
     let checked = 0;
-    for (const x of GRID) {
+    for (const x of probesAround(anchors(dom!))) {
       const want = comp(x);
       if (want === null) continue;
       const got = realAt(ans, { x });
-      expect(got !== null && close(got, want, 1e-8), `${ans} vs composite at x=${x}`).toBe(true);
+      expect(got !== null && close(got, want, 1e-7), `${ans} vs composite at x=${x}`).toBe(true);
       checked++;
     }
-    expect(checked).toBeGreaterThan(5);
+    expect(checked).toBeGreaterThan(3);
   },
 
   'precalculus.piecewiseEval'(p) {

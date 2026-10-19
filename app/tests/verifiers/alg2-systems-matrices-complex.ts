@@ -330,7 +330,7 @@ export const VERIFIERS: Record<string, Verifier> = {
     if (p.answerDiagram) {
       const paths = p.answerDiagram.items.filter((it) => it.t === 'path' && it.closed && it.ink === 'accent');
       expect(paths.length).toBe(1);
-      const pts = (paths[0] as { pts: number[][] }).pts;
+      const pts = (paths[0] as unknown as { pts: number[][] }).pts;
       pts.forEach((pt, j) => expect(close(pt[0]!, want[0]![j]!) && close(pt[1]!, want[1]![j]!)).toBe(true));
     }
   },
@@ -405,6 +405,18 @@ export const VERIFIERS: Record<string, Verifier> = {
       return rows[0]!;
     };
     const on = (pl: number[], pt: number[]) => close(pl[0]! * pt[0]! + pl[1]! * pt[1]! + pl[2]! * pt[2]!, pl[3]!);
+    const sketchOk = (pl: number[]) => {
+      if (!p.answerDiagram) return;
+      const polys = p.answerDiagram.items.filter((it) => it.t === 'path' && it.closed && it.fill === 'accent');
+      expect(polys.length, 'one sketched plane').toBe(1);
+      const k = 0.5 * Math.SQRT1_2;
+      for (const [X, Y] of (polys[0] as unknown as { pts: number[][] }).pts as [number, number][]) {
+        // invert the oblique projection for points on an axis
+        const pt = close(Y, 0) ? [0, X, 0] : close(X, 0) ? [0, 0, Y] : [-X / k, 0, 0];
+        if (!close(Y, 0) && !close(X, 0)) expect(close(X, Y), 'vertex on the x-axis').toBe(true);
+        expect(on(pl, pt), `sketch vertex ${pt.join(', ')} on the plane`).toBe(true);
+      }
+    };
     if (task === 'intercepts') {
       const eq = mathSegments(p.question).find((s) => s.includes('='))!;
       const pl = plane(eq);
@@ -423,6 +435,7 @@ export const VERIFIERS: Record<string, Verifier> = {
           t[0]!.forEach((c, j) => j !== i && expect(c).toBe(0));
         }
       });
+      sketchOk(pl);
     } else if (task === 'contains') {
       const eq = mathSegments(p.question).find((s) => s.includes('='))!;
       const pl = plane(eq);
@@ -441,6 +454,7 @@ export const VERIFIERS: Record<string, Verifier> = {
         const pt = ['x', 'y', 'z'].map((w) => (w === v ? val : 0));
         expect(on(pl, pt), `${p.answer} through ${v}-intercept ${val}`).toBe(true);
       });
+      sketchOk(pl);
       const coefs = pl.slice(0, 4);
       coefs.forEach((c) => expect(Number.isInteger(Math.round(c * 1e9) / 1e9), `integer coefficients in ${p.answer}`).toBe(true));
     }
@@ -460,7 +474,7 @@ export const VERIFIERS: Record<string, Verifier> = {
     } else {
       const dots = (p.diagram?.items ?? []).filter((it) => it.t === 'dot');
       expect(dots.length).toBe(1);
-      const [x, y] = (dots[0] as { p: [number, number] }).p;
+      const [x, y] = (dots[0] as unknown as { p: [number, number] }).p;
       const z = evaluate(onlyMath(p.answer));
       expect(closeC(z, { re: x, im: y }), `${p.answer} vs dot (${x}, ${y})`).toBe(true);
     }

@@ -191,3 +191,12 @@ export function prod(ps: readonly Poly[]): Poly {
 export function lin(a: number, b: number): Poly {
   return Poly.linear(a, b);
 }
+
+/** Least common multiple of two integral polynomials (content lcm × primitive lcm). */
+export function lcd(a: Poly, b: Poly): Poly {
+  const pa = primitive(a);
+  const pb = primitive(b);
+  const g = pgcd(pa.p, pb.p);
+  const l = primitive(exactDiv(pa.p.mul(pb.p), g)).p;
+  return l.scale(lcm(Math.abs(pa.c.n), Math.abs(pb.c.n)) || 1);
+}

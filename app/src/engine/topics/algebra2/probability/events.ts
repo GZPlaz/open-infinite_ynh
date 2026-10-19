@@ -208,21 +208,21 @@ function plainScenario(rng: Rng, d: Difficulty, mode: Mode): Scenario {
     };
   };
   const coinDie = (): Scenario => {
-    const cats = numberCats(rng, 6);
+    const c = rng.pick(numberCats(rng, 6));
     const side = rng.pick(['H', 'T']);
+    const sideName = side === 'H' ? 'heads' : 'tails';
     return {
       pools: { coin: { coin: true }, die: { die: 6 } },
       stages: [
-        { pool: 'coin', cat: { short: side === 'H' ? 'heads' : 'tails', long: side === 'H' ? 'heads' : 'tails', attr: 'side', in: [side] } },
-        { pool: 'die', cat: rng.pick(cats) },
+        { pool: 'coin', cat: { short: sideName, long: sideName, attr: 'side', in: [side] } },
+        { pool: 'die', cat: c },
       ],
       replace: true,
-      question: `A coin is tossed and a die is rolled. Find ${P([side === 'H' ? 'heads' : 'tails', ''], ' and ').replace(' and }', ` and ${'{}'}}`)}.`,
+      question: `A coin is tossed and a die is rolled. Find ${P([sideName, c.short], ' and ')}.`,
       mentions: [],
     };
   };
-  void coinDie;
-  const indep = [bag, cards, dice, dice];
+  const indep = [bag, cards, dice, dice, coinDie];
   const dep = d === 'easy' ? [bag, bag, cards] : [bag, cards, tiles];
   return rng.pick(mode === 'independent' ? indep : dep)();
 }
@@ -697,7 +697,7 @@ function pcProblem(rng: Rng, d: Difficulty): PcProblem {
     const who = people.slice(0, n);
     const [x, y] = [who[0]!, who[1]!];
     const kind = rng.pick(['first', 'firstSecond', 'ends'] as const);
-    const fact = (k: number) => (k <= 1 ? 1 : k * fact(k - 1));
+    const fact = (k: number): number => (k <= 1 ? 1 : k * fact(k - 1));
     const event: Ev =
       kind === 'first'
         ? { at: 0, attr: 'name', in: [x] }
@@ -709,7 +709,7 @@ function pcProblem(rng: Rng, d: Difficulty): PcProblem {
     const ask = kind === 'first' ? `${x} is first in line` : kind === 'firstSecond' ? `${x} is first and ${y} is second` : `${x} is first and ${y} is last`;
     return {
       exp: { pools: { p: { items: who.map((w) => ({ count: 1, attrs: { name: w } })) } }, draws: Array<string>(n).fill('p'), replace: false, event },
-      question: `${listing(shuffled.map((w) => [0, w] as [number, string])).replace(/0 /g, '')} line up in a random order. What is the probability that ${ask}?`,
+      question: `${shuffled.slice(0, -1).join(', ')} and ${shuffled.at(-1)} line up in a random order. What is the probability that ${ask}?`,
       steps: [m(`\\frac{${kind === 'first' ? n - 1 : n - 2}!}{${n}!} = \\frac{${favN}}{${fact(n)}}`), m(num(frac(favN, fact(n))))],
       p: frac(favN, fact(n)),
       wrong: [frac(1, n), frac(2, fact(n)), frac(1, n * n), frac(1, choose(n, 2)), frac(1, fact(n))],
@@ -752,7 +752,7 @@ function pcProblem(rng: Rng, d: Difficulty): PcProblem {
     const w = rng.pick(d === 'easy' ? ['MATH', 'CAT', 'STAR', 'FROG', 'BLUE', 'LION'] : ['TOOTH', 'APPLE', 'BANANA', 'LETTER', 'PEPPER', 'CHEESE', 'GOOSE', 'PUZZLE', 'HAPPY', 'SCHOOL']);
     const counts: Record<string, number> = {};
     for (const ch of w) counts[ch] = (counts[ch] ?? 0) + 1;
-    const fact = (k: number) => (k <= 1 ? 1 : k * fact(k - 1));
+    const fact = (k: number): number => (k <= 1 ? 1 : k * fact(k - 1));
     const distinct = Object.values(counts).reduce((acc, k) => acc / fact(k), fact(w.length));
     return {
       exp: {

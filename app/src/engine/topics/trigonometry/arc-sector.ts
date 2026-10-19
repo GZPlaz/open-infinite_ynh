@@ -33,13 +33,13 @@ export const arcSector = defineTopic({
         { value: 'area', label: 'Sector area' },
       ],
     },
-    unitsOpt('mixed'),
+    unitsOpt('mixed', 'angleUnits'),
     opt.rounding('exact'),
     opt.units(true),
   ],
   generate(ctx): ProblemContent {
     const { rng, difficulty } = ctx;
-    const aUnit = pickUnit(ctx);
+    const aUnit = pickUnit(ctx, 'angleUnits');
     const exact = strOpt(ctx, 'answerForm') === 'exact';
     const unit = boolOpt(ctx, 'units') ? rng.pick(UNITS) : undefined;
     const f = strOpt(ctx, 'find');

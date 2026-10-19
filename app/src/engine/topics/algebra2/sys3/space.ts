@@ -176,7 +176,7 @@ export const pointsInSpace = defineTopic({
         [m(show(noZ)), m(show(sums)), m(`d = ${d2}`), m(`d = ${lin}`)],
         (k) => m(show(d2 + offset(k) * 3)),
       );
-      const subst = diffs.map((v, i) => `${paren(B[i]!)} - ${paren(A[i]!)}`).map((s) => `(${s})^{2}`).join(' + ');
+      const subst = diffs.map((_, i) => `${paren(B[i]!)} - ${paren(A[i]!)}`).map((s) => `(${s})^{2}`).join(' + ');
       const steps = [
         '$d = \\sqrt{(x_2 - x_1)^{2} + (y_2 - y_1)^{2} + (z_2 - z_1)^{2}}$',
         `$d = \\sqrt{${subst}}$`,
