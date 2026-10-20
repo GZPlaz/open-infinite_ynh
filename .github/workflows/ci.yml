@@ -27,7 +27,12 @@ jobs:
         run: npm test
       - run: npm run build
       - name: End-to-end in headless Chrome
-        run: npm run e2e
+        run: |
+          set -o pipefail
+          npm run e2e 2>&1 | tee e2e.log || {
+            { grep -A8 '✗' e2e.log; tail -15 e2e.log; } | sed 's/^/::error::/'
+            exit 1
+          }
         env:
           CHROMIUM_PATH: /usr/bin/google-chrome
       - name: Keep screenshots and exports
