@@ -140,7 +140,7 @@ function simple(rng: Rng, d: Difficulty, v: string, fractions: boolean, natural:
         q !== 0 ? mk(over(shift(en, q)), (Math.exp(n) + q) / p) : null,
         mk(over(shift(`10^{${n}}`, -q)), (10 ** n - q) / p),
         mk(over(shift(term(n, "e"), -q)), (n * Math.E - q) / p),
-        a !== 1 ? mk(over(shift(`e^{${rhs}}`, -q)), (Math.exp(rhs) - q) / p) : null,
+        a !== 1 ? mk(over(shift(rhs === 1 ? 'e' : `e^{${rhs}}`, -q)), (Math.exp(rhs) - q) / p) : null,
       ],
       solutions: [x],
     };

@@ -200,7 +200,7 @@ export const radiansDegrees = defineTopic({
     const decimalForm = strOpt(ctx, 'form') === 'decimal';
     const lim = { easy: 360, medium: 720, hard: 1080 }[difficulty];
     const neg = difficulty !== 'easy';
-    const steps: { easy: number[]; medium: number[]; hard: number[] } = { easy: [30, 45], medium: [15, 20, 18], hard: [1, 5, 9, 22.5, 7.5] };
+    const steps: { easy: number[]; medium: number[]; hard: number[] } = { easy: [30, 45, 15], medium: [15, 20, 18], hard: [1, 5, 9, 22.5, 7.5] };
     const pickDeg = () =>
       attempt('deg', () => {
         const s = rng.pick(steps[difficulty]);

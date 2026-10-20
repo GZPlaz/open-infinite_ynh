@@ -1,11 +1,28 @@
 /** Verifiers for the alg2-radicals-rational pack (radicals, rational exponents, rational expressions). */
 import { expect } from 'vitest';
 import type { ProblemContent } from '../../src/engine/types';
-import { close, evaluate, evalReal, listItems, mathSegments, onlyMath, RELATIONS, splitTop, type C } from '../evaluator';
+import { close, closeC, evaluate, evalReal, listItems, mathSegments, onlyMath, RELATIONS, splitTop, type C } from '../evaluator';
 import { answerValues, curvePoints, expectEquivalent, rhs, satisfies, setHolds, sides, VERIFIERS as GENERIC, type Verifier } from '../verify';
 
 const P = 'alg2-radicals-rational';
 const NO_SOLUTION = /no solution|no real solution/i;
+
+/**
+ * Two rational expressions agree at sample points. Points where either side blows up
+ * (a pole, or a sample that lands on one in floating point) are skipped.
+ */
+function expectEquivalentAwayFromPoles(a: string, b: string, v: string): void {
+  let compared = 0;
+  for (const x of [-4.3, -2.7, -1.3, 0.6, 1.7, 3.1, 5.2, 7.9]) {
+    const ya = evaluate(a, { vars: { [v]: x } });
+    const yb = evaluate(b, { vars: { [v]: x } });
+    const big = (c: C) => !Number.isFinite(c.re) || !Number.isFinite(c.im) || Math.hypot(c.re, c.im) > 1e6;
+    if (big(ya) || big(yb)) continue;
+    compared++;
+    expect(closeC(ya, yb, 1e-7), `${a}  vs  ${b}  at ${v} = ${x}`).toBe(true);
+  }
+  expect(compared, `${a} vs ${b}: too few comparable sample points`).toBeGreaterThanOrEqual(4);
+}
 
 /** Brace-matched argument starting at s[i] === '{'; returns [content, index after]. */
 function braced(s: string, i: number): [string, number] {
@@ -252,7 +269,11 @@ export const VERIFIERS: Record<string, Verifier> = {
     expect(vals.length, `${p.question} → ${p.answer}: count`).toBe(want.length);
     for (const w of want) expect(vals.some((x) => close(x, w, 1e-9)), `${p.answer} lacks ${w}`).toBe(true);
     const R = Math.max(15, ...vals.map((x) => 2 * Math.abs(x) + 5), ...((p.check!.extraneous as number[] | undefined) ?? []).map((x) => 2 * Math.abs(x) + 5));
+    const extraneous = (p.check!.extraneous as number[] | undefined) ?? [];
     for (const r of scanRoots(eq, v, -R - 0.37, R + 0.29)) {
+      // at an excluded value the cleared equation holds but the original is undefined (checked below);
+      // the scan sees the sign change of the removable singularity there
+      if (extraneous.some((x) => Math.abs(x - r) <= 1e-5 * Math.max(1, Math.abs(r)))) continue;
       expect(
         vals.some((x) => Math.abs(x - r) <= 1e-5 * Math.max(1, Math.abs(r))),
         `${p.question}: real root ${r} missing from ${p.answer}`,
@@ -327,7 +348,7 @@ export const VERIFIERS: Record<string, Verifier> = {
     const v = p.check!.variable as string;
     const q = onlyMath(p.question);
     const segs = mathSegments(p.answer);
-    expectEquivalent(q, segs[0]!, [v]);
+    expectEquivalentAwayFromPoles(q, segs[0]!, v);
     if (segs.length === 1) return;
     expect(segs.length).toBe(2);
     const { parts, rels } = splitTop(segs[1]!, ['\\neq']);

@@ -225,7 +225,7 @@ export const expLogDerivatives = defineTopic({
     const steps: string[] = [];
     let fTex: string;
     let dTex: string;
-    let wrongs: string[];
+    let wrongs: Array<string | null>;
     const b = rng.pick([2, 3, 5, 7, 10]);
     switch (kind) {
       case 'sum': {
@@ -282,7 +282,8 @@ export const expLogDerivatives = defineTopic({
         const dp = p.derivative();
         fTex = `e^{${t}}`;
         dTex = `${dp.degree === 0 ? lead(dp.coef(0)) : polyFactor(dp)}e^{${t}}`;
-        wrongs = [`e^{${t}}`, `(${t})e^{${p.sub(Poly.of(1)).toTex()}}`, `${dp.degree === 0 ? lead(dp.coef(0).neg()) : `-${polyFactor(dp)}`}e^{${t}}`, `${dp.degree === 0 ? lead(dp.coef(0)) : polyFactor(dp)}e^{${dp.toTex()}}`];
+        const negFactor = polyFactor(dp).startsWith('-') ? polyFactor(dp).slice(1) : `-${polyFactor(dp)}`;
+        wrongs = [`e^{${t}}`, `(${t})e^{${p.sub(Poly.of(1)).toTex()}}`, `${dp.degree === 0 ? lead(dp.coef(0).neg()) : negFactor}e^{${t}}`, dp.degree === 0 ? null : `${polyFactor(dp)}e^{${dp.toTex()}}`];
         steps.push(`Chain rule with $u = ${t}$: $${ds(`${DYDX} = e^{u} \\cdot u'`)}$`);
         break;
       }
@@ -378,7 +379,7 @@ export const inverseTrigDerivatives = defineTopic({
       case 'ax':
       case 'axk': {
         const k = kind === 'ax' ? 1 : rng.int(2, 3);
-        const a = rng.int(kind === 'ax' && difficulty === 'easy' ? 1 : 2, 5);
+        const a = rng.int(kind === 'ax' && difficulty === 'easy' ? 1 : 2, difficulty === 'easy' ? 9 : 5);
         const u = k === 1 ? lin(a) : `${a === 1 ? '' : a}x^{${k}}`;
         const u2 = `${a * a === 1 ? '' : a * a}x^{${2 * k}}`;
         const top = `${a * k}${k - 1 === 0 ? '' : k - 1 === 1 ? 'x' : `x^{${k - 1}}`}`;

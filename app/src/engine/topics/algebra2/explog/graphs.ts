@@ -153,7 +153,9 @@ export const logGraph = defineTopic({
     const { b: g, w } = graphPlane(RANGE, 2);
     g.segment([h, -RANGE], [h, RANGE], { dash: true, ink: 'muted', weight: 1.2 });
     // parametrise by y so the steep part near the asymptote is drawn smoothly
-    plotParam(g, (t) => h + Math.exp(((t - k) / a.value) * lb), (t) => t, -RANGE, RANGE, w, {}, 400);
+    // y is recomputed from the (rounded) x so that points hugging the asymptote still lie on the curve
+    const xAt = (t: number) => h + Math.exp(((t - k) / a.value) * lb);
+    plotParam(g, xAt, (t) => k + (a.value * Math.log(xAt(t) - h)) / lb, -RANGE, RANGE, w, {}, 400);
     g.dot([xint.value, 0], false, 'accent');
     const one = h + 1;
     if (one <= RANGE && Math.abs(k) <= RANGE) g.dot([one, k], false, 'accent');

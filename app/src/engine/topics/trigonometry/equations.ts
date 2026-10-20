@@ -125,7 +125,7 @@ function quadraticEq(rng: Rng, d: Difficulty): Eq {
   return attempt('trig quadratic', () => {
     const fn = rng.pick<F>(['sin', 'cos']);
     const roots = [new Frac(1, 2), new Frac(-1, 2), new Frac(1), new Frac(-1), new Frac(0), new Frac(2), new Frac(-2), new Frac(3, 2)];
-    const r1 = rng.pick(roots.slice(0, d === 'hard' ? 8 : 5));
+    const r1 = rng.pick(roots.slice(0, d === 'hard' ? 8 : d === 'medium' ? 6 : 5));
     const r2 = rng.pick(roots.slice(0, 5));
     if (r1.eq(r2)) return null;
     // (r1.d·f − r1.n)(r2.d·f − r2.n)

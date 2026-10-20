@@ -152,10 +152,14 @@ export const parallelTransversal = defineTopic({
       };
     }
     // solve for x
+    // Some angle measures (e.g. 145°) cannot be written as ax + b with a small constant, so the
+    // allowed constant grows the longer a nice expression fails to turn up.
+    let tries = 0;
     const { x, ea, eb } = attempt('trans-solve', () => {
+      const bMax = 60 + 20 * Math.floor(tries++ / 40);
       const x = rng.int(3, difficulty === 'hard' ? 20 : 14);
-      const ea = linFor(rng, ma, x, { aMin: 1, aMax: difficulty === 'hard' ? 9 : 5, bMax: 60 });
-      const eb = rng.bool(difficulty === 'medium' ? 0.5 : 0.9) ? linFor(rng, mb, x, { aMin: 1, aMax: 9, bMax: 60, avoidA: equal && ea ? [ea.a] : [] }) : null;
+      const ea = linFor(rng, ma, x, { aMin: 1, aMax: difficulty === 'hard' ? 9 : 5, bMax });
+      const eb = rng.bool(difficulty === 'medium' ? 0.5 : 0.9) ? linFor(rng, mb, x, { aMin: 1, aMax: 9, bMax, avoidA: equal && ea ? [ea.a] : [] }) : null;
       if (!ea) return null;
       return { x, ea, eb };
     });

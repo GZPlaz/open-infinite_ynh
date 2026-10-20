@@ -123,7 +123,11 @@ function ambiguous(rng: Rng): { g: Givens; sols: Tri[] } {
     if (obtuse) a = count === 1 ? rng.int(b + 1, b + 15) : rng.int(Math.max(3, b - 15), b);
     else if (count === 0) a = rng.int(3, Math.max(3, Math.floor(h - 0.5)));
     else if (count === 1) a = rng.int(b, b + 15);
-    else a = rng.int(Math.ceil(h + 0.5), b - 1);
+    else {
+      // h is within half a unit of b for angles near 90°: no whole-number side fits, draw again
+      if (Math.ceil(h + 0.5) > b - 1) return null;
+      a = rng.int(Math.ceil(h + 0.5), b - 1);
+    }
     const g: Givens = { A, a, b };
     const sols = solveTriangle(g);
     if (sols.length !== count) return null;
@@ -200,7 +204,8 @@ export const lawOfSines = defineTopic({
         distractors: distinctDistractors(
           answer,
           [fake({ A: g.A, a: g.b, b: g.a }), fake({ A: g.A, a: roundTo(g.a! * 1.3, 0), b: g.b }), fake({ A: g.A, a: Math.max(2, roundTo(g.a! * 0.8, 0)), b: g.b }), fake({ A: g.A, a: roundTo(g.a! * 1.6, 0), b: g.b })],
-          (k) => fake({ A: g.A, a: roundTo(g.a! * (1 + 0.05 * k), 1), b: g.b }),
+          // step in units of b so that a "no triangle" problem eventually yields triangles to show as wrong choices
+          (k) => fake({ A: g.A, a: roundTo(g.a! + (k * g.b!) / 10, 1), b: g.b }),
         ),
         check: { kind: 'trigonometry.triangle', ambiguous: true },
       };

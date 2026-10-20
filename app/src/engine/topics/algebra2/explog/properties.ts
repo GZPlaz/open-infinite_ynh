@@ -151,7 +151,7 @@ export const logsInTermsOfOthers = defineTopic({
     const p = attempt('in-terms', () => {
       const base = general ? 'b' : String(rng.pick([7, 11, 13]));
       const np = d === 'hard' && rng.bool(0.6) ? 3 : 2;
-      const exps = PRIMES.slice(0, np).map(() => (d === 'easy' ? rng.int(0, 3) : rng.int(-3, 3)));
+      const exps = PRIMES.slice(0, np).map(() => (d === 'easy' ? rng.int(0, 4) : rng.int(-3, 3)));
       const t0 = d === 'easy' ? 0 : rng.bool(0.35) ? rng.signedInt(1, 2, true) : 0;
       const root = d === 'hard' && rng.bool(0.45) ? rng.pick([2, 3]) : 1;
       if (exps.filter((e) => e !== 0).length + (t0 ? 1 : 0) < (d === 'easy' ? 1 : 2)) return null;

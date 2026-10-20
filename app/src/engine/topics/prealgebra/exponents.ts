@@ -20,7 +20,9 @@ const valTex = (v: Frac | Dec) => (v instanceof Dec ? v.toTex() : v.toTex());
 function powerExpr(rng: Rng, d: Difficulty, negatives: boolean, zero: boolean, fractions: boolean): PowExpr | null {
   const kinds: string[] = ['plain'];
   if (zero) kinds.push('zero');
-  if (d !== 'easy') {
+  if (d === 'easy') {
+    if (negatives) kinds.push('negParen');
+  } else {
     if (negatives) kinds.push('negParen', 'negNoParen', 'negParen');
     kinds.push('product');
   }
@@ -30,8 +32,8 @@ function powerExpr(rng: Rng, d: Difficulty, negatives: boolean, zero: boolean, f
     if (negatives) kinds.push('negCombo');
   }
   const kind = rng.pick(kinds);
-  const b = rng.int(2, d === 'easy' ? 6 : 10);
-  const e = b <= 3 ? rng.int(2, d === 'easy' ? 4 : 6) : b <= 5 ? rng.int(2, 3) : 2;
+  const b = rng.int(2, d === 'easy' ? 8 : 10);
+  const e = b <= 3 ? rng.int(2, d === 'easy' ? 5 : 6) : b <= 5 || d === 'easy' ? rng.int(2, 3) : 2;
   switch (kind) {
     case 'plain': {
       const v = b ** e;
