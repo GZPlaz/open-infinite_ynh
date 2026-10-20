@@ -34,6 +34,8 @@ const browser = await chromium.launch({ executablePath });
 try {
   const context = await browser.newContext({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
   const page = await context.newPage();
+  // with every topic on one worksheet (200+ topics, 2000+ problems, 260 pages) re-rendering takes a while
+  page.setDefaultTimeout(180_000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => m.type() === 'error' && errors.push(`console: ${m.text()}`));
