@@ -27,14 +27,19 @@ jobs:
         run: npm test
       - run: npm run build
       - name: End-to-end in headless Chrome
-        run: |
-          set -o pipefail
-          npm run e2e 2>&1 | tee e2e.log || {
-            { grep -A8 '✗' e2e.log; tail -15 e2e.log; } | sed 's/^/::error::/'
-            exit 1
-          }
+        shell: bash
+        run: npm run e2e 2>&1 | tee e2e.log
         env:
           CHROMIUM_PATH: /usr/bin/google-chrome
+      - name: Report end-to-end failures
+        if: failure()
+        run: |
+          if [ -f e2e.log ]; then
+            msg=$(tail -n 40 e2e.log | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=e2e output::${msg}"
+          else
+            echo "::error title=e2e output::e2e.log missing (the step failed before running)"
+          fi
       - name: Keep screenshots and exports
         if: always()
         uses: actions/upload-artifact@v4
