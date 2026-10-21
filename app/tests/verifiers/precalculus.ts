@@ -324,7 +324,7 @@ export const VERIFIERS: Record<string, Verifier> = {
     const [a, , b] = splitTop(range, ['\\le']).parts;
     const t0 = evalReal(a!);
     const t1 = evalReal(b!);
-    const N = 3000;
+    const N = 800;
     const samp: Array<[number, number, number]> = [];
     for (let i = 0; i <= N; i++) {
       const t = t0 + ((t1 - t0) * i) / N;
@@ -339,7 +339,7 @@ export const VERIFIERS: Record<string, Verifier> = {
       expect(Math.hypot(s[1] - x, s[2] - y) < 0.05, `(${x}, ${y}) on the parametric curve`).toBe(true);
     }
     const [eqPart, rest] = p.answer.split('; ');
-    expectOnRect(mathSegments(eqPart!)[0]!, samp.filter((_, i) => i % 300 === 0).map((s) => [s[1], s[2]]), p.question);
+    expectOnRect(mathSegments(eqPart!)[0]!, samp.filter((_, i) => i % 80 === 0).map((s) => [s[1], s[2]]), p.question);
     const marks = pointsIn(rest!);
     const start = samp[0]!;
     const fin = samp[N]!;
