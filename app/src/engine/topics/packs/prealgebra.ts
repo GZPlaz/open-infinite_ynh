@@ -10,6 +10,7 @@ import { gcfLcm, primeFactorization } from '../prealgebra/number-theory';
 import { orderOfOperations } from '../prealgebra/order-of-operations';
 import { percentChange, percentProblems, simpleInterest } from '../prealgebra/percents';
 import { proportions, ratiosRates } from '../prealgebra/ratios';
+import { meanMedianMode } from '../prealgebra/statistics';
 import { twoStepEquations } from '../prealgebra/two-step';
 import { writingExpressions } from '../prealgebra/verbal';
 
@@ -44,6 +45,8 @@ const topics: TopicGenerator[] = [
   multiStepEquations,
   oneTwoStepInequalities,
   writingExpressions,
+  // Statistics
+  meanMedianMode,
 ];
 
 export default topics;

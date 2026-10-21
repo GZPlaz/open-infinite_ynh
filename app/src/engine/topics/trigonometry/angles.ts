@@ -231,7 +231,7 @@ export const radiansDegrees = defineTopic({
       return {
         question: m(qTex),
         answer,
-        steps: [m(`${qTex} \\cdot \\frac{\\pi}{180^\\circ} = \\frac{${d}\\pi}{180} = ${piTex(f)}`)],
+        steps: [m(`${qTex} \\cdot \\frac{\\pi}{180^\\circ} = ${f.d === 180 && f.n === d ? '' : `\\frac{${d}\\pi}{180} = `}${piTex(f)}`)],
         distractors: distinctDistractors(answer, [alt(f.inv()), alt(f.mul(2)), alt(f.div(2)), alt(f.neg())], (n) => alt(f.add(new Frac(offset(n), f.d)))),
         check: { kind: 'trigonometry.convert', to: 'rad' },
       };

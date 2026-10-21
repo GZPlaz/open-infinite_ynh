@@ -387,6 +387,7 @@ export const inverseTrigDerivatives = defineTopic({
         fTex = `${c === 1 ? '' : c}${inv(u)}`;
         dTex = `${sgn}\\frac{${top}}{${denom(u2)}}`;
         wrongs = [`${sgn}\\frac{${c}}{${denom(u2)}}`, `${sgn}\\frac{${top}}{1 - ${u2}}`, `${sgn ? '' : '-'}\\frac{${top}}{${denom(u2)}}`, `${sgn}\\frac{${top}}{${f === 'tan' ? `1 + ${u}` : radical(`1 - ${u}`)}}`];
+        R = (0.9 / a) ** (1 / k);
         steps.push(`$\\frac{d}{dx}${f === 'tan' ? '\\tan' : `\\${f}`}^{-1} u = ${rule}$ with $u = ${u}$, $u' = ${top}$`);
         break;
       }

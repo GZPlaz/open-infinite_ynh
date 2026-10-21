@@ -2,7 +2,7 @@
 import { Frac } from '../../fraction';
 import { defineTopic, distinctDistractors, strOpt } from '../../generator';
 import type { Rng } from '../../rng';
-import { m, sum, term } from '../../tex';
+import { m, scaled, sum, term } from '../../tex';
 import type { Difficulty, ProblemContent } from '../../types';
 
 interface Pair {
@@ -70,7 +70,7 @@ function build(rng: Rng, kind: Kind): Pair {
       return {
         polar: `r = \\frac{${cc}}{${den}}`,
         rect: `${sum([{ coef: a, sym: 'x' }, { coef: b, sym: 'y' }])} = ${cc}`,
-        wrongPolar: [`r = \\frac{${cc}}{${denSwap}}`, `r = ${cc}(${den})`, `r = \\frac{${den}}{${cc}}`],
+        wrongPolar: [`r = \\frac{${cc}}{${denSwap}}`, `r = ${scaled(cc, den)}`, `r = \\frac{${den}}{${cc}}`],
         wrongRect: [`${sum([{ coef: b, sym: 'x' }, { coef: a, sym: 'y' }])} = ${cc}`, `${sum([{ coef: a, sym: 'x' }, { coef: b, sym: 'y' }])} = ${-cc}`, `${sum([{ coef: a, sym: 'x' }, { coef: -b, sym: 'y' }])} = ${cc}`],
         hint: `x = r${cosT},\\ y = r${sinT}`,
       };

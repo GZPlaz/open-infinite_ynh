@@ -152,7 +152,7 @@ export const specialRightTriangles = defineTopic({
     const kind: Special = t === 'both' ? rng.pick<Special>(['45', '30']) : (t as Special);
     const roles: Role[] = kind === '45' ? ['short', 'hyp'] : ['short', 'long', 'hyp'];
     const givenRole: Role = difficulty === 'easy' ? 'short' : rng.pick(roles.filter((r) => difficulty === 'hard' || r !== 'short' || rng.bool(0.3)));
-    const k = rng.int(2, difficulty === 'easy' ? 12 : 16);
+    const k = rng.int(2, difficulty === 'easy' ? 30 : 24);
     const given = difficulty === 'hard' && rng.bool(0.5) ? Surd.int(k, kind === '45' ? rng.pick([2, 3]) : rng.pick([2, 3])) : Surd.int(k);
     // the short leg (the leg for 45-45-90)
     let s: Surd;
@@ -263,7 +263,7 @@ export const elevationDepression = defineTopic({
 });
 
 function sideProblem(rng: Rng, c: Context, name: string, hard: boolean): ProblemContent {
-  const theta = rng.int(hard ? 8 : 15, hard ? 78 : 70);
+  const theta = rng.int(hard ? 8 : 15, hard ? 75 : 62);
   const kn = c.known[0]!;
   const kv = hard ? rng.int(c.range[0], c.range[1]) + rng.pick([0, 0.5]) : rng.int(c.range[0], c.range[1]);
   const t = rad(theta);

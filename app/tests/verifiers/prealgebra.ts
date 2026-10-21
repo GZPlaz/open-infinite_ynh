@@ -312,6 +312,38 @@ export const VERIFIERS: Record<string, Verifier> = {
       expect(evalReal(r!), p.answer).toBe(evalReal(mathSegments(mm[3]!)[0]!));
     }
   },
+
+  /** Recompute mean / median / mode / range from the listed data. */
+  'prealgebra.stats'(p) {
+    const xs = onlyMath(p.question).split(',').map((t) => Number(t.trim()));
+    const s = [...xs].sort((a, b) => a - b);
+    const n = s.length;
+    const mean = s.reduce((a, b) => a + b, 0) / n;
+    const median = n % 2 ? s[(n - 1) / 2]! : (s[n / 2 - 1]! + s[n / 2]!) / 2;
+    const counts = new Map<number, number>();
+    s.forEach((x) => counts.set(x, (counts.get(x) ?? 0) + 1));
+    const top = Math.max(...counts.values());
+    const modes = top > 1 ? [...counts].filter(([, c]) => c === top).map(([x]) => x) : [];
+    const seen: string[] = [];
+    if (/no mode/.test(p.answer)) {
+      expect(modes, `${p.question}: no mode`).toEqual([]);
+      seen.push('mode');
+    }
+    for (const seg of mathSegments(p.answer)) {
+      const mm = /^\\text\{(mean|median|modes?|range)\} (=|\\approx) (.*)$/.exec(seg)!;
+      expect(mm, seg).not.toBeNull();
+      const [, label, rel, rest] = mm;
+      const vals = rest!.split(',').map((t) => Number(t.trim()));
+      if (label === 'mean') {
+        if (rel === '=') expect(close(vals[0]!, mean), `${p.question}: ${seg}`).toBe(true);
+        else near(vals[0]!, Math.round(mean * 10) / 10, 1e-9, `${p.question}: ${seg}`);
+      } else if (label === 'median') expect(close(vals[0]!, median), `${p.question}: ${seg}`).toBe(true);
+      else if (label === 'range') expect(vals[0], `${p.question}: ${seg}`).toBe(s[n - 1]! - s[0]!);
+      else expect(vals, `${p.question}: ${seg}`).toEqual(modes);
+      seen.push(label!.replace('modes', 'mode'));
+    }
+    expect(seen.sort(), p.answer).toEqual([...(p.check!.find as string[])].sort());
+  },
 };
 
 type Fn = (n: number) => number;

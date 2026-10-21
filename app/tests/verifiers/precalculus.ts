@@ -228,8 +228,8 @@ const vdot = (a: number[], b: number[]) => a.reduce((s, x, i) => s + x * b[i]!, 
 /** Polar LaTeX → evaluator input in the variable t (θ). */
 function polarTex(tex: string): string {
   return tex
-    .replace(/\\theta/g, 't')
-    .replace(/\\(sin|cos|tan|sec|csc|cot) (\d+)t/g, '\\$1($2t)');
+    .replace(/\\theta/g, ' t')
+    .replace(/\\(sin|cos|tan|sec|csc|cot) (\d+) t/g, '\\$1($2t)');
 }
 
 const THETAS = [0.37, 1.13, 2.03, 2.71, 3.67, 4.4, 5.3, 5.9];

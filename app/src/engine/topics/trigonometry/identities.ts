@@ -15,6 +15,7 @@ const ex = (e: Exact | null) => (e ? m(e.toTex()) : null);
 const p = (t: string) => (t.startsWith('-') || /[+-]/.test(t.slice(1)) ? `\\left(${t}\\right)` : t);
 /** Product of two factors with unit factors dropped. */
 const pp = (x: string, y: string) => {
+  if (x === '0' || y === '0') return '0';
   const f = [x, y].filter((t) => t !== '1');
   if (f.length === 0) return '1';
   if (f.length === 1) return p(f[0]!);
@@ -154,7 +155,7 @@ export const sumDifferenceIdentities = defineTopic({
         const lim = difficulty === 'hard' ? 24 : 12;
         const k = rng.int(difficulty === 'hard' ? -lim : 0, lim - 1);
         const th = 30 * k + 15;
-        return th === 0 ? null : th;
+        return th % 45 === 0 ? null : th;
       });
       const dec = decompose(theta);
       const bad = fn === 'tan' && (cosExact(dec[0]).isZero() || cosExact(dec[2]).isZero());
@@ -310,9 +311,9 @@ export const doubleHalfIdentities = defineTopic({
       const noHalf = fn === 'tan' ? null : sqrtExact((fn === 'sin' ? Exact.ONE.sub(cosExact(phi)) : Exact.ONE.add(cosExact(phi))));
       const steps =
         fn === 'tan'
-          ? [m(`\\tan ${thTex} = \\tan \\frac{${phTex}}{2} = \\frac{1 - \\cos ${phTex}}{\\sin ${phTex}}`), m(`= \\frac{1 - ${p(cTex)}}{${sinExact(phi).toTex()}} = ${v.tex}`)]
+          ? [m(`\\tan ${thTex} = \\tan\\left(\\frac{1}{2} \\cdot ${phTex}\\right) = \\frac{1 - \\cos ${phTex}}{\\sin ${phTex}}`), m(`= \\frac{1 - ${p(cTex)}}{${sinExact(phi).toTex()}} = ${v.tex}`)]
           : [
-              m(`${fnAt(fn, thTex)} = ${fn === 'sin' ? '\\sin' : '\\cos'} \\frac{${phTex}}{2} = ${sign}\\sqrt{\\frac{1 ${fn === 'sin' ? '-' : '+'} \\cos ${phTex}}{2}}`),
+              m(`${fnAt(fn, thTex)} = ${fn === 'sin' ? '\\sin' : '\\cos'}\\left(\\frac{1}{2} \\cdot ${phTex}\\right) = ${sign}\\sqrt{\\frac{1 ${fn === 'sin' ? '-' : '+'} \\cos ${phTex}}{2}}`),
               m(`= ${sign}\\sqrt{\\frac{1 ${fn === 'sin' ? '-' : '+'} ${p(cTex)}}{2}} = ${v.tex}`),
             ];
       return {

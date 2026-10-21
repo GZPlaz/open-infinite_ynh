@@ -144,10 +144,13 @@ export class Exact {
 export interface Val {
   tex: string;
   value: number;
+  /** Present when the value is a sum of surds. */
+  exact?: Exact;
 }
 
-export const val = (e: Exact): Val => ({ tex: e.toTex(), value: e.value });
-export const negVal = (v: Val): Val => ({ tex: v.tex.startsWith('-') ? v.tex.slice(1) : `-${v.tex}`, value: -v.value });
+export const val = (e: Exact): Val => ({ tex: e.toTex(), value: e.value, exact: e });
+/** Negation; nested radicals are single fractions or roots, so a leading sign suffices. */
+export const negVal = (v: Val): Val => (v.exact ? val(v.exact.neg()) : { tex: v.tex.startsWith('-') ? v.tex.slice(1) : `-${v.tex}`, value: -v.value });
 
 /**
  * √x for x = A + B√w ≥ 0 (at most one irrational term), denested when
