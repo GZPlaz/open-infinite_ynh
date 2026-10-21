@@ -141,7 +141,7 @@ export const polygonAngles = defineTopic({
     const pts = built.pts.map((p) => rotate(p, turn));
     const xs = pts.map((p) => p[0]);
     const ys = pts.map((p) => p[1]);
-    const b = new DiagramBuilder(200 / Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)));
+    const b = new DiagramBuilder((n >= 5 ? 280 : 220) / Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)));
     b.polygon(pts, { weight: 1.4 });
     const labels = angles.map((v, i) => (exprs[i] ? linDeg(exprs[i]!) : `${v}^\\circ`));
     const texs = angles.map((v, i) => (exprs[i] ? linTex(exprs[i]!) : String(v)));
@@ -208,7 +208,10 @@ export const parallelograms = defineTopic({
     nameVertices(b, P, nm);
     const cen = centroid(P);
     const parts: Part[] = difficulty === 'hard' ? rng.sample(['sides', 'angles', 'consecutive', 'diagonals'] as Part[], 2) : [rng.pick(['sides', 'angles', 'consecutive', 'diagonals'] as Part[])];
-    if (parts.includes('angles') && parts.includes('consecutive')) parts[1] = 'sides';
+    if (parts.length === 2 && (parts.includes('diagonals') || (parts.includes('angles') && parts.includes('consecutive')))) {
+      parts[0] = parts.includes('diagonals') ? 'diagonals' : parts[0]!;
+      parts[1] = 'sides';
+    }
     const vars = ['x', 'y'];
     const eqs: string[] = [];
     const lengths: Array<[Pt, Pt, string]> = [];
@@ -251,8 +254,8 @@ export const parallelograms = defineTopic({
         const t1 = easy ? String(angVal(i)) : tex(e1, angVal(i));
         const t2 = easy ? v : tex(e2, angVal(j));
         const deg = (t: string) => (/^[\d]+$|^[a-z]$/.test(t) ? `${t}^\\circ` : `(${t})^\\circ`);
-        angleLabel(b, ...angleAtV(i), deg(t1), { radiusPx: 12, maxPx: 70 });
-        angleLabel(b, ...angleAtV(j), deg(t2), { radiusPx: 12, maxPx: 70 });
+        angleLabel(b, P[i]!, P[(i + 3) % 4]!, P[(i + 1) % 4]!, deg(t1), { radiusPx: 12, maxPx: 70 });
+        angleLabel(b, P[j]!, P[(j + 3) % 4]!, P[(j + 1) % 4]!, deg(t2), { radiusPx: 12, maxPx: 70 });
         angles.push([...angleAtV(i), t1], [...angleAtV(j), t2]);
         eqs.push(part === 'angles' ? `${t1} = ${t2}` : `(${t1}) + (${t2}) = 180`);
         given.push(deg(t1), deg(t2));

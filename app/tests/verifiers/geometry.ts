@@ -87,7 +87,7 @@ export function solveCheck(p: ProblemContent): void {
   const as = assignments(p.answer);
   expect(as.length, `answer assignments in ${p.answer}`).toBeGreaterThan(0);
   for (const a of as) {
-    const v = names[a.lhs] ?? (/^[a-z](_\{?\w+\}?)?$/.test(a.lhs) ? a.lhs : undefined);
+    const v = names[a.lhs] ?? (/^[a-zA-Z](_\{?\w+\}?)?$/.test(a.lhs) ? a.lhs : undefined);
     expect(v, `answer item "${a.lhs}" is not checked (${p.answer})`).toBeDefined();
     env[v!] = a.value;
     if (a.approx) approx.push(v!);
@@ -241,8 +241,52 @@ function congruenceCriterion(S: number[], A: number[], right: number | null): st
 
 const POLY_N: Record<string, number> = { triangle: 3, quadrilateral: 4, pentagon: 5, hexagon: 6, heptagon: 7, octagon: 8, nonagon: 9, decagon: 10, hendecagon: 11, dodecagon: 12 };
 
+/** f(x, y) = lhs − rhs of an equation in x and y. */
+function curveFn(eq: string): (x: number, y: number) => number {
+  const { parts, rels } = splitTop(eq, ['=']);
+  expect(rels.length, eq).toBe(1);
+  return (x, y) => evalReal(parts[0]!, { vars: { x, y } }) - evalReal(parts[1]!, { vars: { x, y } });
+}
+
+/** The equation holds on the circle (h, k, r) and nowhere near its center. */
+function expectCircle(eq: string, h: number, k: number, r: number, what: string): void {
+  const f = curveFn(eq);
+  for (const t of [0.3, 1.1, 2.2, 3.5, 4.4, 5.9]) expect(Math.abs(f(h + r * Math.cos(t), k + r * Math.sin(t))) < 1e-7 * Math.max(1, r * r), `${what}: point at t=${t}`).toBe(true);
+  expect(Math.abs(f(h, k)) > 1e-6, `${what}: center not on the curve`).toBe(true);
+  expect(Math.abs(f(h + 2 * r, k)) > 1e-6, `${what}: 2r away not on the curve`).toBe(true);
+}
+
 export const VERIFIERS: Record<string, Verifier> = {
   'geometry.solve': solveCheck,
+
+  /** Circle equations: build the circle from the question's data and test the answer (or vice versa). */
+  'geometry.circleEq'(p) {
+    const c = p.check!;
+    const qs = mathSegments(p.question);
+    if (c.task === 'write') {
+      const T = tuplesIn(qs.join(' '));
+      let h: number;
+      let k: number;
+      let r: number;
+      if (c.mode === 'radius') {
+        [h, k] = T[0] as [number, number];
+        r = evalReal(qs[1]!);
+      } else if (c.mode === 'point') {
+        [h, k] = T[0] as [number, number];
+        r = Math.hypot(T[1]![0]! - h, T[1]![1]! - k);
+      } else {
+        h = (T[0]![0]! + T[1]![0]!) / 2;
+        k = (T[0]![1]! + T[1]![1]!) / 2;
+        r = Math.hypot(T[1]![0]! - h, T[1]![1]! - k);
+      }
+      expectCircle(mathSegments(p.answer)[0]!, h, k, r, `${p.question} → ${p.answer}`);
+    } else {
+      const as = mathSegments(p.answer);
+      const [h, k] = tuplesIn(as[0]!)[0] as [number, number];
+      const r = evalReal(as[1]!);
+      expectCircle(qs[0]!, h, k, r, `${p.question} → ${p.answer}`);
+    }
+  },
 
   /** Polygon angle facts, with n read from the question. */
   'geometry.polygon'(p) {

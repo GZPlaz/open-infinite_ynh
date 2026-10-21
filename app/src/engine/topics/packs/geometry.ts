@@ -3,6 +3,8 @@ import type { TopicGenerator } from '../../types';
 import { angleRelationships } from '../geometry/angles';
 import { areaPerimeter } from '../geometry/area-perimeter';
 import { angleAddition, classifyAngles, midpointEndpoint, segmentAddition } from '../geometry/basics';
+import { circleAngles, circleEquations, circleSegments } from '../geometry/circle-relations';
+import { arcLength, arcsCentralAngles, inscribedAngles, sectorArea, tangents } from '../geometry/circles';
 import { triangleCongruence } from '../geometry/congruence';
 import { coordinateGeometry } from '../geometry/coordinate';
 import { parallelPerpendicular, parallelTransversal } from '../geometry/parallel';
@@ -47,6 +49,15 @@ const topics: TopicGenerator[] = [
   polygonAngles,
   parallelograms,
   areaPerimeter,
+  // Circles
+  arcsCentralAngles,
+  arcLength,
+  sectorArea,
+  inscribedAngles,
+  tangents,
+  circleAngles,
+  circleSegments,
+  circleEquations,
   // Transformations
   transformations,
   // Solids

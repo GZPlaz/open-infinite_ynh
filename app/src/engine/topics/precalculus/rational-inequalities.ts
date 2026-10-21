@@ -169,7 +169,14 @@ export const rationalInequalities = defineTopic({
     const steps: string[] = [];
     if (q.rearranged) steps.push(`Rewrite: ${m(q.rearranged)}`);
     steps.push(`Critical values: ${m(crit.map((c) => num(c)).join(', '))}${q.denRoots.length ? ` (${m(q.denRoots.map((d) => `x = ${num(d)}`).join(', '))} makes the denominator zero)` : ''}.`);
-    steps.push('Test a value in each interval to find where the expression has the required sign.');
+    const uniq = crit.filter((c, i) => i === 0 || !c.eq(crit[i - 1]!));
+    const signs = uniq.map((c, i) => {
+      const lo = i === 0 ? c.value - 1 : uniq[i - 1]!.value;
+      return { lo: i === 0 ? '-\\infty' : num(uniq[i - 1]!), hi: num(c), v: q.numer.evalNum((lo + c.value) / 2) / q.denom.evalNum((lo + c.value) / 2) };
+    });
+    const lastC = uniq[uniq.length - 1]!;
+    signs.push({ lo: num(lastC), hi: '\\infty', v: q.numer.evalNum(lastC.value + 1) / q.denom.evalNum(lastC.value + 1) });
+    steps.push(`Sign chart: ${signs.map((g) => `${m(`(${g.lo}, ${g.hi})`)} ${m(g.v > 0 ? '+' : '-')}`).join('; ')}.`);
     steps.push(answer);
     const negRoots = { numRoots: q.numRoots.map((r) => r.neg()).sort((a, b) => a.cmp(b)), denRoots: q.denRoots.map((r) => r.neg()), numer: reflect(q.numer), denom: reflect(q.denom) };
     const flipped: Rel = { '<': '\\le', '\\le': '<', '>': '\\ge', '\\ge': '>' }[q.rel] as Rel;

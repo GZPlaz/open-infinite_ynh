@@ -1,7 +1,6 @@
 /** Answer verifiers for the Precalculus pack. */
 import { expect } from 'vitest';
 import type { Diagram, DiagramItem } from '../../src/engine/diagram';
-import type { ProblemContent } from '../../src/engine/types';
 import { close, closeC, evaluate, evalReal, listItems, mathSegments, onlyMath, splitTop, type C } from '../evaluator';
 import { chainHolds, curvePoints, expectEquivalent, setHolds, sides, type Verifier } from '../verify';
 
@@ -214,13 +213,12 @@ function fracParts(t: string): [string, string] | null {
 }
 
 /** Vectors `\\mathbf{u} = \\left\\langle … \\right\\rangle` named in a rich string. */
-function vectorsIn(rich: string, vars: Record<string, number> = {}): Record<string, number[] | string[]> {
-  const out: Record<string, number[] | string[]> = {};
+function vectorsIn(rich: string): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
   for (const s of mathSegments(rich)) {
     const mm = /\\mathbf\{(\w)\} = \\left\\langle (.*) \\right\\rangle$/.exec(s.trim());
     if (mm) out[mm[1]!] = splitTop(mm[2]!, [',']).parts;
   }
-  void vars;
   return out;
 }
 const vdot = (a: number[], b: number[]) => a.reduce((s, x, i) => s + x * b[i]!, 0);
@@ -301,7 +299,111 @@ function expectOnRect(eq: string, pts: Array<[number, number]>, what: string): v
   expect([[0.37, 1.91], [-2.3, 0.77], [1.4, -3.2]].some(([x, y]) => Math.abs(resid(x!, y!)) > 1e-6), `${eq} is not an identity`).toBe(true);
 }
 
+function parseSigma(tex: string): { v: string; lo: number; hi: number; body: string } {
+  const mm = /^(?:\\displaystyle\s*)?\\sum_\{(\w)=(-?\d+)\}\^\{(-?\d+)\}\s*(.*)$/.exec(tex.trim());
+  expect(mm, `sigma notation: ${tex}`).toBeTruthy();
+  return { v: mm![1]!, lo: Number(mm![2]), hi: Number(mm![3]), body: mm![4]! };
+}
+
+/** Signed terms of `a + b - c` (top level). */
+function signedTerms(tex: string): number[] {
+  const t = tex.trim();
+  const { parts, rels } = splitTop(t.startsWith('-') ? `0 ${t}` : t, ['+', '-']);
+  return parts.map((p, i) => (i === 0 ? 1 : rels[i - 1] === '-' ? -1 : 1) * evalReal(p)).filter((_, i) => !(i === 0 && t.startsWith('-')));
+}
+
+/** What a limit question asks: side ('-', '+', '' two-sided, 'value') and the point. */
+function limitAsk(q: string): { side: string; a: number } {
+  for (const s of mathSegments(q)) {
+    const lm = /^\\lim_\{x \\to (-?\d+)(?:\^\{([+-])\})?\} f\(x\)$/.exec(s.trim());
+    if (lm) return { side: lm[2] ?? '', a: Number(lm[1]) };
+    const fv = /^f\((-?\d+)\)$/.exec(s.trim());
+    if (fv) return { side: 'value', a: Number(fv[1]) };
+  }
+  throw new Error(`no limit in ${q}`);
+}
+
+function expectLimitAnswer(answer: string, value: number | null, side: string, tol = 1e-9): void {
+  if (value === null) expect(answer).toBe(side === 'value' ? 'Undefined' : 'Does not exist');
+  else {
+    const seg = onlyMath(answer);
+    expect(Math.abs(evalReal(rhsOf(seg)) - value) <= tol, `${answer} vs ${value}`).toBe(true);
+  }
+}
+
 export const VERIFIERS: Record<string, Verifier> = {
+  /** Limits read off the question's graph (curve paths and open / closed dots). */
+  'precalculus.limitGraph'(p) {
+    const { side, a } = limitAsk(p.question);
+    const paths = (p.diagram?.items ?? []).filter((it): it is Extract<DiagramItem, { t: 'path' }> => it.t === 'path' && it.role === 'curve');
+    const dots = dotsOf(p.diagram);
+    const yAt = (pts: ReadonlyArray<readonly [number, number]>, fromLeft: boolean): number | null => {
+      const exact = pts.find(([x]) => Math.abs(x - a) < 1e-9);
+      const before = pts.some(([x]) => (fromLeft ? x < a - 1e-9 : x > a + 1e-9));
+      if (!before) return null;
+      if (exact) return exact[1];
+      for (let i = 0; i + 1 < pts.length; i++) {
+        const [x0, y0] = pts[i]!;
+        const [x1, y1] = pts[i + 1]!;
+        if ((x0 - a) * (x1 - a) < 0) return y0 + ((y1 - y0) * (a - x0)) / (x1 - x0);
+      }
+      return null;
+    };
+    const lim = (fromLeft: boolean) => {
+      const vals = paths.map((pa) => yAt(pa.pts, fromLeft)).filter((v): v is number => v !== null);
+      const uniq = vals.filter((v, i) => vals.findIndex((u) => close(u, v)) === i);
+      expect(uniq.length, `one branch approaches x=${a} from the ${fromLeft ? 'left' : 'right'}`).toBe(1);
+      return uniq[0]!;
+    };
+    let want: number | null;
+    if (side === '-') want = lim(true);
+    else if (side === '+') want = lim(false);
+    else if (side === '') {
+      const L = lim(true);
+      const R = lim(false);
+      want = close(L, R) ? L : null;
+    } else {
+      const closedDots = dots.filter((d) => !d.open && close(d.x, a));
+      expect(closedDots.length).toBeLessThanOrEqual(1);
+      if (closedDots.length) want = closedDots[0]!.y;
+      else {
+        const through = paths.map((pa) => (pa.pts.some(([x]) => x < a - 1e-9) && pa.pts.some(([x]) => x > a + 1e-9) ? yAt(pa.pts, true) : null)).find((v) => v !== null) ?? null;
+        want = through !== null && !dots.some((d) => d.open && close(d.x, a) && close(d.y, through)) ? through : null;
+      }
+    }
+    expectLimitAnswer(p.answer, want, side);
+  },
+
+  /** Limits estimated from a table of values. */
+  'precalculus.limitTable'(p) {
+    const { side, a } = limitAsk(p.question);
+    const seg = mathSegments(p.question).find((s) => s.includes('\\begin{array}'))!;
+    const body = /\\begin\{array\}\{[^}]*\}(.*)\\end\{array\}/.exec(seg)![1]!;
+    const [xr, fr] = body.split('\\\\').map((r) => r.replace('\\hline', '').split('&').slice(1).map((c) => evalReal(c.trim())));
+    const left = xr!.map((x, i) => [x, fr![i]!] as const).filter(([x]) => x < a).sort((u, v) => v[0] - u[0])[0]![1];
+    const right = xr!.map((x, i) => [x, fr![i]!] as const).filter(([x]) => x > a).sort((u, v) => u[0] - v[0])[0]![1];
+    const want = side === '-' ? left : side === '+' ? right : Math.abs(left - right) > 0.05 ? null : (left + right) / 2;
+    expectLimitAnswer(p.answer, want, side, 0.01);
+  },
+
+  'precalculus.sigma'(p) {
+    if (p.check!.task === 'evaluate') {
+      const s = parseSigma(onlyMath(p.question));
+      let total = 0;
+      for (let k = s.lo; k <= s.hi; k++) total += evalReal(s.body, { vars: { [s.v]: k } });
+      expect(close(evalReal(onlyMath(p.answer)), total), `${p.question} → ${p.answer}`).toBe(true);
+      return;
+    }
+    const s = parseSigma(onlyMath(p.answer));
+    const listTex = onlyMath(p.question);
+    const [before, after] = listTex.split('\\cdots');
+    const first = signedTerms(before!.trim().replace(/[+-]\s*$/, ''));
+    const last = signedTerms(`0 ${after!.trim()}`)[1]!;
+    expect(first.length).toBe(3);
+    first.forEach((x, i) => expect(close(evalReal(s.body, { vars: { [s.v]: s.lo + i } }), x), `${p.answer}: term ${i + 1}`).toBe(true));
+    expect(close(evalReal(s.body, { vars: { [s.v]: s.hi } }), last), `${p.answer}: last term`).toBe(true);
+  },
+
   /** Points of the parametric curve satisfy the rectangular equation (and its restriction). */
   'precalculus.eliminate'(p) {
     const { X, Y } = paramDefs(p.question);
@@ -459,7 +561,7 @@ export const VERIFIERS: Record<string, Verifier> = {
 
   'precalculus.vectors'(p) {
     const task = p.check!.task as string;
-    const raw = vectorsIn(p.question) as Record<string, string[]>;
+    const raw = vectorsIn(p.question);
     const num = (name: string, env: Record<string, number> = {}) => raw[name]!.map((t) => evalReal(t, { vars: env }));
     const ans = mathSegments(p.answer);
     if (task === 'dot') {
@@ -707,6 +809,3 @@ export const VERIFIERS: Record<string, Verifier> = {
     if (parts.range) expectRange(f, parts.range[0]!, (p.check!.hints as number[]) ?? [], p.question);
   },
 };
-
-export { chainHolds, close, closeC, curvePoints, evalReal, expectEquivalent, listItems, setHolds, sides };
-export type { C, Diagram, DiagramItem, ProblemContent };

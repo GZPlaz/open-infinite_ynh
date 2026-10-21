@@ -161,7 +161,7 @@ function partName(lhs: string): { part: string; sub: string } {
 // ---------------------------------------------------------------- equations
 
 function scanRoots(f: (x: number) => number): number[] {
-  const N = 7200;
+  const N = 3600;
   const h = TAU / N;
   const xs = Array.from({ length: N }, (_, i) => i * h);
   const ys = xs.map(f);
@@ -190,7 +190,7 @@ function scanRoots(f: (x: number) => number): number[] {
       let lo = xs[i - 1]!;
       let hi = xs[i + 1]!;
       const g = (Math.sqrt(5) - 1) / 2;
-      for (let k = 0; k < 100; k++) {
+      for (let k = 0; k < 70; k++) {
         const x1 = hi - g * (hi - lo);
         const x2 = lo + g * (hi - lo);
         if (Math.abs(f(x1)) < Math.abs(f(x2))) hi = x2;

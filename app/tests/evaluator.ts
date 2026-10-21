@@ -236,6 +236,19 @@ class Parser {
     return base;
   }
 
+  /**
+   * Unparenthesised function argument: a power followed by implicitly
+   * multiplied variables / π, so `\sin 2x` is sin(2x) and `\tan 3\pi` is tan(3π).
+   */
+  private bareArg(): C {
+    let acc = this.power();
+    for (;;) {
+      const t = this.peek();
+      if (t?.k === 'var' || (t?.k === 'cmd' && t.v === 'pi')) acc = cmul(acc, this.power());
+      else return acc;
+    }
+  }
+
   /** Braced group or a single token (as in x^2). */
   private arg(): C {
     if (this.isSym('{')) {
@@ -359,7 +372,7 @@ class Parser {
           if (e.re === -1 && INVERSE[name]) name = INVERSE[name]!;
           else post = e;
         }
-        const a = this.isSym('(') || this.isSym('{') ? this.primary() : this.power();
+        const a = this.isSym('(') || this.isSym('{') ? this.primary() : this.bareArg();
         const v = base ? cdiv(cln(a), cln(base)) : FUNCS[name]!(a);
         return post ? cpow(v, post) : v;
       }

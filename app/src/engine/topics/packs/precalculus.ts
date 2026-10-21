@@ -7,6 +7,7 @@ import { domainRange } from '../precalculus/domain-range';
 import { evenOdd } from '../precalculus/even-odd';
 import { piecewiseEvaluate, piecewiseGraph } from '../precalculus/piecewise';
 import { eliminateParameter, parametricGraph } from '../precalculus/parametric';
+import { limitsGraphsTables } from '../precalculus/limits-graphs';
 import { partialFractions } from '../precalculus/partial-fractions';
 import { polarEquations } from '../precalculus/polar-equations';
 import { polarGraphs } from '../precalculus/polar-graphs';
@@ -14,9 +15,10 @@ import { polarPoints } from '../precalculus/polar-points';
 import { rationalGraphs } from '../precalculus/rational-graphs';
 import { rationalInequalities } from '../precalculus/rational-inequalities';
 import { sequencesSeries } from '../precalculus/sequences';
+import { sigmaNotation } from '../precalculus/sigma';
 import { transformations } from '../precalculus/transformations';
 import { vectors } from '../precalculus/vectors';
 
-const topics: TopicGenerator[] = [domainRange, evenOdd, transformations, piecewiseEvaluate, piecewiseGraph, composition, rationalGraphs, partialFractions, rationalInequalities, vectors, dotProduct, polarPoints, polarEquations, polarGraphs, complexTrigForm, eliminateParameter, parametricGraph, sequencesSeries];
+const topics: TopicGenerator[] = [domainRange, evenOdd, transformations, piecewiseEvaluate, piecewiseGraph, composition, rationalGraphs, partialFractions, rationalInequalities, vectors, dotProduct, polarPoints, polarEquations, polarGraphs, complexTrigForm, eliminateParameter, parametricGraph, sequencesSeries, sigmaNotation, limitsGraphsTables];
 
 export default topics;

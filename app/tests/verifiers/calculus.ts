@@ -166,12 +166,14 @@ function twoSided(f: Fn, a: number): LimitVal {
   return l === r ? l : 'dne';
 }
 
+/** f(s·X) for growing X; overflowing exponentials give NaN at huge X, so use the largest X with a value. */
 function atInfinity(f: Fn, s: 1 | -1): LimitVal {
-  const v6 = f(s * 1e6);
-  const v8 = f(s * 1e8);
-  if (v8 >= 1e3 && v8 >= v6) return 'inf';
-  if (v8 <= -1e3 && v8 <= v6) return '-inf';
-  return v8;
+  const vals = [1e2, 1e3, 1e4, 1e6, 1e8].map((X) => f(s * X)).filter((v) => !Number.isNaN(v));
+  const last = vals[vals.length - 1]!;
+  const prev = vals[vals.length - 2] ?? last;
+  if (last >= 1e3 && last >= prev) return 'inf';
+  if (last <= -1e3 && last <= prev) return '-inf';
+  return last;
 }
 
 function sameLimit(got: LimitVal, want: LimitVal, what: string): void {

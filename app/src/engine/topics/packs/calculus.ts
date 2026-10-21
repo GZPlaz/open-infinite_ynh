@@ -4,6 +4,7 @@ import { derivatives } from '../calculus/derivatives';
 import { integrals } from '../calculus/integrals';
 import { limits } from '../calculus/limits';
 import { expLogDerivatives, higherOrderDerivatives, implicitDifferentiation, inverseTrigDerivatives, trigDerivatives } from '../calculus/diff-more';
+import { concavity, extrema, lhopital, meanValueTheorem, motion, optimization, relatedRates, tangentLines } from '../calculus/applications';
 import { chainRule, derivativeDefinition, productRule, quotientRule } from '../calculus/diff-rules';
 import { continuity, limitsAtInfinity, oneSidedLimits, trigLimits } from '../calculus/limits-more';
 
@@ -25,6 +26,15 @@ const topics: TopicGenerator[] = [
   inverseTrigDerivatives,
   implicitDifferentiation,
   higherOrderDerivatives,
+  // Applications of Differentiation
+  tangentLines,
+  relatedRates,
+  extrema,
+  concavity,
+  meanValueTheorem,
+  motion,
+  lhopital,
+  optimization,
   // Integration
   integrals,
 ];
