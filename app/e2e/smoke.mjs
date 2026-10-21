@@ -34,6 +34,8 @@ const browser = await chromium.launch({ executablePath });
 try {
   const context = await browser.newContext({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
   const page = await context.newPage();
+  // with every topic on one worksheet (200+ topics, 2000+ problems, 260 pages) re-rendering takes a while
+  page.setDefaultTimeout(180_000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => m.type() === 'error' && errors.push(`console: ${m.text()}`));
@@ -144,6 +146,15 @@ try {
   check(printedPages === shownPages, `print produces exactly the previewed pages (${printedPages} vs ${shownPages})`);
   await page.emulateMedia({ media: 'screen' });
 
+  // the exports below run on a normal-sized worksheet: a PDF of 260 pages takes minutes to render
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForSelector('.preview .ws-page');
+  await page.evaluate(() => document.fonts.ready);
+  const size = await problems();
+  const sizePages = await page.locator('.preview .ws-page').count();
+  check(size === 14, `starter worksheet is back after clearing local storage (${size} problems)`);
+
   // client-side PDF export
   await page.getByRole('button', { name: 'Export & print' }).click();
   await page.locator('dialog[open]').getByText('Worksheet', { exact: true }).click();
@@ -152,7 +163,7 @@ try {
   await download.saveAs(pdfPath);
   const pdf = readFileSync(pdfPath);
   const pdfPages = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length;
-  check(pdf.length > 50_000 && pdfPages === shownPages, `jsPDF export: ${pdfPages} pages, ${Math.round(pdf.length / 1024)} KB`);
+  check(pdf.length > 20_000 && pdfPages === sizePages, `jsPDF export: ${pdfPages} pages, ${Math.round(pdf.length / 1024)} KB`);
 
   // LaTeX + JSON exports
   for (const [label, file] of [
@@ -171,12 +182,12 @@ try {
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.locator('dialog[open]').getByRole('button', { name: /Open a worksheet file/ }).click()]);
   await chooser.setFiles(join(out, 'export.json'));
   await page.waitForTimeout(300);
-  check((await problems()) === total, `re-imported JSON has the same ${total} problems`);
+  check((await problems()) === size, `re-imported JSON has the same ${size} problems`);
 
   // autosave survives reload
   await page.reload();
   await page.waitForSelector('.preview .ws-page');
-  check((await problems()) === total, 'worksheet persists across reloads');
+  check((await problems()) === size, 'worksheet persists across reloads');
 
   // phone layout: no horizontal scrolling
   await page.setViewportSize({ width: 375, height: 800 });

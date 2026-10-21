@@ -81,6 +81,36 @@ function anglesFor(rng: Rng, a: AngleKind, s: SideKind): [number, number, number
   });
 }
 
+const PYTH_TRIPLES: ReadonlyArray<readonly [number, number, number]> = [[3, 4, 5], [5, 12, 13], [8, 15, 17], [7, 24, 25], [20, 21, 29], [9, 12, 15], [6, 8, 10], [10, 24, 26], [12, 16, 20]];
+
+/** Whole-number side lengths of a triangle of the given class (right isosceles has none). */
+function wholeSides(rng: Rng, a: AngleKind, s: SideKind): [number, number, number] {
+  const kindOf = (x: number, y: number, z: number): AngleKind => {
+    const d = x * x + y * y - z * z; // z is the longest side
+    return d === 0 ? 'Right' : d > 0 ? 'Acute' : 'Obtuse';
+  };
+  if (s === 'equilateral') {
+    const k = rng.int(3, 14);
+    return [k, k, k];
+  }
+  if (a === 'Right') {
+    const [x, y, z] = rng.pick(PYTH_TRIPLES);
+    return rng.shuffle([x, y, z]) as [number, number, number];
+  }
+  const out = attempt('tri-sides', () => {
+    const legs = rng.int(3, 14);
+    const base = rng.int(2, 2 * legs - 1);
+    const L = s === 'isosceles' ? [legs, legs, base] : [legs, rng.int(2, 15), rng.int(2, 25)];
+    const sorted = [...L].sort((x, y) => x - y) as [number, number, number];
+    if (sorted[0] + sorted[1] <= sorted[2]) return null;
+    const distinct = new Set(L).size;
+    if (s === 'isosceles' ? distinct !== 2 : distinct !== 3) return null;
+    if (kindOf(...sorted) !== a) return null;
+    return rng.shuffle(L) as [number, number, number];
+  }, 2000);
+  return out;
+}
+
 export const classifyTriangles = defineTopic({
   id: 'geo.classify-triangles',
   subject: 'geometry',
@@ -93,12 +123,14 @@ export const classifyTriangles = defineTopic({
   options: [],
   generate(ctx): ProblemContent {
     const { rng, difficulty } = ctx;
-    const s = rng.weighted<SideKind>([
+    const s0 = rng.weighted<SideKind>([
       ['scalene', 4],
       ['isosceles', 4],
       ['equilateral', 1],
     ]);
-    const a = s === 'equilateral' ? 'Acute' : rng.pick<AngleKind>(['Acute', 'Right', 'Obtuse']);
+    const a = s0 === 'equilateral' ? 'Acute' : rng.pick<AngleKind>(['Acute', 'Right', 'Obtuse']);
+    // a right isosceles triangle has no whole-number side lengths, which the hard (side lengths only) tier needs
+    const s: SideKind = difficulty === 'hard' && a === 'Right' && s0 === 'isosceles' ? 'scalene' : s0;
     const angles = anglesFor(rng, a, s);
     const answer = className(a, s);
     const names = letters(rng, 3);
@@ -110,18 +142,7 @@ export const classifyTriangles = defineTopic({
     const steps: string[] = [];
     if (difficulty === 'hard') {
       // side lengths only (whole numbers), classify by the converse of the Pythagorean theorem
-      const [p, q, r] = attempt('tri-sides', () => {
-        const k = rng.int(3, 9);
-        const L = sides.map((v) => Math.round((v / Math.max(...sides)) * k * 3));
-        if (L.some((v) => v < 2)) return null;
-        const sorted = [...L].sort((x, y) => x - y) as [number, number, number];
-        if (sorted[0] + sorted[1] <= sorted[2]) return null;
-        const d = sorted[0] ** 2 + sorted[1] ** 2 - sorted[2] ** 2;
-        const kind: AngleKind = d === 0 ? 'Right' : d > 0 ? 'Acute' : 'Obtuse';
-        const sk: SideKind = sorted[0] === sorted[2] ? 'equilateral' : sorted[0] === sorted[1] || sorted[1] === sorted[2] ? 'isosceles' : 'scalene';
-        if (className(kind, sk) !== answer) return null;
-        return L as [number, number, number];
-      }, 400);
+      const [p, q, r] = wholeSides(rng, a, s);
       const sorted = [p, q, r].sort((x, y) => x - y) as [number, number, number];
       const d = sorted[0] ** 2 + sorted[1] ** 2 - sorted[2] ** 2;
       steps.push(m(`${sorted[0]}^{2} + ${sorted[1]}^{2} = ${sorted[0] ** 2 + sorted[1] ** 2}${d === 0 ? ' =' : d > 0 ? ' >' : ' <'} ${sorted[2] ** 2} = ${sorted[2]}^{2}`));

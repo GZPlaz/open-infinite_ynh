@@ -108,7 +108,7 @@ export const piecewiseEvaluate = defineTopic({
     });
     // wrong piece for each input in turn (boundary mistakes first)
     const wrongs: string[] = [];
-    const order = xs.map((x, i) => i).sort((i, j) => Number(breaks.includes(xs[j]!.value)) - Number(breaks.includes(xs[i]!.value)));
+    const order = xs.map((_x, i) => i).sort((i, j) => Number(breaks.includes(xs[j]!.value)) - Number(breaks.includes(xs[i]!.value)));
     for (const i of order) {
       for (const pc of pieces) {
         if (pc === pieceAt(pieces, xs[i]!.value)) continue;

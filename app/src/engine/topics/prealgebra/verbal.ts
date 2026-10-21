@@ -126,6 +126,9 @@ function wrongExprs(pick: { e: Expr; inner: Inner; outer: Outer | null; a: numbe
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+/** The phrase's intended meaning as (n, value) pairs, so the tests can compare it with the rendered algebra. */
+const samples = (f: (n: number) => number): Array<[number, number]> => [2, 3, 5, 8].map((n) => [n, f(n)]);
+
 type VTask = 'toAlgebra' | 'toWords' | 'equation';
 
 export const writingExpressions = defineTopic({
@@ -178,13 +181,13 @@ export const writingExpressions = defineTopic({
         answer,
         steps: [`$${e.tex}$ reads: ${e.phrase}.`],
         distractors,
-        check: { kind: 'prealgebra.verbal', task },
+        check: { kind: 'prealgebra.verbal', task, samples: samples(e.f) },
       };
     }
     if (task === 'toAlgebra') {
       const answer = m(e.tex);
       const distractors = distinctDistractors(answer, wrong.map((w) => m(w.tex)), () => null);
-      return { question: cap(e.phrase), answer, steps: [`"A number" is $${v}$: $${e.tex}$`], distractors, check: { kind: 'prealgebra.verbal', task } };
+      return { question: cap(e.phrase), answer, steps: [`"A number" is $${v}$: $${e.tex}$`], distractors, check: { kind: 'prealgebra.verbal', task, samples: samples(e.f) } };
     }
     // equation: phrase is C
     const c = attempt('verbal-equation', () => {
@@ -200,7 +203,7 @@ export const writingExpressions = defineTopic({
       answer,
       steps: [`"${verb}" means $=$: $${e.tex} = ${c}$`],
       distractors,
-      check: { kind: 'prealgebra.verbal', task },
+      check: { kind: 'prealgebra.verbal', task, samples: samples(e.f), value: c },
     };
   },
 });

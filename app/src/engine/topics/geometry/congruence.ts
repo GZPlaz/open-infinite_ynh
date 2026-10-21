@@ -63,7 +63,8 @@ export const triangleCongruence = defineTopic({
       ['HL', difficulty === 'easy' ? 0 : 2],
       ['None', 3],
     ]);
-    const layout: Layout = shared ? rng.pick<Layout>(crit === 'HL' ? ['kite', 'parallelogram'] : ['kite', 'parallelogram', 'vertical']) : 'separate';
+    // (a vertical angle is an angle mark, so SSS and HL — which need none / a right angle — never use it)
+    const layout: Layout = shared ? rng.pick<Layout>(crit === 'HL' || crit === 'SSS' ? ['kite', 'parallelogram'] : ['kite', 'parallelogram', 'vertical']) : 'separate';
     const built = attempt('congruence', () => {
       const isRight = crit === 'HL' || rng.bool(0.15);
       // vertex angles; the right angle (if any) sits at a random vertex

@@ -1,6 +1,7 @@
 /** Pre-Algebra verifiers: recompute every answer from the rendered question text. */
 import { expect } from 'vitest';
 import { VERIFIERS as GENERIC, type Verifier } from '../verify';
+import type { ProblemContent } from '../../src/engine/types';
 import { close, evalReal, mathSegments, onlyMath } from '../evaluator';
 
 /** Strip money signs, digit-group commas, percent signs and \text{…}. */
@@ -55,6 +56,29 @@ function skeleton(rich: string): { text: string; segs: string[] } {
 function near(a: number, b: number, tol: number, what: string): void {
   expect(Math.abs(a - b) <= tol + 1e-9 * Math.max(1, Math.abs(b)), `${what}: got ${a}, want ${b}`).toBe(true);
 }
+
+/**
+ * Words ↔ algebra: the rendered expression must take the values the phrase
+ * means (generator-supplied samples), and no distractor may be equivalent.
+ * Sentence → equation: the left side matches and the right side is the stated number.
+ */
+function verbalSamples(p: ProblemContent): void {
+    const samples = p.check!.samples as Array<[number, number]>;
+    const agrees = (tex: string): boolean => samples.every(([n, want]) => close(evalReal(tex, { vars: { n } }), want));
+    const task = p.check!.task;
+    const side = (tex: string): string => (task === 'equation' ? tex.split('=')[0]!.trim() : tex);
+    const shown = task === 'toWords' ? onlyMath(p.question) : side(onlyMath(p.answer));
+    expect(agrees(shown), `${p.question} → ${p.answer}`).toBe(true);
+    if (task === 'equation') expect(close(evalReal(onlyMath(p.answer).split('=')[1]!.trim()), p.check!.value as number), p.answer).toBe(true);
+    if (task !== 'toWords') {
+      const rhs = (tex: string): number => evalReal(tex.split('=')[1]!.trim());
+      for (const d of p.distractors ?? []) {
+        const tex = onlyMath(d);
+        const same = agrees(side(tex)) && (task !== 'equation' || close(rhs(tex), p.check!.value as number));
+        expect(same, `distractor ${d} is equivalent to the answer for ${p.question}`).toBe(false);
+      }
+    }
+  }
 
 export const VERIFIERS: Record<string, Verifier> = {
   /** `$expr$; use $x = 4$ and $y = -2$` */
@@ -311,6 +335,7 @@ export const VERIFIERS: Record<string, Verifier> = {
       agree(phraseValue(mm[1]!), ev(l!), `${p.question} → ${p.answer}`);
       expect(evalReal(r!), p.answer).toBe(evalReal(mathSegments(mm[3]!)[0]!));
     }
+    verbalSamples(p);
   },
 
   /** Recompute mean / median / mode / range from the listed data. */

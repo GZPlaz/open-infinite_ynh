@@ -52,6 +52,15 @@ function sortedRoots(p: Poly): Frac[] {
   return out.sort((a, b) => a.cmp(b));
 }
 
+/** A distractor candidate that may not be computable (huge coefficients): `null` when it throws. */
+export function safe<T>(f: () => T): T | null {
+  try {
+    return f();
+  } catch {
+    return null;
+  }
+}
+
 function wrongs(answer: string, cands: Array<Rat | null>, fallback: (k: number) => Rat | null, v: string, suffix = ''): string[] {
   const t = (r: Rat | null) => (r && !r.isZero() ? m(r.tex(v)) + suffix : null);
   return distinctDistractors(answer, cands.map(t), (k) => t(fallback(k)));
@@ -214,10 +223,10 @@ export const multiplyDivideRational = defineTopic({
     steps.push(m(`= ${ft(N1, D1)} \\cdot ${divide ? ft(D2, N2) : ft(N2, D2)}`));
     steps.push(m(`= ${ans.tex(v)}`));
     const answer = m(ans.tex(v));
-    const other = divide ? Rat.of(N1, D1).mul(Rat.of(N2, D2)) : Rat.of(N1, D1).div(Rat.of(N2, D2));
+    const other = safe(() => (divide ? Rat.of(N1, D1).mul(Rat.of(N2, D2)) : Rat.of(N1, D1).div(Rat.of(N2, D2))));
     const distractors = wrongs(
       answer,
-      [other, ans.inv(), ans.neg(), divide ? Rat.of(D1, N1).mul(Rat.of(N2, D2)) : Rat.of(N1.mul(N2).add(Poly.of(1)), D1.mul(D2))],
+      [other, ans.inv(), ans.neg(), safe(() => (divide ? Rat.of(D1, N1).mul(Rat.of(N2, D2)) : Rat.of(N1.mul(N2).add(Poly.of(1)), D1.mul(D2))))],
       (k) => Rat.of(ans.N.scale(k + 1), ans.D),
       v,
     );

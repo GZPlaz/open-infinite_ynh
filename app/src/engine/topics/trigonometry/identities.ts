@@ -158,8 +158,9 @@ export const sumDifferenceIdentities = defineTopic({
         return th % 45 === 0 ? null : th;
       });
       const dec = decompose(theta);
-      const bad = fn === 'tan' && (cosExact(dec[0]).isZero() || cosExact(dec[2]).isZero());
-      const [A, op, B] = !bad ? dec : cosExact(theta - 45).isZero() ? ([theta + 45, '-', 45] as const) : ([theta - 45, '+', 45] as const);
+      // tan(A ± B) needs tan A and tan B: neither angle may be an odd multiple of 90°
+      const options: Array<readonly [number, '+' | '-', number]> = [dec, [theta + 45, '-', 45], [theta - 45, '+', 45]];
+      const [A, op, B] = fn === 'tan' ? (options.find(([a, , b]) => !cosExact(a).isZero() && !cosExact(b).isZero()) ?? dec) : dec;
       const v = trigExact(fn, theta)!;
       const answer = m(v.toTex());
       const parts = sumDiffValue(fn, A, op, B);
@@ -296,7 +297,7 @@ export const doubleHalfIdentities = defineTopic({
 
     if (task === 'exact') {
       const phi = attempt('half angle', () => {
-        const x = rng.pick(difficulty === 'easy' ? [30, 45, 90, 150, 135, 210, 225, 270, 315, 330] : [30, 45, 135, 150, 210, 225, 315, 330, 270, 390, 405, 495, 510]);
+        const x = rng.pick(difficulty === 'easy' ? [30, 45, 60, 90, 120, 135, 150] : [30, 45, 135, 150, 210, 225, 315, 330, 270, 390, 405, 495, 510]);
         return fn === 'tan' && x % 180 === 0 ? null : x;
       });
       const theta = phi / 2;

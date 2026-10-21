@@ -84,9 +84,13 @@ function isRoot(P: Poly, r: Frac): boolean {
   }
 }
 
+const MAX_SEARCH = 200_000;
+
 /** Rational roots (with multiplicity) and the part without rational roots. */
 export function rationalRoots(p: Poly): { roots: Frac[]; rest: Poly } {
   let P = primitive(p).p;
+  // the root search enumerates divisors and evaluates exactly in safe integers: refuse huge coefficients
+  if (P.c.some((x) => Math.abs(x.n) > MAX_SEARCH)) throw new Error('rationalRoots: coefficients too large');
   const roots: Frac[] = [];
   outer: while (P.degree > 0) {
     if (P.coef(0).isZero()) {
