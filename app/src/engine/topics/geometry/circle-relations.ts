@@ -108,7 +108,7 @@ export const circleAngles = defineTopic({
         return { a1: n, a2: f, s1: 0 };
       }
       if (kind === 'tangents') {
-        const a = rng.int(60, 160);
+        const a = rng.int(60, 130);
         return { a1: a, a2: 360 - a, s1: 0 };
       }
       const a = 2 * rng.int(40, 85);

@@ -15,7 +15,7 @@ import { similarPolygons, similarTriangles } from '../geometry/similarity';
 import { transformations } from '../geometry/transformations';
 import { trigRatios } from '../geometry/trig-ratios';
 import { centroids, classifyTriangles, isoscelesEquilateral, midsegments, triangleAngleSum, triangleInequality } from '../geometry/triangles';
-import { volumeSurfaceArea } from '../geometry/volume';
+import { surfaceArea, volumeSurfaceArea } from '../geometry/volume';
 
 const topics: TopicGenerator[] = [
   // Basics of Geometry
@@ -62,6 +62,7 @@ const topics: TopicGenerator[] = [
   transformations,
   // Solids
   volumeSurfaceArea,
+  surfaceArea,
 ];
 
 export default topics;

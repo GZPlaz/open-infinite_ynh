@@ -1,7 +1,7 @@
 /** Volume and surface area of prisms, cylinders, cones, pyramids and spheres. */
 import { add, DiagramBuilder, dirDeg, mid, mul, type Pt } from '../../diagram';
 import { Frac } from '../../fraction';
-import { boolOpt, defineTopic, distinctDistractors, opt, strOpt } from '../../generator';
+import { boolOpt, defineTopic, distinctDistractors, opt, strOpt, variant } from '../../generator';
 import type { Rng } from '../../rng';
 import { decimal, m, withUnit } from '../../tex';
 import type { Difficulty, ProblemContent } from '../../types';
@@ -250,4 +250,13 @@ export const volumeSurfaceArea = defineTopic({
       check: { kind: 'solid', solid, measure, params: b.params, form },
     };
   },
+});
+
+/** Surface area only (Kuta's separate surface-area worksheets). */
+export const surfaceArea = variant(volumeSurfaceArea, {
+  id: 'geo.surface-area',
+  title: 'Surface Area of Solids',
+  category: 'Solids',
+  description: 'Surface area of prisms, cubes, cylinders, cones, square pyramids and spheres.',
+  fixed: { measure: 'surface' },
 });
