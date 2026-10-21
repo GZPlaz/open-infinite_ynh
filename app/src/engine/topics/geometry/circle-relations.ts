@@ -212,7 +212,12 @@ export const circleAngles = defineTopic({
     const arcTex = arcs.map((a, i) => (i === unknownArc ? 'x' : String(a.size)));
     const angleTex = unknownArc === -1 ? 'x' : String(angle);
     const showArcs = kind === 'tangents' ? [1] : arcs.map((_, i) => i);
-    showArcs.forEach((i) => arcLabel(b, arcs[i]!.from + arcs[i]!.size / 2, deg(arcTex[i]!)));
+    showArcs.forEach((i) => {
+      const midDeg = arcs[i]!.from + arcs[i]!.size / 2;
+      // the near arc of an outside vertex is labelled inside the circle, away from the angle label
+      if (i === 0 && (kind === 'secants' || kind === 'tangentSecant')) b.label(mul(dirDeg(midDeg), 1 - b.px(14)), deg(arcTex[i]!), 'c');
+      else arcLabel(b, midDeg, deg(arcTex[i]!));
+    });
     angleLabel(b, vertex, rays[0], rays[1], deg(angleTex), { radiusPx: 13, maxPx: 45 });
     const shownTex = (i: number) => arcTex[i]!;
     let eq: string;
@@ -288,7 +293,7 @@ export const circleSegments = defineTopic({
         const c = rng.int(2, hi);
         if ((a * b0) % c !== 0 || c === a || c === b0) return null;
         const d = (a * b0) / c;
-        if (d < 2 || d > 2 * hi || Math.min(a, b0) / Math.max(a, b0) < 0.3 || Math.min(c, d) / Math.max(c, d) < 0.3) return null;
+        if (d < 2 || d > 2 * hi || Math.min(a, b0) / Math.max(a, b0) < 0.45 || Math.min(c, d) / Math.max(c, d) < 0.45) return null;
         return { a, b: b0, c, d };
       }
       if (kind === 'secants') {
@@ -313,7 +318,7 @@ export const circleSegments = defineTopic({
     const fig = attempt('seg-fig', () => {
       if (kind === 'chords') {
         const need = Math.max((a + bb) / 2, (c + d) / 2);
-        const r = need * (rng.int(105, 140) / 100);
+        const r = need * (rng.int(102, 125) / 100);
         const p = Math.sqrt(r * r - a * bb);
         const P: Pt = [p, 0];
         // chord 1: t = +a and t = −b along u1 with P·u1 = (b − a)/2
