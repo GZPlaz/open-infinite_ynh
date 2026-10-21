@@ -93,7 +93,7 @@ export const circleAngles = defineTopic({
         const D = at(n + s1);
         const B = at(n + s1 + f);
         const P = intersect(A, sub(B, A), C, sub(D, C));
-        if (!P || dist(P, A) > dist(P, B) || dist(P, C) > dist(P, D) || Math.hypot(...P) > 3.2) return null;
+        if (!P || dist(P, A) > dist(P, B) || dist(P, C) > dist(P, D) || Math.hypot(...P) > 2.4) return null;
         return { a1: n, a2: f, s1 };
       }
       if (kind === 'tangentSecant') {
@@ -104,14 +104,14 @@ export const circleAngles = defineTopic({
         const A = at(n);
         const B = at(360 - f);
         const P = intersect(T, dirDeg(start + 90), A, sub(B, A));
-        if (!P || dist(P, A) > dist(P, B) || Math.hypot(...P) > 3.2) return null;
+        if (!P || dist(P, A) > dist(P, B) || Math.hypot(...P) > 2.4) return null;
         return { a1: n, a2: f, s1: 0 };
       }
       if (kind === 'tangents') {
         const a = rng.int(60, 160);
         return { a1: a, a2: 360 - a, s1: 0 };
       }
-      const a = 2 * rng.int(25, 85);
+      const a = 2 * rng.int(40, 85);
       return { a1: a, a2: 0, s1: 0 };
     });
     const { a1, a2, s1 } = built;
@@ -208,15 +208,15 @@ export const circleAngles = defineTopic({
       angle = a1 / 2;
     }
     // unknown: the angle, or (findArc) one of the arcs
-    const unknownArc = findArc && kind !== 'tangents' ? (kind === 'tangentChord' ? 0 : rng.int(0, 1)) : kind === 'tangents' && findArc ? 0 : -1;
+    const unknownArc = !findArc ? -1 : kind === 'tangents' ? 1 : kind === 'tangentChord' ? 0 : rng.int(0, 1);
     const arcTex = arcs.map((a, i) => (i === unknownArc ? 'x' : String(a.size)));
     const angleTex = unknownArc === -1 ? 'x' : String(angle);
-    const showArcs = kind === 'tangents' ? (unknownArc === 0 ? [0] : [1]) : arcs.map((_, i) => i);
+    const showArcs = kind === 'tangents' ? [1] : arcs.map((_, i) => i);
     showArcs.forEach((i) => arcLabel(b, arcs[i]!.from + arcs[i]!.size / 2, deg(arcTex[i]!)));
     angleLabel(b, vertex, rays[0], rays[1], deg(angleTex), { radiusPx: 13, maxPx: 45 });
     const shownTex = (i: number) => arcTex[i]!;
     let eq: string;
-    if (kind === 'tangents') eq = unknownArc === 0 ? `${angleTex} = 180 - x` : `${angleTex} = \\frac{1}{2}((${shownTex(1)}) - (360 - (${shownTex(1)})))`;
+    if (kind === 'tangents') eq = `${angleTex} = \\frac{1}{2}((${shownTex(1)}) - (360 - (${shownTex(1)})))`;
     else if (relation === 'half-sum') eq = `${angleTex} = \\frac{1}{2}(${shownTex(0)} + ${shownTex(1)})`;
     else if (relation === 'half-diff') eq = `${angleTex} = \\frac{1}{2}(${shownTex(1)} - ${shownTex(0)})`;
     else eq = `${angleTex} = \\frac{1}{2} \\cdot ${shownTex(0)}`;
@@ -234,7 +234,7 @@ export const circleAngles = defineTopic({
       unknownArc === -1
         ? [relation === 'half-sum' ? (a2 - a1) / 2 : (a1 + a2) / 2, relation === 'half' ? a1 : a1 + a2, kind === 'tangents' ? a1 : Math.abs(a2 - a1), angle * 2]
         : [angle * 2, relation === 'half-sum' ? 2 * angle + (unknownArc === 0 ? a2 : a1) : 2 * angle - (unknownArc === 0 ? -a1 : a2), 180 - val, val / 2];
-    const arcChecks: Array<[Pt, Pt, Pt, string]> = arcs.map((a, i) => [O, a.pts[0], a.pts[1], kind === 'tangents' && i === 1 && unknownArc === 0 ? '360 - x' : arcTex[i]!]);
+    const arcChecks: Array<[Pt, Pt, Pt, string]> = arcs.map((a, i) => [O, a.pts[0], a.pts[1], kind === 'tangents' && i === 0 ? `360 - (${arcTex[1]})` : arcTex[i]!]);
     return {
       question: 'Find $x$.',
       answer: fmt(val),
@@ -288,7 +288,7 @@ export const circleSegments = defineTopic({
         const c = rng.int(2, hi);
         if ((a * b0) % c !== 0 || c === a || c === b0) return null;
         const d = (a * b0) / c;
-        if (d < 2 || d > 2 * hi) return null;
+        if (d < 2 || d > 2 * hi || Math.min(a, b0) / Math.max(a, b0) < 0.3 || Math.min(c, d) / Math.max(c, d) < 0.3) return null;
         return { a, b: b0, c, d };
       }
       if (kind === 'secants') {

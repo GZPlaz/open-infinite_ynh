@@ -633,7 +633,7 @@ export const meanValueTheorem = defineTopic({
       const r = Math.sqrt(q.value);
       const roots = [-r, r].filter((x) => x > a + 1e-12 && x < b - 1e-12);
       cs = roots.map((x) => (x < 0 ? `-${sqrtFracTex(q)}` : sqrtFracTex(q)));
-      steps.push(`$f'(c) = ${num(new Frac(3 * alpha))}c^{2} ${gamma < 0 ? '-' : '+'} ${Math.abs(gamma)}$ and $\\frac{f(${b}) - f(${a})}{${b} - (${a})} = ${num(p.eval(b).sub(p.eval(a)).div(b - a))}$`.replace(' + 0$', '$'));
+      steps.push(`$f'(c) = ${num(new Frac(3 * alpha))}c^{2} ${gamma < 0 ? '-' : '+'} ${Math.abs(gamma)}$ and $\\frac{f(${b}) - f(${a})}{${b} - ${a < 0 ? `(${a})` : a}} = ${num(p.eval(b).sub(p.eval(a)).div(b - a))}$`.replace(' + 0$', '$'));
       steps.push(`$c^{2} = ${num(q)}$`);
       wrongs = [num(q), num(new Frac(a + b, 2)), cs.length === 1 ? `-${sqrtFracTex(q)}, ${sqrtFracTex(q)}` : sqrtFracTex(q)];
     } else if (kind === 'recip') {
