@@ -152,6 +152,12 @@ export function solveCheck(p: ProblemContent): void {
     const hi = Math.max(...ratios);
     expect(hi / lo <= 1 + relTol, `figure lengths not to scale: ${lengths.map((l) => l[2]).join(', ')} → ${ratios.join(', ')}`).toBe(true);
   }
+  // a second group of labelled lengths drawn to its own common scale
+  const group = (c.ratios as Array<[Pt, Pt, string]> | undefined) ?? [];
+  if (group.length > 1) {
+    const rs = group.map(([a, q, e]) => Math.hypot(a[0] - q[0], a[1] - q[1]) / evalReal(noDeg(e), { vars: env }));
+    expect(Math.max(...rs) / Math.min(...rs) <= 1 + relTol, `figure lengths not to scale: ${group.map((l) => l[2]).join(', ')}`).toBe(true);
+  }
   for (const [lhs, e] of Object.entries((c.positive as Record<string, string> | undefined) ?? {})) {
     expect(evalReal(noDeg(e), { vars: env }), `${lhs} = ${e} must be positive`).toBeGreaterThan(0);
   }
@@ -233,8 +239,28 @@ function congruenceCriterion(S: number[], A: number[], right: number | null): st
   return 'Not enough information';
 }
 
+const POLY_N: Record<string, number> = { triangle: 3, quadrilateral: 4, pentagon: 5, hexagon: 6, heptagon: 7, octagon: 8, nonagon: 9, decagon: 10, hendecagon: 11, dodecagon: 12 };
+
 export const VERIFIERS: Record<string, Verifier> = {
   'geometry.solve': solveCheck,
+
+  /** Polygon angle facts, with n read from the question. */
+  'geometry.polygon'(p) {
+    const c = p.check!;
+    const ans = assignments(p.answer)[0]!;
+    if (c.task === 'sides') {
+      const v = evalReal(noDeg(mathSegments(p.question)[0]!));
+      const ext = /exterior/.test(p.question) ? v : 180 - v;
+      expect(ans.lhs).toBe('n');
+      expect(close(ans.value, 360 / ext), p.question).toBe(true);
+      return;
+    }
+    const word = Object.keys(POLY_N).find((w) => new RegExp(`\\b${w}\\b`).test(p.question));
+    const n = word ? POLY_N[word]! : Number(/\$(\d+)\$-gon/.exec(p.question)![1]);
+    expect(n).toBe(c.n);
+    const want = c.task === 'sum' ? (n - 2) * 180 : /exterior/.test(p.question) ? 360 / n : ((n - 2) * 180) / n;
+    expect(close(ans.value, want), `${p.question} → ${p.answer}`).toBe(true);
+  },
 
   /** Acute / right / obtuse / not a triangle from the listed side lengths. */
   'geometry.converse'(p) {

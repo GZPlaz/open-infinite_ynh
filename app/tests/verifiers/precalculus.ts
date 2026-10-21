@@ -256,7 +256,175 @@ function polarSamples(eq: string): Array<[number, number]> {
   return out;
 }
 
+/** Name of the polar graph read off the equation's shape. */
+function polarName(eq: string): string {
+  const t = eq.replace(/\s+/g, ' ').trim();
+  if (/^r\^\{2\} =/.test(t)) return 'Lemniscate';
+  if (/^r = -?\d+$/.test(t)) return 'Circle';
+  if (/^r = -?\d*\\(sin|cos)\\theta$/.test(t)) return 'Circle';
+  const rose = /^r = -?\d*\\(sin|cos) (\d+)\\theta$/.exec(t);
+  if (rose) {
+    const n = Number(rose[2]);
+    return `Rose curve with ${n % 2 ? n : 2 * n} petals`;
+  }
+  const lim = /^r = (\d+) [+-] (\d*)\\(sin|cos)\\theta$/.exec(t);
+  expect(lim, `recognised polar equation ${t}`).toBeTruthy();
+  const a = Number(lim![1]);
+  const b = Number(lim![2] || '1');
+  return a === b ? 'Cardioid' : a < b ? 'Limaçon with an inner loop' : a < 2 * b ? 'Dimpled limaçon' : 'Convex limaçon';
+}
+
+/** Check `r\\left(\\cos θ + i\\sin θ\\right)` shape: same angle twice, r > 0, θ in one turn. */
+function expectTrigForm(tex: string, degrees: boolean): void {
+  const t = tex.trim();
+  const mm = /^(.*?)\\left\(\\cos ?(.+?) \+ i\\sin ?(.+?)\\right\)$/.exec(t) ?? /^()\\cos ?(.+?) \+ i\\sin ?(.+)$/.exec(t);
+  expect(mm, `trigonometric form: ${t}`).toBeTruthy();
+  expect(mm![2], `same angle in ${t}`).toBe(mm![3]);
+  if (mm![1]) expect(evalReal(mm![1]!), `modulus of ${t}`).toBeGreaterThan(0);
+  const a = evalReal(mm![2]!);
+  expect(a >= -1e-12 && a < 2 * Math.PI - 1e-12, `angle of ${t} in one turn`).toBe(true);
+  expect(mm![2]!.includes('^\\circ'), `${t}: angle unit`).toBe(degrees || a === 0 ? mm![2]!.includes('^\\circ') : false);
+}
+
+/** x(t), y(t) defined in the question. */
+function paramDefs(q: string): { X: string; Y: string } {
+  const X = defOf(q, 'x')!;
+  const Y = defOf(q, 'y')!;
+  expect(X && Y, q).toBeTruthy();
+  return { X, Y };
+}
+
+function expectOnRect(eq: string, pts: Array<[number, number]>, what: string): void {
+  const [l, r] = sides(eq);
+  const resid = (x: number, y: number) => evalReal(l, { vars: { x, y } }) - evalReal(r, { vars: { x, y } });
+  for (const [x, y] of pts) expect(Math.abs(resid(x, y)) < 1e-7 * Math.max(1, x * x + y * y), `${what}: (${x}, ${y}) on ${eq}`).toBe(true);
+  expect([[0.37, 1.91], [-2.3, 0.77], [1.4, -3.2]].some(([x, y]) => Math.abs(resid(x!, y!)) > 1e-6), `${eq} is not an identity`).toBe(true);
+}
+
 export const VERIFIERS: Record<string, Verifier> = {
+  /** Points of the parametric curve satisfy the rectangular equation (and its restriction). */
+  'precalculus.eliminate'(p) {
+    const { X, Y } = paramDefs(p.question);
+    const pts: Array<[number, number]> = [];
+    for (const t of [-2.3, -1.1, -0.4, 0.35, 0.9, 1.45, 2.2, 3.1]) {
+      const x = realAt(X, { t });
+      const y = realAt(Y, { t });
+      if (x !== null && y !== null) pts.push([x, y]);
+    }
+    expect(pts.length).toBeGreaterThanOrEqual(4);
+    const [eq, ...restr] = mathSegments(p.answer);
+    expectOnRect(eq!, pts, p.question);
+    for (const r of restr) for (const [x] of pts) expect(chainHolds(r, { x }), `${r} at x=${x}`).toBe(true);
+  },
+
+  /** Graph of a parametric curve: drawn points, endpoints, orientation and arrows. */
+  'precalculus.paramGraph'(p) {
+    const { X, Y } = paramDefs(p.question);
+    const range = mathSegments(p.question).find((s) => s.includes('t \\le'))!;
+    const [a, , b] = splitTop(range, ['\\le']).parts;
+    const t0 = evalReal(a!);
+    const t1 = evalReal(b!);
+    const N = 3000;
+    const samp: Array<[number, number, number]> = [];
+    for (let i = 0; i <= N; i++) {
+      const t = t0 + ((t1 - t0) * i) / N;
+      samp.push([t, evalReal(X, { vars: { t } }), evalReal(Y, { vars: { t } })]);
+    }
+    const nearest = (x: number, y: number) => samp.reduce((best, s) => (Math.hypot(s[1] - x, s[2] - y) < Math.hypot(best[1] - x, best[2] - y) ? s : best));
+    const pts = curvePoints(p.answerDiagram);
+    expect(pts.length).toBeGreaterThan(20);
+    for (let i = 0; i < pts.length; i += 3) {
+      const [x, y] = pts[i]!;
+      const s = nearest(x, y);
+      expect(Math.hypot(s[1] - x, s[2] - y) < 0.05, `(${x}, ${y}) on the parametric curve`).toBe(true);
+    }
+    const [eqPart, rest] = p.answer.split('; ');
+    expectOnRect(mathSegments(eqPart!)[0]!, samp.filter((_, i) => i % 300 === 0).map((s) => [s[1], s[2]]), p.question);
+    const marks = pointsIn(rest!);
+    const start = samp[0]!;
+    const fin = samp[N]!;
+    expect(Math.abs(marks[0]![0]! - start[1]) < 0.006 && Math.abs(marks[0]![1]! - start[2]) < 0.006, `start point ${rest}`).toBe(true);
+    if (/clockwise/.test(rest!)) {
+      let area = 0;
+      for (let i = 0; i < N; i++) area += samp[i]![1] * samp[i + 1]![2] - samp[i + 1]![1] * samp[i]![2];
+      expect(/counterclockwise/.test(rest!), `orientation (signed area ${area})`).toBe(area > 0);
+      expect(Math.hypot(fin[1] - start[1], fin[2] - start[2]) < 1e-6, 'closed curve').toBe(true);
+    } else expect(Math.abs(marks[1]![0]! - fin[1]) < 0.006 && Math.abs(marks[1]![1]! - fin[2]) < 0.006, `end point ${rest}`).toBe(true);
+    for (const it of p.answerDiagram!.items) {
+      if (it.t !== 'arrow' || it.ink !== 'accent') continue;
+      const s = nearest(it.from[0], it.from[1]);
+      const h = 1e-4;
+      const dx = evalReal(X, { vars: { t: s[0] + h } }) - evalReal(X, { vars: { t: s[0] - h } });
+      const dy = evalReal(Y, { vars: { t: s[0] + h } }) - evalReal(Y, { vars: { t: s[0] - h } });
+      expect(dx * (it.to[0] - it.from[0]) + dy * (it.to[1] - it.from[1]) > 0, 'arrow points with increasing t').toBe(true);
+    }
+  },
+
+  /** Complex numbers in trigonometric form: value and requested form. */
+  'precalculus.complex'(p) {
+    const env: Record<string, C> = {};
+    for (const s of mathSegments(p.question)) {
+      const mm = /^([zw](?:_\d)?) = (.*)$/.exec(s.trim());
+      if (mm) env[mm[1]!] = evaluate(mm[2]!);
+    }
+    const degrees = mathSegments(p.question).some((s) => s.includes('^\\circ')) || p.answer.includes('^\\circ');
+    const trig = /trigonometric form/.test(p.question);
+    const segs = mathSegments(p.answer);
+    const task = p.check!.task as string;
+    if (task === 'roots') {
+      const n = { square: 2, cube: 3, fourth: 4, sixth: 6 }[/the (\w+) roots/.exec(p.question)![1]!]!;
+      expect(segs.length, p.answer).toBe(n);
+      const vals = segs.map((s) => {
+        const [lhs, rhs] = splitTop(s, ['=']).parts;
+        expect(lhs).toMatch(/^z_\d$/);
+        expectTrigForm(rhs!, degrees);
+        return evaluate(rhs!);
+      });
+      for (const v of vals) {
+        let pw: C = { re: 1, im: 0 };
+        for (let i = 0; i < n; i++) pw = { re: pw.re * v.re - pw.im * v.im, im: pw.re * v.im + pw.im * v.re };
+        expect(closeC(pw, env.w!, 1e-9), `${p.answer}: root^${n} = w`).toBe(true);
+      }
+      vals.forEach((v, i) => vals.slice(i + 1).forEach((u) => expect(closeC(u, v, 1e-9), 'distinct roots').toBe(false)));
+      return;
+    }
+    expect(segs.length).toBe(1);
+    const ans = segs[0]!;
+    let want: C;
+    if (task === 'multiply' || task === 'divide') {
+      const expr = mathSegments(p.question).find((s) => !s.includes('='))!;
+      want = evaluate(expr, { vars: env });
+    } else if (task === 'power') {
+      const expr = mathSegments(p.question).find((s) => /^z\^\{\d+\}$/.test(s.trim()))!;
+      want = evaluate(expr, { vars: env });
+    } else want = env.z!;
+    expect(closeC(evaluate(ans), want, 1e-9), `${p.question} → ${p.answer}`).toBe(true);
+    if (trig) expectTrigForm(ans, degrees);
+    else expect(ans).not.toMatch(/\\cos|\\sin/);
+  },
+
+  /** Graphed points satisfy the polar equation, the whole curve is drawn, and the name fits. */
+  'precalculus.polarCurve'(p) {
+    const eq = onlyMath(p.question);
+    expect(p.answer).toBe(polarName(eq));
+    const [l, r] = sides(polarTex(eq));
+    const sq = l.trim() === 'r^{2}';
+    const f = (t: number) => realAt(r, { t });
+    const pts = curvePoints(p.answerDiagram);
+    expect(pts.length).toBeGreaterThan(30);
+    for (let i = 0; i < pts.length; i += 2) {
+      const [x, y] = pts[i]!;
+      const rho = Math.hypot(x, y);
+      if (rho < 1e-6) continue;
+      const phi = Math.atan2(y, x);
+      const ok = sq ? close(f(phi) ?? NaN, rho * rho, 1e-6) : close(f(phi) ?? NaN, rho, 1e-6) || close(f(phi + Math.PI) ?? NaN, -rho, 1e-6);
+      expect(ok, `point (${x}, ${y}) on ${eq}`).toBe(true);
+    }
+    for (const [x, y] of polarSamples(eq)) {
+      expect(pts.some(([u, v]) => Math.hypot(u - x, v - y) < 0.25), `${eq}: curve passes near (${x}, ${y})`).toBe(true);
+    }
+  },
+
   /** A polar and a rectangular equation describe the same curve (sampled from the polar side). */
   'precalculus.polarEq'(p) {
     const eqs = [...mathSegments(p.question), ...mathSegments(p.answer)];

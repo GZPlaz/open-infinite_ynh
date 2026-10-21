@@ -587,7 +587,13 @@ Object.assign(VERIFIERS, {
     const eq = (p.check!.equation as string | undefined) ?? onlyMath(p.question);
     const none = NO_SOLUTION.test(p.answer);
     const vals = none ? [] : answerValues(p.answer, v).map((t) => evaluate(t));
-    vals.forEach((r) => satisfies(eq, { [v]: r }, p.answer));
+    vals.forEach((r) => {
+      satisfies(eq, { [v]: r }, p.answer);
+      // a real root must make both sides real (√(-18) = √(-18) is extraneous)
+      if (Math.abs(r.im) < 1e-12) {
+        for (const side of sides(eq)) expect(Math.abs(evaluate(side, { vars: { [v]: r } }).im), `${p.answer}: ${side} is not real at ${v} = ${r.re}`).toBeLessThan(1e-9);
+      }
+    });
     const sol = p.check!.solutions as Array<number | C> | undefined;
     if (sol) sameSet(vals, sol.map((s) => (typeof s === 'number' ? { re: s, im: 0 } : s)), `${p.question} → ${p.answer}`);
     else expect(vals.length || none, p.answer).toBeTruthy();

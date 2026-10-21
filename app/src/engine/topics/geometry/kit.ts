@@ -290,3 +290,18 @@ export function labelledTriangle(
   });
   return b;
 }
+
+/** A linear expression a·x + b (1 ≤ a ≤ aMax, 0 < |b| ≤ bMax) equal to `value` at an integer x ≥ xMin. */
+export function linSolve(rng: Rng, value: number, opts: { aMax?: number; bMax?: number; xMin?: number } = {}): { x: number; e: Lin } {
+  const aMax = opts.aMax ?? 3;
+  const bMax = opts.bMax ?? 20;
+  const xMin = opts.xMin ?? 2;
+  for (let i = 0; i < 400; i++) {
+    const a = rng.int(1, aMax);
+    const b = rng.int(-bMax, bMax);
+    if (b === 0 || (value - b) % a !== 0) continue;
+    const x = (value - b) / a;
+    if (x >= xMin) return { x, e: { a, b } };
+  }
+  return { x: value - 1, e: { a: 1, b: 1 } };
+}

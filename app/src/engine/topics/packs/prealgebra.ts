@@ -2,6 +2,7 @@
 import type { TopicGenerator } from '../../types';
 import { multiStepEquations, oneStepEquations, oneTwoStepInequalities } from '../prealgebra/equations';
 import { evaluatingExpressions } from '../prealgebra/evaluating';
+import { coordinatePlanePoints, plottingPoints } from '../prealgebra/coordinate-plane';
 import { convertingFdp, decimalOperations, simplifyingFractions } from '../prealgebra/fdp';
 import { evaluatingExponents, scientificNotation, squareRoots } from '../prealgebra/exponents';
 import { fractionOperations } from '../prealgebra/fractions';
@@ -47,6 +48,9 @@ const topics: TopicGenerator[] = [
   writingExpressions,
   // Statistics
   meanMedianMode,
+  // Graphing
+  coordinatePlanePoints,
+  plottingPoints,
 ];
 
 export default topics;

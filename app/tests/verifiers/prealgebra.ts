@@ -369,7 +369,41 @@ export const VERIFIERS: Record<string, Verifier> = {
     }
     expect(seen.sort(), p.answer).toEqual([...(p.check!.find as string[])].sort());
   },
+
+  /** Coordinates read off the figure (dot + letter label) or the quadrant of a given point. */
+  'prealgebra.plane'(p) {
+    if (p.check!.task === 'quadrant') {
+      const mm = /\((-?\d+), (-?\d+)\)/.exec(mathSegments(p.question)[0]!)!;
+      const [x, y] = [Number(mm[1]), Number(mm[2])];
+      const want = x === 0 && y === 0 ? /origin/ : x === 0 ? /y\$-axis/ : y === 0 ? /x\$-axis/ : new RegExp(`^Quadrant ${x > 0 ? (y > 0 ? 'I' : 'IV') : y > 0 ? 'II' : 'III'}$`);
+      expect(p.answer, p.question).toMatch(want);
+      return;
+    }
+    expectPlotted(p.diagram, p.answer);
+  },
+
+  /** Every point listed in the question is drawn and labelled in the answer figure. */
+  'prealgebra.plot'(p) {
+    expectPlotted(p.answerDiagram, p.question);
+    expect(p.diagram!.items.some((it) => it.t === 'dot'), 'question plane is blank').toBe(false);
+  },
 };
+
+/** Labelled points `A(3, -2)` in `rich` match the figure's dots with letter labels, one to one. */
+function expectPlotted(fig: ProblemContent['diagram'], rich: string): void {
+  const listed = [...mathSegments(rich).join(' ').matchAll(/([A-Z])\((-?\d+), (-?\d+)\)/g)].map((mm) => ({ name: mm[1]!, x: Number(mm[2]), y: Number(mm[3]) }));
+  const dots = fig!.items.filter((it) => it.t === 'dot') as Array<{ p: readonly [number, number] }>;
+  const labels = fig!.items.filter((it) => it.t === 'label' && /^[A-Z]$/.test(it.tex)) as Array<{ p: readonly [number, number]; tex: string }>;
+  expect(listed.length, rich).toBeGreaterThan(0);
+  expect(dots.length, 'one dot per point').toBe(listed.length);
+  expect(labels.length, 'one label per point').toBe(listed.length);
+  for (const pt of listed) {
+    const lab = labels.find((l) => l.tex === pt.name)!;
+    expect(lab, `label ${pt.name}`).toBeDefined();
+    expect(dots.some((d) => d.p[0] === lab.p[0] && d.p[1] === lab.p[1]), `dot under label ${pt.name}`).toBe(true);
+    expect([lab.p[0], lab.p[1]], `${pt.name} position`).toEqual([pt.x, pt.y]);
+  }
+}
 
 type Fn = (n: number) => number;
 

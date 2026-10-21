@@ -73,6 +73,9 @@ const givensTex = (g: Givens, unit?: string) =>
     .map((p) => m(givenTex(p, g[p]!, unit)))
     .join(', ');
 
+/** Distractor values must not round to the same tenth as the answer. */
+const differs = (w: number, v: number) => Math.abs(roundTo(w, 1) - roundTo(v, 1)) > 0.05;
+
 const ansOne = (p: Part, v: number) => m(measureTex(p, v));
 
 /** Unknown parts of a triangle in display order. */
@@ -250,7 +253,7 @@ export const lawOfSines = defineTopic({
       question: `${givensTex(g)}. Find ${m(partTex(target))}.`,
       answer,
       steps,
-      distractors: distinctDistractors(answer, wrong.filter((w) => w > 0).map((w) => ansOne(target, w)), (k) => ansOne(target, tri[target] * (1 + 0.09 * k))),
+      distractors: distinctDistractors(answer, wrong.filter((w) => w > 0 && differs(w, tri[target])).map((w) => ansOne(target, w)), (k) => ansOne(target, tri[target] * (1 + 0.09 * k))),
       diagram: figureFor(rng, tri, g, [target]),
       check: { kind: 'trigonometry.triangle' },
     };
@@ -326,7 +329,7 @@ export const lawOfCosines = defineTopic({
         steps: [m(`${target}^{2} = ${P}^{2} + ${Q}^{2} - 2(${P})(${Q})\\cos ${A0}^\\circ \\approx ${decimal(c2, 2)}`), m(`${target} \\approx ${decimal(tri[target])}`)],
         distractors: distinctDistractors(
           answer,
-          [Math.sqrt(P * P + Q * Q), Math.sqrt(P * P + Q * Q + 2 * P * Q * Math.cos(rad(A0))), c2, Math.sqrt(Math.abs(P * P + Q * Q - P * Q * Math.cos(rad(A0))))].map((v) => ansOne(target, v)),
+          [Math.sqrt(P * P + Q * Q), Math.sqrt(P * P + Q * Q + 2 * P * Q * Math.cos(rad(A0))), c2, Math.sqrt(Math.abs(P * P + Q * Q - P * Q * Math.cos(rad(A0))))].filter((v) => differs(v, tri[target])).map((v) => ansOne(target, v)),
           (k) => ansOne(target, tri[target] * (1 + 0.08 * k)),
         ),
         diagram: figureFor(rng, tri, g, [target]),
@@ -348,7 +351,7 @@ export const lawOfCosines = defineTopic({
       question: `${givensTex(g)}. Find ${m(partTex(target))}.`,
       answer,
       steps: [m(`\\cos ${target} = \\frac{${Y}^{2} + ${Z}^{2} - ${X}^{2}}{2(${Y})(${Z})} \\approx ${decimal(cosv, 4)}`), m(`m\\angle ${target} = \\cos^{-1}(${decimal(cosv, 4)}) \\approx ${decimal(tri[target])}^\\circ`)],
-      distractors: distinctDistractors(answer, [180 - tri[target], tri[others[0]!], tri[others[1]!], deg(Math.acos(Math.max(-1, Math.min(1, (X * X + Y * Y - Z * Z) / (2 * X * Y)))))].map((v) => ansOne(target, v)), (k) => ansOne(target, tri[target] + 3 * k)),
+      distractors: distinctDistractors(answer, [180 - tri[target], tri[others[0]!], tri[others[1]!], deg(Math.acos(Math.max(-1, Math.min(1, (X * X + Y * Y - Z * Z) / (2 * X * Y)))))].filter((v) => differs(v, tri[target])).map((v) => ansOne(target, v)), (k) => ansOne(target, tri[target] + 3 * k)),
       diagram: figureFor(rng, tri, g, []),
       check: { kind: 'trigonometry.triangle' },
     };
@@ -448,7 +451,7 @@ export const triangleArea = defineTopic({
       question: `${givensTex(g, unit)}. Find the area.`,
       answer,
       steps,
-      distractors: distinctDistractors(answer, wrong.map(areaTex), (k) => areaTex(area * (1 + 0.1 * k))),
+      distractors: distinctDistractors(answer, wrong.filter((w) => differs(w, area)).map(areaTex), (k) => areaTex(area * (1 + 0.1 * k))),
       diagram: figureFor(rng, tri, g, [], unit),
       check: { kind: 'trigonometry.triangle' },
     };

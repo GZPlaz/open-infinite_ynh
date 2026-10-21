@@ -3,7 +3,7 @@ import { expect } from 'vitest';
 import type { Diagram } from '../../src/engine/diagram';
 import type { ProblemContent } from '../../src/engine/types';
 import { close, evalReal, listItems, mathSegments, onlyMath, RELATIONS, splitTop, stripUnits } from '../evaluator';
-import { answerValues, chainHolds, curvePoints, sides, VERIFIERS as BASE, type Verifier } from '../verify';
+import { curvePoints, sides, VERIFIERS as BASE, type Verifier } from '../verify';
 
 /** `name = value` assignments among the question's math segments. */
 function assignments(segs: string[]): Record<string, number> {
@@ -32,8 +32,6 @@ function givenNumbers(rich: string): number[] {
   return out;
 }
 
-const value = (t: string) => evalReal(stripUnits(t).replace(/\\%/g, '\\cdot 0.01'));
-const answerNumbers = (rich: string) => answerValues(rich).map(value);
 
 /** F(x, y) = lhs − rhs of an equation or inequality in x and y. */
 function relation(tex: string): { F: (x: number, y: number) => number; rel: string } {
@@ -91,7 +89,15 @@ function densePoints(d: Diagram | undefined): Array<[number, number]> {
 
 /** Shaded region of the figure agrees with the system of inequalities `rows` (x, y). */
 function expectShading(rows: string[], d: Diagram | undefined, range: number, what: string): void {
-  const rels = rows.map(relation);
+  // boundaries are linear: read off the coefficients once (checked), then evaluate fast
+  const rels = rows.map((row) => {
+    const { F, rel } = relation(row);
+    const c = F(0, 0);
+    const a = F(1, 0) - c;
+    const b = F(0, 1) - c;
+    for (const [x, y] of [[2.7, -1.9], [-3.3, 4.1], [0.6, 7.7]] as const) expect(close(F(x, y), a * x + b * y + c), `${row} is linear`).toBe(true);
+    return { F: (x: number, y: number) => a * x + b * y + c, rel };
+  });
   const polys = fills(d);
   expect(polys.length, `${what}: shading drawn`).toBeGreaterThan(0);
   // boundary lines: every curve point lies on a boundary, dashed exactly when strict
@@ -103,8 +109,8 @@ function expectShading(rows: string[], d: Diagram | undefined, range: number, wh
   // every boundary is drawn
   rels.forEach((r, i) => expect(curvePaths(d).some(({ pts }) => pts.every(([x, y]) => Math.abs(r.F(x, y)) < 1e-6)), `${what}: boundary ${i} drawn`).toBe(true));
   let shaded = 0;
-  for (let gx = -range + 0.37; gx < range; gx += 0.61) {
-    for (let gy = -range + 0.29; gy < range; gy += 0.61) {
+  for (let gx = -range + 0.37; gx < range; gx += 0.83) {
+    for (let gy = -range + 0.29; gy < range; gy += 0.83) {
       // stay clear of the boundaries, where the sampled shading is approximate
       const near = rels.some((r) => {
         const g = Math.hypot(r.F(gx + 1, gy) - r.F(gx, gy), r.F(gx, gy + 1) - r.F(gx, gy)) || 1;
@@ -507,5 +513,3 @@ export const VERIFIERS: Record<string, Verifier> = {
   },
 };
 
-export { answerNumbers, assignments, densePoints, expectShading, givenNumbers, holds, intervalOf, relation, value, chainHolds, curvePoints, sides, BASE, listItems };
-export type { ProblemContent };

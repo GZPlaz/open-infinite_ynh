@@ -13,7 +13,7 @@ const SPECIAL = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((k) => new Frac(k, 6)
 const pt = (a: string, b: string) => m(tuple([a, b]));
 
 /** Polar coordinates (r, θ) with r ≥ 0, 0 ≤ θ < 2π giving integer-friendly rectangular points. */
-function nicePolar(rng: Rng, d: Difficulty): { r: Surd; t: Frac } {
+export function nicePolar(rng: Rng, d: Difficulty): { r: Surd; t: Frac } {
   const t = rng.pick(SPECIAL);
   const k = rng.int(1, d === 'easy' ? 4 : 6);
   const quarter = t.d === 4;

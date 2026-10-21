@@ -2,10 +2,9 @@
 import { DiagramBuilder, type Pt } from '../../diagram';
 import { Frac } from '../../fraction';
 import { attempt, defineTopic, distinctDistractors, offset, strOpt } from '../../generator';
-import type { Rng } from '../../rng';
 import { m, num } from '../../tex';
 import type { ProblemContent } from '../../types';
-import { add, centroid, dirDeg, dist, linFor, linSubTex, linTex, linVal, mul, nameVertices, randomLetters, rotate, sideText, sub, type Lin } from './kit';
+import { add, centroid, dirDeg, linSolve, linSubTex, linTex, linVal, mul, nameVertices, randomLetters, rotate, sideText, sub, type Lin } from './kit';
 
 // ---------------------------------------------------------------- shapes with integer sides
 
@@ -119,8 +118,9 @@ export const similarPolygons = defineTopic({
     });
     const maxL = Math.max(...left.map((pt) => pt[0]));
     const minR = Math.min(...right0.map((pt) => pt[0]));
-    const span = Math.max(...left.map((pt) => pt[0])) - Math.min(...left.map((pt) => pt[0]));
-    const right = right0.map((pt) => [pt[0] - minR + maxL + span * 0.35 + 1, pt[1]] as Pt);
+    const ext = (pts: Pt[]) => Math.max(Math.max(...pts.map((pt) => pt[0])) - Math.min(...pts.map((pt) => pt[0])), Math.max(...pts.map((pt) => pt[1])) - Math.min(...pts.map((pt) => pt[1])));
+    const gap = 0.3 * Math.max(ext(left), ext(right0));
+    const right = right0.map((pt) => [pt[0] - minR + maxL + gap, pt[1]] as Pt);
     const all = [...left, ...right];
     const xs = all.map((pt) => pt[0]);
     const ys = all.map((pt) => pt[1]);
@@ -173,13 +173,9 @@ export const similarPolygons = defineTopic({
     let e: Lin | null = null;
     let x = unkVal;
     if (difficulty !== 'easy') {
-      const r = attempt('sim-expr', () => {
-        const xx = rng.int(2, 15);
-        const ee = linFor(rng, unkVal, xx, { aMin: 1, aMax: 4, bMax: 25 });
-        return ee ? { xx, ee } : null;
-      });
-      e = r.ee;
-      x = r.xx;
+      const r = linSolve(rng, unkVal, { aMax: 4, bMax: 25 });
+      e = r.e;
+      x = r.x;
     }
     const unkTex = e ? linTex(e) : 'x';
     label(unkRight ? right : left, unkIdx, unkTex);
@@ -246,7 +242,7 @@ export const similarTriangles = defineTopic({
       if (pr === qr && rng.bool(0.7)) return null;
       const u = rng.int(2, difficulty === 'easy' ? 5 : 8);
       const v = rng.int(2, difficulty === 'easy' ? 5 : 8);
-      if (u === v) return null;
+      if (u === v || u / v > 1.7 || v / u > 1.7) return null;
       const AD = pr * u;
       const DB = qr * u;
       const AE = pr * v;
@@ -264,9 +260,8 @@ export const similarTriangles = defineTopic({
     const A: Pt = [0, 0];
     const B = mul(dirDeg(base - angA), AB);
     const C = mul(dirDeg(base), AC);
-    const P = [A, B, C].map((pt) => rotate(pt, rng.int(-15, 15) - 0));
-    const tilt = rng.bool() ? 0 : 0;
-    void tilt;
+    const tilt = rng.int(-15, 15);
+    const P = [A, B, C].map((pt) => rotate(pt, tilt));
     const [pA, pB, pC] = P as [Pt, Pt, Pt];
     const pD = add(pA, mul(sub(pB, pA), AD / AB));
     const pE = add(pA, mul(sub(pC, pA), AE / AC));
@@ -279,11 +274,6 @@ export const similarTriangles = defineTopic({
     const [nA, nB, nC, nD, nE] = names as [string, string, string, string, string];
     nameVertices(b, P, [nA, nB, nC]);
     const cen = centroid(P);
-    const away = (pt: Pt, from: Pt) => {
-      const d = sub(pt, from);
-      const l = Math.hypot(...d);
-      return add(pt, mul(d, b.px(10) / l));
-    };
     // D and E sit on the sides: push their names outward, perpendicular to the side
     const outward = (pt: Pt, s0: Pt, s1: Pt) => {
       const d = sub(s1, s0);
@@ -292,7 +282,6 @@ export const similarTriangles = defineTopic({
       const l = Math.hypot(...nrm);
       return add(pt, mul(nrm, b.px(10) / l));
     };
-    void away;
     b.label(outward(pD, pA, pB), nD, 'c');
     b.label(outward(pE, pA, pC), nE, 'c');
     const lengths: Array<[Pt, Pt, string]> = [];
@@ -313,13 +302,9 @@ export const similarTriangles = defineTopic({
       let x = segs[ui]![2];
       let e: Lin | null = null;
       if (difficulty !== 'easy') {
-        const r = attempt('split-e', () => {
-          const xx = rng.int(2, 14);
-          const ee = linFor(rng, segs[ui]![2], xx, { aMin: 1, aMax: 3, bMax: 20 });
-          return ee ? { xx, ee } : null;
-        });
-        x = r.xx;
-        e = r.ee;
+        const r = linSolve(rng, segs[ui]![2], { aMax: 3, bMax: 20 });
+        x = r.x;
+        e = r.e;
       }
       const tex = (i: number) => (i === ui ? (e ? linTex(e) : 'x') : String(segs[i]![2]));
       segs.forEach((s, i) => label(s[0], s[1], tex(i)));
@@ -348,26 +333,18 @@ export const similarTriangles = defineTopic({
       };
     }
     // similar triangles: DE / BC = AD / AB
-    const DE = dist(pD, pE) * 1; // drawing units equal real units (built from AB, AC)
-    const BC = dist(pB, pC);
     // scale DE, BC to nice integers: DE = AD·w, BC = AB·w with w integer
     const w = rng.int(1, 3);
     const de = AD * w;
     const bc = AB * w;
-    void DE;
-    void BC;
     // the drawn BC/DE ratio equals AB/AD automatically; labels de, bc are proportional to it
     const findDE = rng.bool();
     let x = findDE ? de : bc;
     let e: Lin | null = null;
     if (difficulty !== 'easy') {
-      const r = attempt('sim-e', () => {
-        const xx = rng.int(2, 14);
-        const ee = linFor(rng, findDE ? de : bc, xx, { aMin: 1, aMax: 3, bMax: 20 });
-        return ee ? { xx, ee } : null;
-      });
-      x = r.xx;
-      e = r.ee;
+      const r = linSolve(rng, findDE ? de : bc, { aMax: 3, bMax: 20 });
+      x = r.x;
+      e = r.e;
     }
     const unk = e ? linTex(e) : 'x';
     label(pA, pD, String(AD));
@@ -402,4 +379,3 @@ export const similarTriangles = defineTopic({
   },
 });
 
-export type { Rng };
