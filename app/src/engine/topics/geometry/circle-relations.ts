@@ -288,12 +288,17 @@ export const circleSegments = defineTopic({
     // values: chords a·b = c·d; secants a(a+b) = c(c+d); tangent t² = a(a+b)
     const v = attempt('segments', () => {
       if (kind === 'chords') {
-        const a = rng.int(2, hi);
-        const b0 = rng.int(2, hi);
-        const c = rng.int(2, hi);
-        if ((a * b0) % c !== 0 || c === a || c === b0) return null;
-        const d = (a * b0) / c;
-        if (d < 2 || d > 2 * hi || Math.min(a, b0) / Math.max(a, b0) < 0.45 || Math.min(c, d) / Math.max(c, d) < 0.45) return null;
+        const quads: Array<[number, number, number, number]> = [];
+        const top = difficulty === 'easy' ? 12 : 18;
+        for (let p1 = 2; p1 <= top; p1++)
+          for (let p2 = p1; p2 <= top; p2++)
+            for (let q1 = 2; q1 < p1; q1++) {
+              const q2 = (p1 * p2) / q1;
+              if (Number.isInteger(q2) && q2 <= top && q1 / q2 >= 0.34 && p1 / p2 >= 0.34) quads.push([p1, p2, q1, q2]);
+            }
+        const [p1, p2, q1, q2] = rng.pick(quads);
+        const [a, b0] = rng.bool() ? [p1, p2] : [p2, p1];
+        const [c, d] = rng.bool() ? [q1, q2] : [q2, q1];
         return { a, b: b0, c, d };
       }
       if (kind === 'secants') {
