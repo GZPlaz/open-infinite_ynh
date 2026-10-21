@@ -670,7 +670,7 @@ export const VERIFIERS: Record<string, Verifier> = {
     const A = fnOf(I.lo!, 'x');
     const B = fnOf(I.hi!, 'x');
     const ans = rhs(strip(onlyMath(p.answer)));
-    const dl = 1e-4;
+    const dl = 1e-5;
     for (const x of (p.check!.pts as number[] | undefined) ?? POS) {
       const want = (simpson(g, B(x - dl), B(x + dl), 16) - simpson(g, A(x - dl), A(x + dl), 16)) / (2 * dl);
       const got = evalReal(ans, { vars: { x } });

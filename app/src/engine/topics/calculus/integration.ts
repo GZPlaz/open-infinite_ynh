@@ -10,6 +10,7 @@ import { integrate, powerSumTex, pt, type PowerTerm } from './power-terms';
 const ds = (t: string) => `\\displaystyle ${t}`;
 const intTex = (body: string, lo?: string | number, hi?: string | number, v = 'x') => (lo === undefined ? `\\int ${body}\\,d${v}` : `\\int_{${lo}}^{${hi}} ${body}\\,d${v}`);
 const plusC = (t: string) => `${t} + C`;
+const kx = (k: number) => `${k === 1 ? '' : k}x`;
 
 // ---------------------------------------------------------------- Riemann sums
 
@@ -315,7 +316,7 @@ export const uSubstitution = defineTopic({
         Fnum = (x) => coef.mul(inner.eval(x).pow(n + 1));
         steps.push(`Let $u = ${t}$, so $du = ${mm * a === 1 ? '' : mm * a}${xPart || ''}\\,dx$`.replace('= \\,dx', '= dx'));
         steps.push(m(ds(`${lead(new Frac(c, mm * a))}\\int u^{${n}}\\,du = ${lead(coef)}u^{${n + 1}}`)));
-        wrongs = [`${lead(new Frac(c, n + 1))}(${t})^{${n + 1}}`, `${lead(new Frac(c * n, mm * a))}(${t})^{${n - 1}}`, `${lead(coef.neg())}(${t})^{${n + 1}}`];
+        wrongs = [`${lead(new Frac(c, n + 1))}(${t})^{${n + 1}}`, `${lead(new Frac(c * n, mm * a))}(${t})${n - 1 === 1 ? '' : `^{${n - 1}}`}`, `${lead(coef.neg())}(${t})^{${n + 1}}`];
         bounds = [0, rng.int(1, 2)];
         break;
       }
@@ -341,7 +342,7 @@ export const uSubstitution = defineTopic({
       }
       case 'root': {
         // ∫ c x / √(x² + a) dx = c √(x² + a)
-        const a = definite ? rng.pick([9, 16, 5, 7]) : rng.int(1, 9);
+        const a = definite ? rng.pick([9, 16, 15, 24, 36]) : rng.int(1, 9);
         const c = rng.signedInt(1, 6, true);
         const inside = `x^{2} + ${a}`;
         integrand = `\\frac{${lin(c)}}{\\sqrt{${inside}}}`;
@@ -349,8 +350,8 @@ export const uSubstitution = defineTopic({
         steps.push(`Let $u = ${inside}$, so $du = 2x\\,dx$: $${ds(`\\frac{${c}}{2}\\int u^{-\\frac{1}{2}}\\,du = ${lead(c)}u^{\\frac{1}{2}}`)}$`.replace('\\frac{1}{2}\\int', '\\frac{1}{2}\\int'));
         wrongs = [`${lead(2 * c)}\\sqrt{${inside}}`, `${lead(new Frac(c, 2))}\\sqrt{${inside}}`, `\\frac{${c}}{2\\sqrt{${inside}}}`.replace('{-', '{-')];
         // bounds where x² + a is a perfect square
-        const tops: Record<number, number> = { 9: 4, 16: 3, 5: 2, 7: 3 };
-        bounds = [0, tops[a] ?? 1];
+        const spans: Record<number, [number, number]> = { 9: [0, 4], 16: [0, 3], 15: [1, 7], 24: [1, 5], 36: [0, 8] };
+        bounds = spans[a] ?? [0, 1];
         Fnum = (x) => new Frac(c * Math.round(Math.sqrt(x * x + a)));
         break;
       }
@@ -387,7 +388,7 @@ export const uSubstitution = defineTopic({
         const coef = new Frac(sin ? c : -c, n + 1);
         F = `${lead(coef)}\\${f}^{${n + 1}} x`;
         steps.push(`Let $u = \\${f} x$, so $du = ${sin ? '' : '-'}\\${g} x\\,dx$`);
-        wrongs = [`${lead(coef.neg())}\\${f}^{${n + 1}} x`, `${lead(new Frac(c, n))}\\${f}^{${n - 1}} x`, `${lead(coef)}\\${g}^{${n + 1}} x`];
+        wrongs = [`${lead(coef.neg())}\\${f}^{${n + 1}} x`, `${lead(new Frac(c, n))}\\${f}${n - 1 === 1 ? '' : `^{${n - 1}}`} x`, `${lead(coef)}\\${g}^{${n + 1}} x`];
         pts = [0.3, 0.7, 1.1, -0.4, 2.0];
         break;
       }
@@ -430,7 +431,7 @@ export const uSubstitution = defineTopic({
       question: m(ds(intTex(integrand))),
       answer,
       steps,
-      distractors: distinctDistractors(answer, wrongs.map((w) => m(plusC(w))), (k) => m(plusC(`${F} + ${k}x`))),
+      distractors: distinctDistractors(answer, wrongs.map((w) => m(plusC(w))), (k) => m(plusC(`${F} + ${kx(k)}`))),
       check: { kind: 'calculus.integral', pts },
     };
   },
@@ -637,7 +638,7 @@ export const trigExpIntegrals = defineTopic({
       question: m(ds(intTex(pieces.length > 1 ? `(${joinSigned(pieces.map((p) => p.q))})` : joinSigned(pieces.map((p) => p.q))))),
       answer,
       steps: [`Integrate term by term: $${answerTex} + C$`],
-      distractors: distinctDistractors(answer, wrongs.map((w) => m(plusC(w))), (k) => m(plusC(`${answerTex} + ${k}x`))),
+      distractors: distinctDistractors(answer, wrongs.map((w) => m(plusC(w))), (k) => m(plusC(`${answerTex} + ${kx(k)}`))),
       check: { kind: 'calculus.integral', pts: [0.13, 0.27, 0.41, 0.33, 0.21] },
     };
   },
@@ -730,13 +731,13 @@ export const ftc = defineTopic({
     steps.push(answer);
     const noChain = kind === 'poly' ? Pg.toTex() : kind === 'recip' ? `\\frac{1}{${Pg.toTex()}}` : wrap(Pg.toTex());
     const atX = wrap(P.toTex());
-    const wrongs = [noChain, atX, dTex.startsWith('-') ? dTex.slice(1) : `-${polyFactor(dg).startsWith('(') || !dTex.includes(' ') ? dTex : `(${dTex})`}`, `${polyFactor(dg)}${atX}`].map((w) => m(`F'(x) = ${w}`));
+    const wrongs = [noChain, atX, dTex.startsWith('-') ? dTex.slice(1) : `-${polyFactor(dg).startsWith('(') || !dTex.includes(' ') ? dTex : `(${dTex})`}`, `${dg.degree === 0 ? lead(dg.coef(0)) : polyFactor(dg)}${atX}`].map((w) => m(`F'(x) = ${w}`));
     return {
       question: m(ds(`F(x) = ${intTex(integrand, lo, hi, 't')}`)),
       answer,
       steps,
       distractors: distinctDistractors(answer, wrongs, (q) => m(`F'(x) = ${dTex} + ${q}`)),
-      check: { kind: 'calculus.ftc', pts: kind === 'exp' || kind === 'poly' ? [0.3, 0.6, 0.9, 1.2, -0.7] : undefined },
+      check: { kind: 'calculus.ftc', pts: [0.3, 0.6, 0.9, 0.45, 1.1] },
     };
   },
 });
@@ -804,7 +805,7 @@ export const averageValue = defineTopic({
       // k√x on [p², q²] or k/x² on [p, q]
       if (rng.bool()) {
         const k = rng.int(1, 6) * 3;
-        const p0 = rng.int(0, 2);
+        const p0 = rng.int(1, 2);
         const q0 = p0 + rng.int(1, 3);
         a = p0 * p0;
         b = q0 * q0;
