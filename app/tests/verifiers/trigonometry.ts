@@ -456,3 +456,315 @@ export const VERIFIERS: Record<string, Verifier> = {
     vals.forEach((v, i) => i > 0 && expect(v).toBeGreaterThan(vals[i - 1]!));
   },
 };
+
+// ---------------------------------------------------------------- v0.3 additions
+
+/** Value after the last `=` / `\approx` of a math segment, and whether it was rounded. */
+function valueOf(seg: string): { v: number; approx: boolean; tex: string } {
+  const { parts, rels } = splitTop(seg, ['=', '\\approx']);
+  const tex = parts.at(-1)!.trim();
+  return { v: tex === '' ? NaN : evalReal(stripUnits(tex)), approx: rels.at(-1) === '\\approx', tex };
+}
+
+/** Rounded answers: within half a unit of the last shown decimal place. */
+function expectRounded(got: { v: number; approx: boolean; tex: string }, want: number, what: string, degrees = false): void {
+  if (!got.approx) {
+    expect(close(got.v, want, 1e-9), `${what}: ${got.tex} vs ${want}`).toBe(true);
+    return;
+  }
+  const digits = /\.(\d+)/.exec(got.tex.replace(/\\text\{[^}]*\}/g, ''))?.[1]?.length ?? 0;
+  const half = 0.5 * 10 ** -digits;
+  const tol = (degrees ? (half * Math.PI) / 180 : half) + 1e-9 * Math.max(1, Math.abs(want));
+  expect(Math.abs(got.v - want), `${what}: ${got.tex} vs ${want}`).toBeLessThanOrEqual(tol);
+}
+
+const SAMPLES = Array.from({ length: 23 }, (_, i) => -5.3 + 0.47 * i);
+
+/** f has (minimal) period P on the sample points (skipping points near poles). */
+function expectPeriod(f: (x: number) => number, P: number, what: string): void {
+  const fin = (x: number) => Number.isFinite(f(x)) && Math.abs(f(x)) < 1e5;
+  for (const x of SAMPLES) if (fin(x) && fin(x + P)) expect(close(f(x + P), f(x), 1e-7), `${what}: period ${P} at ${x}`).toBe(true);
+  for (const k of [2, 3, 4]) expect(SAMPLES.some((x) => fin(x) && fin(x + P / k) && Math.abs(f(x + P / k) - f(x)) > 1e-4), `${what}: period ${P} is not minimal`).toBe(true);
+}
+
+/** Do two expressions agree at sample points where both are defined (at least `need` of them)? */
+function agree(a: string, b: string, v: string, pts: number[], need = 4): boolean {
+  let used = 0;
+  for (const x of pts) {
+    let ya: number;
+    let yb: number;
+    try {
+      ya = evalReal(a, { vars: { [v]: x } });
+      yb = evalReal(b, { vars: { [v]: x } });
+    } catch {
+      continue;
+    }
+    if (!Number.isFinite(ya) || !Number.isFinite(yb) || Math.abs(ya) > 1e6 || Math.abs(yb) > 1e6) continue;
+    used++;
+    if (!close(ya, yb, 1e-7)) return false;
+  }
+  return used >= need;
+}
+
+const IDENTITY_PTS = [0.31, 0.77, 1.13, 2.05, 2.71, 3.62, 4.4, 5.17, -0.58, -1.94];
+/** The variable of an identity expression (after prep): x or t. */
+const varOf = (tex: string) => (/(?<![a-z\\])t(?![a-z])/.test(tex) ? 't' : 'x');
+
+function inLangle(tex: string): number[] {
+  const mm = /\\left\\langle (.*) \\right\\rangle/.exec(tex);
+  expect(mm, tex).toBeTruthy();
+  return splitTop(mm![1]!, [',']).parts.map((t) => evalReal(t));
+}
+
+/** First point of a `P\left(x, y\right)` segment. */
+function pointIn(rich: string): [number, number] | null {
+  for (const seg of mathSegments(rich)) {
+    const mm = /^P\\left\((.*)\\right\)$/.exec(seg.trim());
+    if (mm) {
+      const [x, y] = splitTop(mm[1]!, [',']).parts.map((t) => evalReal(t));
+      return [x!, y!];
+    }
+  }
+  return null;
+}
+
+/** Number appears in the text (not as part of a longer number). */
+const mentions = (text: string, v: number) => new RegExp(`(?<![\\d.])${String(v).replace('.', '\\.')}(?![\\d])`).test(text);
+
+/** Function of t from the `h(t) = …` segment of a rich string. */
+function modelIn(rich: string): (t: number) => number {
+  const seg = mathSegments(rich).find((s) => /^[A-Za-z]\(t\) =/.test(s.trim()));
+  expect(seg, `model in ${rich}`).toBeTruthy();
+  const rhsTex = splitTop(seg!, ['=']).parts[1]!;
+  return (t: number) => evalReal(rhsTex, { vars: { t } });
+}
+
+function firstCrossing(f: (x: number) => number, target: number, P: number): number {
+  const N = 40000;
+  for (let i = 0; i < N; i++) {
+    const x0 = (P * i) / N;
+    const x1 = (P * (i + 1)) / N;
+    if ((f(x0) - target) * (f(x1) - target) <= 0 && x1 > 1e-9) {
+      let a = x0;
+      let b = x1;
+      for (let j = 0; j < 80; j++) {
+        const mid = (a + b) / 2;
+        if ((f(a) - target) * (f(mid) - target) <= 0) b = mid;
+        else a = mid;
+      }
+      if ((a + b) / 2 > 1e-9) return (a + b) / 2;
+    }
+  }
+  return NaN;
+}
+
+const SPEED: Record<string, (q: Record<string, number>) => number> = {
+  ferrisAngular: (q) => TAU / q.T!,
+  ferrisLinear: (q) => (TAU * q.r!) / q.T!,
+  wheelMph: (q) => (q.n! * Math.PI * q.d! * 60) / 63360,
+  rpmRad: (q) => (TAU * q.n!) / 60,
+  bikeRpm: (q) => (q.mph! * 63360) / 60 / (Math.PI * q.d!),
+  pulley: (q) => (q.n1! * q.r1!) / q.r2!,
+  gear: (q) => (TAU * q.n1! * q.t1!) / q.t2!,
+  satellite: (q) => (TAU * (q.R! + q.h!)) / q.T!,
+  earth: (q) => (TAU * q.R! * Math.cos(R(q.L!))) / 24,
+};
+
+Object.assign(VERIFIERS, {
+  'trigonometry.vecMagDir'(p) {
+    if (p.check!.task === 'magdir') {
+      const [x, y] = inLangle(onlyMath(p.question));
+      const segs = mathSegments(p.answer);
+      expect(segs.length).toBe(2);
+      expectRounded(valueOf(segs[0]!), Math.hypot(x!, y!), 'magnitude');
+      expectSimplified(valueOf(segs[0]!).tex);
+      const dir = mod(Math.atan2(y!, x!), TAU);
+      const got = valueOf(segs[1]!);
+      expectRounded(got, dir, 'direction angle', true);
+      expect(got.v >= 0 && got.v < TAU, 'angle in [0°, 360°)').toBe(true);
+    } else {
+      const g = named(p.question);
+      const mag = num(g.find((i) => i.name.includes('mathbf'))!.value);
+      const th = num(g.find((i) => i.name === '\\theta')!.value);
+      const a = onlyMath(p.answer);
+      const approx = a.includes('\\approx');
+      const comps = inLangle(a);
+      const want = [mag * Math.cos(th), mag * Math.sin(th)];
+      comps.forEach((c, i) => (approx ? expect(Math.abs(c - want[i]!), a).toBeLessThanOrEqual(0.0500001) : expect(close(c, want[i]!, 1e-9), a).toBe(true)));
+      if (!approx) expectSimplified(a);
+    }
+  },
+
+  'trigonometry.refangle'(p) {
+    const th = valueOf(onlyMath(p.question)).v;
+    const got = valueOf(onlyMath(p.answer));
+    expect(got.approx).toBe(false);
+    expect(close(got.v, refAngle(th), 1e-9), `${p.question} → ${p.answer}`).toBe(true);
+  },
+
+  'trigonometry.speed'(p) {
+    const params = p.check!.params as Record<string, number>;
+    for (const [k, v] of Object.entries(params)) if (k !== 'R') expect(mentions(p.question, v), `${k} = ${v} stated in ${p.question}`).toBe(true);
+    if ('R' in params) expect(mentions(p.question, params.R!), 'Earth radius stated').toBe(true);
+    const want = SPEED[p.check!.scenario as string]!(params);
+    expectRounded(valueOf(onlyMath(p.answer)), want, p.question);
+  },
+
+  'trigonometry.unitcircle'(p) {
+    const task = p.check!.task as string;
+    if (task === 'coords') {
+      const th = valueOf(onlyMath(p.question)).v;
+      const a = onlyMath(p.answer);
+      const [x, y] = listItems(a).map((t) => evalReal(t));
+      expect(close(x!, Math.cos(th), 1e-9) && close(y!, Math.sin(th), 1e-9), `${p.question} → ${a}`).toBe(true);
+      expectSimplified(a);
+      return;
+    }
+    if (task === 'read') {
+      const [x, y] = pointIn(p.question)!;
+      expect(close(x * x + y * y, 1, 1e-9), 'point on the unit circle').toBe(true);
+      const want: Record<string, number> = { sin: y, cos: x, tan: y / x };
+      const items = named(p.answer);
+      expect(items.map((i) => i.name)).toEqual(['\\sin \\theta', '\\cos \\theta', '\\tan \\theta']);
+      for (const it of items) {
+        expect(close(evalReal(it.value), want[/\\([a-z]+)/.exec(it.name)![1]!]!, 1e-9), `${it.name} = ${it.value}`).toBe(true);
+        expectSimplified(it.value);
+      }
+      return;
+    }
+    const vals = answerValues(p.answer, '\\theta').map((t) => evalReal(t));
+    let want: number[];
+    const pt = pointIn(p.question);
+    if (pt) {
+      expect(close(pt[0] * pt[0] + pt[1] * pt[1], 1, 1e-9), 'point on the unit circle').toBe(true);
+      want = [mod(Math.atan2(pt[1], pt[0]), TAU)];
+    } else {
+      const it = named(p.question)[0]!;
+      const c = evalReal(it.value);
+      const base = it.name === 'x' ? [Math.acos(c), -Math.acos(c)] : [Math.asin(c), Math.PI - Math.asin(c)];
+      want = base.map((b) => mod(b, TAU)).filter((v, i, arr) => arr.findIndex((w) => Math.abs(Math.sin((w - v) / 2)) < 1e-9) === i);
+    }
+    expect(vals.length, `${p.question} → ${p.answer}`).toBe(want.length);
+    for (const v of vals) {
+      expect(v >= -1e-12 && v < TAU - 1e-9, 'angle in one revolution').toBe(true);
+      expect(want.some((w) => Math.abs(Math.sin((w - v) / 2)) < 1e-9), `${p.question}: unexpected angle ${v}`).toBe(true);
+    }
+  },
+
+  'trigonometry.recipGraph'(p) {
+    const q = prep(onlyMath(p.question));
+    const f = (x: number) => evalReal(rhs(q), { vars: { x } });
+    const g = /\\(tan|cot|sec|csc)/.exec(q)![1]!;
+    const ans = p.answer;
+    const perM = /Period: \$([^$]+)\$/.exec(ans);
+    const phM = /Phase shift: (none|\$([^$]+)\$ (left|right))/.exec(ans);
+    const vsM = /Vertical shift: (none|\$([^$]+)\$ (up|down))/.exec(ans);
+    const asM = /Asymptotes: \$x = ([^$]+)\$/.exec(ans);
+    expect(perM && phM && vsM && asM, ans).toBeTruthy();
+    const P = evalReal(perM![1]!);
+    const c = phM![2] ? evalReal(phM![2]) * (phM![3] === 'right' ? 1 : -1) : 0;
+    const d = vsM![2] ? evalReal(vsM![2]) * (vsM![3] === 'up' ? 1 : -1) : 0;
+    expectPeriod(f, P, q);
+    const asy = (n: number) => evalReal(asM![1]!, { vars: { n } });
+    const S = asy(1) - asy(0);
+    expect(S, 'asymptote spacing').toBeGreaterThan(0);
+    for (let n = -6; n <= 6; n++) {
+      const x = asy(n);
+      const near = Math.abs(f(x + 1e-7));
+      expect(!Number.isFinite(near) || near > 1e4, `${q}: no asymptote at ${x}`).toBe(true);
+      // nothing else blows up between consecutive asymptotes
+      for (let i = 1; i < 60; i++) {
+        const t = x + (S * i) / 60;
+        expect(Math.abs(f(t)) < 1e5, `${q}: extra asymptote near ${t}`).toBe(true);
+      }
+    }
+    // shape: f(c + t) − d = K·g(b t)
+    const b = (g === 'tan' || g === 'cot' ? Math.PI : TAU) / P;
+    const base = FNS[g]!;
+    const t0 = 0.123 * P;
+    const K = (f(c + t0) - d) / base(b * t0);
+    expect(Math.abs(K), 'vertical stretch').toBeGreaterThan(1e-6);
+    for (const t of SAMPLES.map((s) => s * 0.37 * P)) {
+      const gv = base(b * t);
+      if (!Number.isFinite(gv) || Math.abs(gv) > 50) continue;
+      expect(Math.abs(f(c + t) - d - K * gv), `${q} vs ${ans} at t=${t}`).toBeLessThan(1e-6 * Math.max(1, Math.abs(K * gv)));
+    }
+    if (p.answerDiagram) {
+      const pts = curvePoints(p.answerDiagram);
+      expect(pts.length).toBeGreaterThan(50);
+      for (const [x, y] of pts) expect(Math.abs(y - f(x)), `curve point (${x}, ${y})`).toBeLessThan(1e-6 * Math.max(1, Math.abs(y)));
+      const dashedX = p.answerDiagram.items.filter((it) => it.t === 'path' && it.dash && it.pts.length === 2 && Math.abs(it.pts[0]![0] - it.pts[1]![0]) < 1e-12).map((it) => (it as { pts: Array<readonly [number, number]> }).pts[0]![0]);
+      const isAsy = (x: number) => Math.abs(Math.sin((Math.PI * (x - asy(0))) / S)) < 1e-9;
+      dashedX.forEach((x) => expect(isAsy(x), `dashed line x = ${x} is not an asymptote`).toBe(true));
+      const lo = Math.ceil((-2 * Math.PI - asy(0)) / S + 1e-9);
+      const hi = Math.floor((2 * Math.PI - asy(0)) / S - 1e-9);
+      expect(dashedX.length, 'every asymptote in the window is drawn').toBe(Math.max(0, hi - lo + 1));
+    }
+  },
+
+  'trigonometry.sinusoidFit'(p) {
+    const pts = curvePoints(p.diagram);
+    expect(pts.length).toBeGreaterThan(50);
+    const fits = (rich: string) => {
+      const r = rhs(prep(onlyMath(rich)));
+      return pts.every(([x, y]) => Math.abs(evalReal(r, { vars: { x } }) - y) < 1e-6 * Math.max(1, Math.abs(y)));
+    };
+    expect(fits(p.answer), `${p.answer} does not match the graph`).toBe(true);
+    p.distractors!.slice(0, 3).forEach((d) => expect(fits(d), `distractor ${d} matches the graph`).toBe(false));
+  },
+
+  'trigonometry.model'(p) {
+    const task = p.check!.task as string;
+    const facts = p.check!.facts as { period: number; max: [number, number]; min: [number, number] };
+    if (task === 'model') {
+      const f = modelIn(p.answer);
+      for (const [t, v] of [facts.max, facts.min]) expect(close(f(t), v, 1e-9), `${p.answer} at t=${t}`).toBe(true);
+      for (const v of [facts.max[1], facts.min[1]]) expect(mentions(p.question, v), `${v} stated`).toBe(true);
+      let hi = -Infinity;
+      let lo = Infinity;
+      for (let i = 0; i <= 2000; i++) {
+        const y = f((facts.period * i) / 2000);
+        hi = Math.max(hi, y);
+        lo = Math.min(lo, y);
+        expect(close(f((facts.period * i) / 2000 + facts.period), y, 1e-7), 'period').toBe(true);
+      }
+      expect(close(hi, facts.max[1], 1e-6) && close(lo, facts.min[1], 1e-6), 'range of the model').toBe(true);
+      return;
+    }
+    const f = modelIn(p.question);
+    const got = valueOf(onlyMath(p.answer));
+    if (task === 'value') {
+      const tm = /Find \$[A-Za-z]\(([\d.]+)\)\$/.exec(p.question);
+      expect(tm, p.question).toBeTruthy();
+      expectRounded(got, f(Number(tm![1])), p.question);
+    } else {
+      const target = p.check!.target as number;
+      expect(mentions(p.question, target), 'target stated').toBe(true);
+      expectRounded(got, firstCrossing(f, target, facts.period), p.question);
+    }
+  },
+
+  'trigonometry.inverse'(p) {
+    const q = evalReal(prep(onlyMath(p.question)));
+    if (/Undefined/.test(p.answer)) {
+      expect(Number.isNaN(q), `${p.question} has a value ${q}`).toBe(true);
+      return;
+    }
+    expect(Number.isFinite(q), `${p.question} is undefined`).toBe(true);
+    const got = valueOf(onlyMath(p.answer));
+    expectRounded(got, q, p.question, /\\circ/.test(got.tex));
+    if (!got.approx) expectSimplified(got.tex);
+  },
+
+  'trigonometry.composition'(p) {
+    const q = prep(onlyMath(p.question));
+    const a = onlyMath(p.answer);
+    if (p.check!.algebraic) {
+      expect(agree(q, a, 'x', [-0.29, -0.17, 0.11, 0.23, 0.37, 0.41, 0.53], 6), `${q} vs ${a}`).toBe(true);
+      expect(/\\frac\{[^{}]*\}\{[^{}]*\\sqrt/.test(a), `rationalize ${a}`).toBe(false);
+      return;
+    }
+    expect(close(evalReal(a), evalReal(q), 1e-9), `${p.question} → ${a}`).toBe(true);
+    expectSimplified(a);
+  },
+} satisfies Record<string, Verifier>);
