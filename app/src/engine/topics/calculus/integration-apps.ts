@@ -32,9 +32,9 @@ function squareShift(c: Curve, k: number): Poly {
 }
 
 /** Shaded region between two curves; for x = g(y) regions the roles of the axes are swapped. */
-function regionFigure(c1: Curve, c2: Curve, lo: number, hi: number, inY: boolean, axisLine: number | null, alt: string): Diagram {
+function regionFigure(c1: Curve, c2: Curve, lo: number, hi: number, inY: boolean, axisLine: number | null, alt: string, perpAxis: number | null = null): Diagram {
   const xs = Array.from({ length: 41 }, (_, i) => lo + ((hi - lo) * i) / 40);
-  const extent = Math.max(3, Math.abs(lo), Math.abs(hi), ...xs.flatMap((s) => [Math.abs(c1.f(s)), Math.abs(c2.f(s))]), axisLine === null ? 0 : Math.abs(axisLine));
+  const extent = Math.max(3, Math.abs(lo), Math.abs(hi), ...xs.flatMap((s) => [Math.abs(c1.f(s)), Math.abs(c2.f(s))]), axisLine === null ? 0 : Math.abs(axisLine), perpAxis === null ? 0 : Math.abs(perpAxis));
   const R = Math.min(16, Math.ceil(extent + 1));
   const tick = R > 10 ? 4 : R > 5 ? 2 : 1;
   const { b, w } = graphPlane(R, tick, Math.max(7, Math.round(220 / (2 * R))));
@@ -49,6 +49,7 @@ function regionFigure(c1: Curve, c2: Curve, lo: number, hi: number, inY: boolean
     b.polygon(pts, { fill: 'accent', noStroke: true });
     for (const c of [c1, c2]) plotParam(b, (t) => c.f(t), (t) => t, c.sq ? 0 : -R, R, w);
   }
+  if (perpAxis !== null && perpAxis !== 0) b.segment(inY ? [-R, perpAxis] : [perpAxis, -R], inY ? [R, perpAxis] : [perpAxis, R], { dash: true, ink: 'ink' });
   return b.build(alt);
 }
 
@@ -284,6 +285,210 @@ export const volumesOfRevolution = defineTopic({
       diagram,
       distractors: distinctDistractors(answer, wrongs.map(m), (q) => m(piTex(vol.add(offset(q))))),
       check: { kind: 'calculus.region', measure: 'volume', bounds: [s.lo.value, s.hi.value] },
+    };
+  },
+});
+
+// ---------------------------------------------------------------- volumes by cross sections
+
+type Shape = 'square' | 'semicircle' | 'equilateral' | 'rightIso';
+const SHAPE_TEXT: Record<Shape, string> = {
+  square: 'squares',
+  semicircle: 'semicircles',
+  equilateral: 'equilateral triangles',
+  rightIso: 'isosceles right triangles with one leg in the base',
+};
+
+/** k·√3 as TeX. */
+const sqrt3Tex = (k: Frac) => (k.d === 1 ? `${k.n === 1 ? '' : k.n === -1 ? '-' : k.n}\\sqrt{3}` : `\\frac{${k.n === 1 ? '' : k.n}\\sqrt{3}}{${k.d}}`);
+
+export const crossSections = defineTopic({
+  id: 'calc.cross-sections',
+  subject: 'calculus',
+  category: 'Applications of Integration',
+  title: 'Volumes by Cross Sections',
+  description: 'Solids with a known base region whose cross sections are squares, semicircles or triangles.',
+  instruction: 'Find the volume of each solid.',
+  multipleChoice: true,
+  defaultCount: 6,
+  options: [
+    {
+      type: 'select',
+      id: 'shape',
+      label: 'Cross sections',
+      default: 'any',
+      choices: [
+        { value: 'any', label: 'Mixed' },
+        { value: 'square', label: 'Squares' },
+        { value: 'semicircle', label: 'Semicircles' },
+        { value: 'equilateral', label: 'Equilateral triangles' },
+      ],
+    },
+    { type: 'boolean', id: 'graph', label: 'Show the base region', default: true },
+  ],
+  generate(ctx): ProblemContent {
+    const { rng, difficulty } = ctx;
+    const sOpt = strOpt(ctx, 'shape');
+    const shape = (sOpt === 'any' ? rng.pick<Shape>(difficulty === 'easy' ? ['square', 'semicircle'] : ['square', 'semicircle', 'equilateral', 'rightIso']) : sOpt) as Shape;
+    const kind = rng.pick(difficulty === 'easy' ? ['root', 'line', 'parab'] : difficulty === 'medium' ? ['parab', 'line', 'root'] : ['parab', 'lineParab', 'root', 'line']);
+    let c1: Curve;
+    let c2: Curve;
+    let lo: Frac;
+    let hi: Frac;
+    let stated: number[] = [];
+    switch (kind) {
+      case 'root': {
+        const b = rng.int(1, 6);
+        const a = difficulty === 'easy' ? 1 : rng.int(1, 3);
+        c1 = a === 1 ? rootCurve('x') : { tex: `${a}\\sqrt{x}`, f: (x) => a * Math.sqrt(Math.max(0, x)), sq: Poly.of(0, a * a) };
+        c2 = polyCurve(Poly.of(0), 'x');
+        lo = new Frac(0);
+        hi = new Frac(b);
+        stated = [b];
+        break;
+      }
+      case 'line': {
+        // y = c − m x with the axes
+        const mm = rng.int(1, 3);
+        const k = rng.int(1, 3);
+        c1 = polyCurve(Poly.of(mm * k, -mm), 'x');
+        c2 = polyCurve(Poly.of(0), 'x');
+        lo = new Frac(0);
+        hi = new Frac(k);
+        stated = [0];
+        break;
+      }
+      case 'parab': {
+        const n = rng.int(1, 3);
+        const a = rng.int(1, 2);
+        c1 = polyCurve(new Poly([a * n * n, 0, -a]), 'x');
+        c2 = polyCurve(Poly.of(0), 'x');
+        lo = new Frac(-n);
+        hi = new Frac(n);
+        break;
+      }
+      case 'lineParab':
+      default: {
+        const mm = rng.int(1, 4);
+        const n = rng.int(1, 2);
+        c1 = polyCurve(Poly.of(0, mm), 'x');
+        c2 = polyCurve(new Poly([0, 0, n]), 'x');
+        lo = new Frac(0);
+        hi = new Frac(mm, n);
+        break;
+      }
+    }
+    const s2 = c1.poly && c2.poly ? c1.poly.sub(c2.poly).powInt(2) : c1.sq!;
+    const I = exactIntegral(s2, lo, hi);
+    const show = (sh: Shape, base: Frac) =>
+      sh === 'square' ? num(base) : sh === 'semicircle' ? piTex(base.div(8)) : sh === 'equilateral' ? sqrt3Tex(base.div(4)) : num(base.div(2));
+    const answer = m(show(shape, I));
+    const area = (sh: Shape) => (sh === 'square' ? 's^{2}' : sh === 'semicircle' ? '\\frac{\\pi}{8}s^{2}' : sh === 'equilateral' ? '\\frac{\\sqrt{3}}{4}s^{2}' : '\\frac{1}{2}s^{2}');
+    const bounds = stated.map((v) => `$x = ${v}$`);
+    const parts = [`$y = ${c1.tex}$`, `$y = ${c2.tex}$`, ...bounds];
+    const list = parts.length === 2 ? parts.join(' and ') : `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
+    const sTex = c2.tex === '0' ? c1.tex : `(${c1.tex}) - (${c2.tex})`;
+    const others = (['square', 'semicircle', 'equilateral', 'rightIso'] as Shape[]).filter((x) => x !== shape).map((x) => show(x, I));
+    // semicircle with radius s instead of diameter s
+    if (shape === 'semicircle') others.unshift(piTex(I.div(2)));
+    const diagram = ctx.options.graph === false ? undefined : regionFigure(c1, c2, lo.value, hi.value, false, null, `Base region bounded by y = ${c1.tex} and y = ${c2.tex}`);
+    return {
+      question: `The base of a solid is the region bounded by ${list}. Cross sections perpendicular to the $x$-axis are ${SHAPE_TEXT[shape]}.`,
+      answer,
+      steps: [`Side (diameter) of a cross section: $s = ${sTex}$; area $A = ${area(shape)}$.`, `$\\displaystyle V = \\int_{${num(lo)}}^{${num(hi)}} A(x)\\,dx$`, answer],
+      diagram,
+      distractors: distinctDistractors(answer, others.map(m), (q) => m(show(shape, I.add(offset(q))))),
+      check: { kind: 'calculus.region', measure: 'cross', bounds: [lo.value, hi.value] },
+    };
+  },
+});
+
+// ---------------------------------------------------------------- shell method
+
+export const shellMethod = defineTopic({
+  id: 'calc.shell-method',
+  subject: 'calculus',
+  category: 'Applications of Integration',
+  title: 'Volumes by the Shell Method',
+  description: 'Volumes of revolution with cylindrical shells, about the y-axis, the x-axis or another line.',
+  instruction: 'Use the shell method to find the exact volume of each solid.',
+  multipleChoice: true,
+  defaultCount: 6,
+  options: [{ type: 'boolean', id: 'graph', label: 'Show the region', default: true }],
+  generate(ctx): ProblemContent {
+    const { rng, difficulty } = ctx;
+    const kind = rng.pick(difficulty === 'easy' ? ['cap', 'under'] : difficulty === 'medium' ? ['cap', 'lineParab', 'under', 'inY'] : ['lineParab', 'shifted', 'inY', 'shifted']);
+    const inY = kind === 'inY';
+    const v = inY ? 'y' : 'x';
+    const dep = inY ? 'x' : 'y';
+    let c1: Curve;
+    let c2: Curve;
+    let lo: number;
+    let hi: number;
+    let stated: number[] = [];
+    let k = 0;
+    switch (kind) {
+      case 'cap':
+      case 'inY': {
+        // dep = m·s − s² and dep = 0 on [0, m]
+        const mm = rng.int(1, 4);
+        const a = rng.int(1, 2);
+        c1 = polyCurve(new Poly([0, a * mm, -a]), v);
+        c2 = polyCurve(Poly.of(0), v);
+        lo = 0;
+        hi = mm;
+        break;
+      }
+      case 'under': {
+        const a = rng.int(1, 3);
+        const p = rng.int(1, 2);
+        const b = rng.int(1, 3);
+        c1 = polyCurve(new Poly([...Array(p).fill(0), a]), 'x');
+        c2 = polyCurve(Poly.of(0), 'x');
+        lo = 0;
+        hi = b;
+        stated = [b];
+        break;
+      }
+      case 'lineParab': {
+        const mm = rng.int(1, 4);
+        c1 = polyCurve(Poly.of(0, mm), 'x');
+        c2 = polyCurve(new Poly([0, 0, 1]), 'x');
+        lo = 0;
+        hi = mm;
+        break;
+      }
+      case 'shifted':
+      default: {
+        const mm = rng.int(1, 3);
+        c1 = polyCurve(Poly.of(0, mm), 'x');
+        c2 = polyCurve(new Poly([0, 0, 1]), 'x');
+        lo = 0;
+        hi = mm;
+        k = rng.bool() ? -rng.int(1, 3) : mm + rng.int(0, 2);
+        break;
+      }
+    }
+    const h = c1.poly!.sub(c2.poly!);
+    const radius = Poly.of(-k, 1);
+    const V = exactIntegral(radius.mul(h), lo, hi).abs().mul(2);
+    const answer = m(piTex(V));
+    const parts = [`$${dep} = ${c1.tex}$`, `$${dep} = ${c2.tex}$`, ...stated.map((x) => `$${v} = ${x}$`)];
+    const list = parts.length === 2 ? parts.join(' and ') : `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
+    const axis = k === 0 ? `the $${dep}$-axis` : `the line $${v} = ${k}$`;
+    const rTex = k === 0 ? v : k < 0 ? `${v} + ${-k}` : `${k} - ${v}`;
+    const hTex = c2.tex === '0' ? c1.tex : `${c1.tex} - ${c2.tex.startsWith('-') ? `(${c2.tex})` : c2.tex}`.replace(/ - x\^\{2\}$/, ' - x^{2}');
+    // common mistakes: forgetting 2, using disks, wrong radius
+    const disk = exactIntegral(c1.poly!.powInt(2).sub(c2.poly!.powInt(2)), lo, hi).abs();
+    const wrongs = [piTex(V.div(2)), piTex(disk), num(V), piTex(exactIntegral(Poly.of(k, 1).mul(h), lo, hi).abs().mul(2))];
+    const diagram = ctx.options.graph === false ? undefined : regionFigure(c1, c2, lo, hi, inY, null, `Region bounded by ${dep} = ${c1.tex} and ${dep} = ${c2.tex}`, k === 0 ? null : k);
+    return {
+      question: `The region bounded by ${list} is revolved about ${axis}.`,
+      answer,
+      steps: [`Shell radius $${rTex}$, height $${hTex}$.`, `$\\displaystyle V = 2\\pi\\int_{${lo}}^{${hi}} (${rTex})(${hTex})\\,d${v}$`.replace(`(${v})(`, `${v}(`), answer],
+      diagram,
+      distractors: distinctDistractors(answer, wrongs.map(m), (q) => m(piTex(V.add(offset(q))))),
+      check: { kind: 'calculus.region', measure: 'shell', bounds: [lo, hi] },
     };
   },
 });

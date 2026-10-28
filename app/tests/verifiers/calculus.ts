@@ -298,9 +298,72 @@ function wordProblemValue(p: ProblemContent): number {
   return val(splitTop(strip(segs[segs.length - 1]!), ['=', '\\approx']).parts.at(-1)!);
 }
 
+
+/**
+ * Double-exponential (tanh-sinh / exp-sinh / sinh-sinh) quadrature on [a, b], either end may be
+ * infinite, truncated at |t| ≤ T. Endpoint nodes that round onto a singular endpoint are skipped.
+ */
+function deQuad(f: Fn, a: number, b: number, T: number, h = 1 / 32): number {
+  let s = 0;
+  for (let k = Math.ceil(-T / h); k * h <= T; k++) {
+    const t = k * h;
+    const u = (Math.PI / 2) * Math.sinh(t);
+    const du = (Math.PI / 2) * Math.cosh(t);
+    let x: number;
+    let w: number;
+    if (Number.isFinite(a) && Number.isFinite(b)) {
+      const d = (b - a) / (1 + Math.exp(2 * Math.abs(u)));
+      x = u >= 0 ? b - d : a + d;
+      const e = Math.exp(-Math.abs(u));
+      w = ((b - a) / 2) * ((4 * e * e) / (1 + e * e) ** 2) * du;
+    } else if (Number.isFinite(a)) {
+      x = a + Math.exp(u);
+      w = Math.exp(u) * du;
+    } else if (Number.isFinite(b)) {
+      x = b - Math.exp(u);
+      w = Math.exp(u) * du;
+    } else {
+      x = Math.sinh(u);
+      w = Math.cosh(u) * du;
+    }
+    if (w === 0) continue;
+    const v = f(x);
+    if (!Number.isFinite(v)) {
+      if (x === a || x === b) continue;
+      return NaN;
+    }
+    s += v * w;
+  }
+  return s * h;
+}
+
+const boundVal = (t: string) => (t.trim() === '\\infty' ? Infinity : t.trim() === '-\\infty' ? -Infinity : evalReal(t));
+
 // ---------------------------------------------------------------- verifiers
 
 export const VERIFIERS: Record<string, Verifier> = {
+
+  /** Improper integrals: "Diverges" or "Converges to $v$", by DE quadrature and its truncation tail. */
+  'calculus.improper'(p) {
+    const seg = mathSegments(p.question).find((x) => x.includes('\\int'))!;
+    const I = parseIntegral(seg);
+    const g = fnOf(I.body, I.v);
+    const cuts = [boundVal(I.lo!), ...((p.check!.split as number[] | undefined) ?? []), boundVal(I.hi!)];
+    let short = 0;
+    let long = 0;
+    for (let i = 0; i + 1 < cuts.length; i++) {
+      short += deQuad(g, cuts[i]!, cuts[i + 1]!, 4);
+      long += deQuad(g, cuts[i]!, cuts[i + 1]!, 4.6);
+    }
+    // nodes that round onto a singular endpoint are dropped, so a huge total also means divergence
+    const diverges = !Number.isFinite(long) || Math.abs(long) > 1e9 || Math.abs(long - short) > 1e-6 * Math.max(1, Math.abs(long));
+    if (/diverg/i.test(p.answer)) {
+      expect(diverges, `${seg} should diverge: ${short} → ${long}`).toBe(true);
+      return;
+    }
+    expect(diverges, `${seg} should converge: ${short} → ${long}`).toBe(false);
+    expect(near(val(onlyMath(p.answer)), long, 1e-6), `${seg} → ${p.answer} (${long})`).toBe(true);
+  },
   /** Limits: \lim_{x \to a}, a^{+}, a^{-}, ±\infty; f(x) may be defined (piecewise) in the question. */
   'calculus.limit'(p) {
     const seg = mathSegments(p.question).map(strip).find((s) => s.startsWith('\\lim'));
@@ -704,7 +767,7 @@ export const VERIFIERS: Record<string, Verifier> = {
    */
   'calculus.region'(p) {
     const q = p.question;
-    const cut = q.search(/revolved|rotated|about the/);
+    const cut = q.search(/revolved|rotated|about the|Cross sections/);
     const head = cut >= 0 ? q.slice(0, cut) : q;
     const segs = mathSegments(head).map(strip);
     const first = segs.find((s) => /^[xy] = /.test(s))!;
@@ -721,7 +784,24 @@ export const VERIFIERS: Record<string, Verifier> = {
     probes.forEach((x) => expect(Math.sign(f(x) - g(x)), `curves do not cross at ${x}`).toBe(sgn));
     let want: number;
     if (p.check!.measure === 'area') want = Math.abs(simpsonSafe((x) => f(x) - g(x), lo!, hi!));
-    else {
+    else if (p.check!.measure === 'cross') {
+      const tail = q.slice(cut);
+      const factor = /equilateral/.test(tail) ? Math.sqrt(3) / 4 : /semicircle/.test(tail) ? Math.PI / 8 : /isosceles right/.test(tail) ? 1 / 2 : /squares/.test(tail) ? 1 : NaN;
+      expect(Number.isNaN(factor), `shape in ${tail}`).toBe(false);
+      expect(tail, 'sections perpendicular to the axis of the variable').toContain(`perpendicular to the $${ind}$-axis`);
+      want = factor * simpsonSafe((x) => (f(x) - g(x)) ** 2, lo!, hi!);
+    } else if (p.check!.measure === 'shell') {
+      // axis perpendicular to the variable: "the $dep$-axis" (ind = 0) or "the line $ind = k$"
+      const tail = q.slice(cut);
+      let k = 0;
+      const line = /the line \$([xy]) = ([^$]+)\$/.exec(tail);
+      if (line) {
+        expect(line[1], 'shell axis').toBe(ind);
+        k = evalReal(line[2]!);
+      } else expect(/the \$([xy])\$-axis/.exec(tail)![1], 'shell axis').toBe(dep);
+      probes.forEach((x) => expect(Math.sign(x - k) === Math.sign(probes[0]! - k), 'axis outside region').toBe(true));
+      want = 2 * Math.PI * Math.abs(simpsonSafe((x) => (x - k) * (f(x) - g(x)), lo!, hi!));
+    } else {
       const tail = q.slice(cut);
       let k = 0;
       const line = /the line \$([xy]) = ([^$]+)\$/.exec(tail);
