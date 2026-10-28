@@ -95,7 +95,7 @@ export const riemannSums = defineTopic({
       steps.push(
         method === 'trap'
           ? `$\\frac{${num(w)}}{2}\\left[f(${num(xs[0]!)}) + 2f(${num(xs[1]!)}) + \\cdots + f(${num(xs[n]!)})\\right] = ${num(value)}$`
-          : `$${num(w)}\\left[${sample(method).map((x) => `f(${num(x)})`).join(' + ')}\\right] = ${num(value)}$`,
+          : `$${w.eq(1) ? '' : num(w)}\\left[${sample(method).map((x) => `f(${num(x)})`).join(' + ')}\\right] = ${num(value)}$`,
       );
     } else {
       // table of values; uneven spacing on hard (not for midpoints)
@@ -731,7 +731,19 @@ export const ftc = defineTopic({
     steps.push(answer);
     const noChain = kind === 'poly' ? Pg.toTex() : kind === 'recip' ? `\\frac{1}{${Pg.toTex()}}` : wrap(Pg.toTex());
     const atX = wrap(P.toTex());
-    const wrongs = [noChain, atX, dTex.startsWith('-') ? dTex.slice(1) : `-${polyFactor(dg).startsWith('(') || !dTex.includes(' ') ? dTex : `(${dTex})`}`, `${dg.degree === 0 ? lead(dg.coef(0)) : polyFactor(dg)}${atX}`].map((w) => m(`F'(x) = ${w}`));
+    const neg = dTex.startsWith('-') ? dTex.slice(1) : `-${polyFactor(dg).startsWith('(') || !dTex.includes(' ') ? dTex : `(${dTex})`}`;
+    const Pa = P.eval(a);
+    const minusA = kind === 'poly' ? Poly.of(Pa.neg()).add(up.poly!).toTex() : `${up.tex} - ${kind === 'recip' ? `\\frac{1}{${num(Pa)}}` : wrap(num(Pa))}`;
+    const wrongs = [
+      k > 1 || lower ? noChain : null,
+      k > 1 ? atX : null,
+      neg,
+      k > 1 ? `${dg.degree === 0 ? lead(dg.coef(0)) : polyFactor(dg)}${atX}` : null,
+      lower || flip ? null : minusA,
+      kind === 'poly' ? P.derivative().toTex() : null,
+    ]
+      .filter((w): w is string => !!w)
+      .map((w) => m(`F'(x) = ${w}`));
     return {
       question: m(ds(`F(x) = ${intTex(integrand, lo, hi, 't')}`)),
       answer,
