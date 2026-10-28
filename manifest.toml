@@ -7,7 +7,7 @@ name = "OpenInfinite"
 description.en = "Printable math worksheets with answer keys, generated in the browser"
 description.fr = "Fiches d'exercices de maths imprimables avec corrigés, générées dans le navigateur"
 
-version = "0.2.0~ynh1"
+version = "0.3.0~ynh1"
 
 maintainers = []
 
@@ -54,8 +54,8 @@ ram.runtime = "10M"
 
         [resources.sources.main]
         # Pre-built static release (see .github/workflows/release.yml): no Node.js and no build on the server.
-        url = "https://github.com/GZPlaz/open-infinite_ynh/releases/download/v0.2.0/openinfinite-0.2.0.tar.gz"
-        sha256 = "e15b87e4eab0014f5f74adf2e5be67cdb4efb01d324296c895309949b49b33ec"
+        url = "https://github.com/GZPlaz/open-infinite_ynh/releases/download/v0.3.0/openinfinite-0.3.0.tar.gz"
+        sha256 = "f364e801fdc0a351aa22504ea5f3bb8d71e7b634e32eb4e0a5271f4df242f623"
         autoupdate.strategy = "latest_github_release"
         autoupdate.asset = "^openinfinite-.*\\.tar\\.gz$"
 
