@@ -43,7 +43,7 @@ const pt = (p: readonly number[]) => `(${p.join(', ')})`;
 function randPoly(rng: Rng, vars: readonly string[], maxDeg: number, n: number, cmax = 5): MX {
   for (;;) {
     const f = norm(Array.from({ length: n }, () => mt(rng.signedInt(1, cmax, true), randMono(rng, vars, 0, maxDeg))));
-    if (f.length === n && f.some((t) => Object.keys(t.e).length)) return f;
+    if (f.length === n && f.some((t) => Object.keys(t.e).length)) return sorted(f);
   }
 }
 
@@ -61,7 +61,7 @@ const DESCRIPTIONS = ['Points directly away from the origin', 'Points directly t
 type FTask = 'evaluate' | 'magnitude' | 'gradientField' | 'describe';
 
 export const vectorFields = taskTopic<FTask>({
-  id: 'mv.vector.fields',
+  id: 'mv.vcalc.fields',
   title: 'Vector Fields',
   description: 'Evaluate vector fields, find magnitudes and gradient fields, and describe simple fields in the plane.',
   category: CAT,
@@ -177,7 +177,7 @@ export const curlOf = (c: readonly MX[]): MX[] => [sub(diff(c[2]!, 'y'), diff(c[
 type DTask = 'div' | 'curl' | 'divPoint' | 'curlPoint';
 
 export const divCurl = taskTopic<DTask>({
-  id: 'mv.vector.div-curl',
+  id: 'mv.vcalc.div-curl',
   title: 'Divergence and Curl',
   description: 'Divergence and curl of vector fields in space, as expressions and at points.',
   category: CAT,
@@ -262,7 +262,7 @@ function naivePotential(f: MX, vars: readonly string[]): MX {
 }
 
 export const conservativeFields = taskTopic<'potential'>({
-  id: 'mv.vector.conservative',
+  id: 'mv.vcalc.conservative',
   title: 'Conservative Vector Fields and Potential Functions',
   description: 'Test whether a vector field is conservative and find a potential function.',
   category: CAT,
@@ -313,7 +313,7 @@ type LTask = 'scalarSegment' | 'scalarCircle' | 'vectorCurve' | 'work' | 'differ
 const tPoly = (rng: Rng, deg: number): MX => norm([mt(rng.signedInt(1, 3, true), { t: deg }), ...(rng.bool(0.5) ? [mt(rng.int(-2, 2))] : [])]);
 
 export const lineIntegrals = taskTopic<LTask>({
-  id: 'mv.vector.line-integrals',
+  id: 'mv.vcalc.line-integrals',
   title: 'Line Integrals',
   description: 'Line integrals of scalar functions and of vector fields along parametrized curves, and work.',
   category: CAT,
@@ -464,7 +464,7 @@ export const lineIntegrals = taskTopic<LTask>({
 // ---------------------------------------------------------------- fundamental theorem for line integrals
 
 export const ftli = taskTopic<'curve' | 'points'>({
-  id: 'mv.vector.fundamental-theorem',
+  id: 'mv.vcalc.fundamental-theorem',
   title: 'The Fundamental Theorem for Line Integrals',
   description: 'Evaluate line integrals of conservative fields from a potential function.',
   category: CAT,

@@ -46,7 +46,7 @@ function optionVariants(t: TopicGenerator): OptionValues[] {
   // everything "on" at once
   const allOn: OptionValues = { ...base };
   for (const o of t.options) if (o.type === 'boolean') allOn[o.id] = true;
-  out.push(allOn);
+  if (t.options.some((o) => o.type === 'boolean' && !o.default)) out.push(allOn);
   return out;
 }
 

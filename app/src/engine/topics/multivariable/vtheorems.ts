@@ -19,7 +19,7 @@ const s1 = (n: number) => (n === 1 ? '' : String(n));
 function randPoly(rng: Rng, vars: readonly string[], maxDeg: number, n: number, cmax = 4): MX {
   for (;;) {
     const f = norm(Array.from({ length: n }, () => mt(rng.signedInt(1, cmax, true), randMono(rng, vars, 0, maxDeg))));
-    if (f.length === n && f.some((t) => Object.keys(t.e).length)) return f;
+    if (f.length === n && f.some((t) => Object.keys(t.e).length)) return sorted(f);
   }
 }
 
@@ -38,7 +38,7 @@ const fallbackEx = (lhs: string, v: Ex) => (k: number) => valAns(lhs, exAdd(v, e
 type GTask = 'rectangle' | 'triangle' | 'circle' | 'area';
 
 export const greensTheorem = taskTopic<GTask>({
-  id: 'mv.vector.greens-theorem',
+  id: 'mv.vcalc.greens-theorem',
   title: "Green's Theorem",
   description: "Use Green's Theorem to evaluate circulation line integrals around rectangles, triangles and circles, and to find areas.",
   category: CAT,
@@ -178,7 +178,7 @@ function sphereSurface(rng: Rng): Surface {
 type STask = 'area' | 'scalar' | 'flux';
 
 export const surfaceIntegrals = taskTopic<STask>({
-  id: 'mv.vector.surface-integrals',
+  id: 'mv.vcalc.surface-integrals',
   title: 'Surface Integrals and Flux',
   description: 'Surface area, surface integrals of scalar functions and flux of vector fields across parametrized surfaces.',
   category: CAT,
@@ -234,7 +234,7 @@ export const surfaceIntegrals = taskTopic<STask>({
 type KTask = 'surfaceToLine' | 'lineToSurface';
 
 export const stokesTheorem = taskTopic<KTask>({
-  id: 'mv.vector.stokes',
+  id: 'mv.vcalc.stokes',
   title: "Stokes' Theorem",
   description: "Use Stokes' Theorem to trade the flux of a curl through a surface for a line integral around its boundary, and vice versa.",
   category: CAT,
@@ -290,7 +290,7 @@ export const stokesTheorem = taskTopic<KTask>({
 type VTask = 'box' | 'ball' | 'cylinder';
 
 export const divergenceTheorem = taskTopic<VTask>({
-  id: 'mv.vector.divergence-theorem',
+  id: 'mv.vcalc.divergence-theorem',
   title: 'The Divergence Theorem',
   description: 'Use the Divergence Theorem to find the outward flux of a vector field across a closed surface.',
   category: CAT,

@@ -10,7 +10,7 @@ Everything happens **in the browser**: problem generation, step-by-step solution
 
 | Area | What you get |
 | --- | --- |
-| **Topics** | 285 topic generators in 7 subjects — Pre-Algebra, Algebra 1, Algebra 2, Geometry, Trigonometry, Precalculus and Calculus — grouped by category (see below). Each has Easy / Medium / Hard tiers and its own options, e.g. integer vs. fractional answers, negative numbers, rounding vs. exact (radical/π) form, units, special cases. |
+| **Topics** | 343 topic generators in 8 subjects — Pre-Algebra, Algebra 1, Algebra 2, Geometry, Trigonometry, Precalculus, Calculus (AB and BC) and Multivariable Calculus — grouped by category (see below). Each has Easy / Medium / Hard tiers and its own options, e.g. integer vs. fractional answers, negative numbers, rounding vs. exact (radical/π) form, units, special cases. |
 | **Formats** | Free response or multiple choice. Distractors are built from typical mistakes (sign errors, forgetting to distribute, wrong formula…). |
 | **Layout** | 1, 2 or 3 columns; work space under each problem (none → XL); Name / Date / Period / Score fields; title and subtitle; US Letter or A4; text size; page numbers. |
 | **Editing** | Regenerate everything (new seed) or a single problem; reorder by drag-and-drop or ↑/↓; edit any question, answer, choice or solution step by hand (LaTeX between `$…$`); delete; undo/redo. |
@@ -105,17 +105,31 @@ Grouped by subject and category, as in the topic picker. Generated with `npx vit
 
 </details>
 
-<details><summary><b>Calculus</b> — 33 topics</summary>
+<details><summary><b>Calculus</b> — 59 topics</summary>
 
 - **Limits and Continuity:** Evaluating Limits · Limits at Infinity · One-Sided Limits · Special Trigonometric Limits · Continuity
 - **Differentiation:** Definition of the Derivative · Differentiation Rules · The Product Rule · The Quotient Rule · The Chain Rule · Derivatives of Trigonometric Functions · Derivatives of Exponential and Logarithmic Functions · Derivatives of Inverse Trigonometric Functions · Implicit Differentiation · Higher-Order Derivatives
 - **Applications of Differentiation:** Tangent and Normal Lines · Related Rates · Critical Points and Extrema · Concavity and Points of Inflection · Mean Value Theorem and Rolle's Theorem · Motion Along a Line · L'Hôpital's Rule · Optimization
 - **Integration:** Riemann Sums · Integration · Definite Integrals · Integration by Substitution · Integration by Parts · Integrals of Trigonometric and Exponential Functions · The Fundamental Theorem of Calculus · Average Value of a Function
-- **Applications of Integration:** Area Between Curves · Volumes of Solids of Revolution
+- **Techniques of Integration:** Integration by Partial Fractions · Trigonometric Integrals · Trigonometric Substitution · Improper Integrals
+- **Applications of Integration:** Area Between Curves · Volumes of Solids of Revolution · Volumes by Cross Sections · Volumes by the Shell Method
+- **Differential Equations:** Slope Fields · Euler's Method · Separable Differential Equations · Exponential Growth and Decay · Logistic Growth
+- **Parametric, Polar and Vector-Valued Functions:** Derivatives of Parametric Equations · Arc Length · Polar Derivatives and Tangent Lines · Area in Polar Coordinates · Vector-Valued Functions
+- **Infinite Sequences and Series:** Convergence of Sequences · Geometric Series and the nth-Term Test · The Integral Test and p-Series · Comparison and Limit Comparison Tests · The Ratio and Root Tests · Alternating Series · Radius and Interval of Convergence · Taylor and Maclaurin Polynomials · Taylor Series from Known Maclaurin Series · Lagrange Error Bound
 
 </details>
 
-<!-- 285 topics in total -->
+<details><summary><b>Multivariable Calculus</b> — 32 topics</summary>
+
+- **Vectors and the Geometry of Space:** Vectors in Three Dimensions · Dot and Cross Products · Lines and Planes in Space · Quadric Surfaces · Cylindrical and Spherical Coordinates
+- **Vector-Valued Functions:** Space Curves and Their Derivatives · Arc Length and Curvature · Velocity and Acceleration in Space
+- **Partial Derivatives:** Functions of Several Variables · Limits and Continuity of Multivariable Functions · Partial Derivatives · The Chain Rule for Multivariable Functions · Directional Derivatives and the Gradient · Tangent Planes and Linear Approximation · Local Extrema and Saddle Points · Lagrange Multipliers
+- **Multiple Integrals:** Double Integrals over Rectangles · Double Integrals over General Regions · Reversing the Order of Integration · Double Integrals in Polar Coordinates · Triple Integrals · Triple Integrals in Cylindrical and Spherical Coordinates · Applications of Multiple Integrals
+- **Vector Calculus:** Vector Fields · Divergence and Curl · Conservative Vector Fields and Potential Functions · Line Integrals · The Fundamental Theorem for Line Integrals · Green's Theorem · Surface Integrals and Flux · Stokes' Theorem · The Divergence Theorem
+
+</details>
+
+<!-- 343 topics in total -->
 
 ## How it works
 

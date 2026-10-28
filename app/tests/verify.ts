@@ -50,6 +50,8 @@ function relHolds(a: number, rel: string, b: number): boolean {
       return a >= b - eps;
     case '=':
       return Math.abs(a - b) <= eps;
+    case '\\neq':
+      return Math.abs(a - b) > eps;
     default:
       throw new Error(`relation ${rel}`);
   }

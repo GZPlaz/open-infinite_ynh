@@ -1266,6 +1266,27 @@ function integrate(body: Fn, bounds: Bound[], vars: string[] | null = null, n?: 
   return rec(0, {});
 }
 
+/** Gauss nodes of a region with constant limits (x, y, z coordinates and weight × Jacobian), cached. */
+const BOX = new Map<string, Array<{ env: Env; w: number }>>();
+function boxNodes(region: { vars: string[]; bounds: Bound[] }, n: number): Array<{ env: Env; w: number }> {
+  const k = `${JSON.stringify(region)}|${n}`;
+  const hit = BOX.get(k);
+  if (hit) return hit;
+  const g = gl(n);
+  const lim = region.bounds.map((b) => [val(b.lo), val(b.hi)] as const);
+  let nodes: Array<{ env: Env; w: number }> = [{ env: {}, w: 1 }];
+  region.bounds.forEach((b, d) => {
+    const [lo, hi] = lim[d]!;
+    nodes = nodes.flatMap((nd) => g.x.map((x, i) => ({ env: { ...nd.env, [b.v]: lo + ((x + 1) / 2) * (hi - lo) }, w: (nd.w * g.w[i]! * (hi - lo)) / 2 })));
+  });
+  const out = nodes.map((nd) => {
+    const c = coordEnv(region.vars, nd.env);
+    return { env: c.env, w: nd.w * c.jac };
+  });
+  BOX.set(k, out);
+  return out;
+}
+
 /** Value of the integral in a rendered segment (regions looked up in `context`). */
 function integralValue(seg: string, context: string): number {
   const I = parseIntegral(seg);
@@ -1510,6 +1531,7 @@ interface Param {
   u: [number, number];
   v: [number, number];
 }
+const keyOf = (r: string[], u: [string, string], v: [string, string]) => `${r.join(';')}|${u.join(';')}|${v.join(';')}`;
 const paramOf = (r: string[], u: [string, string], v: [string, string]): Param => {
   const fs = r.map(fn);
   return { r: (uu, vv) => fs.map((f) => f({ u: uu, v: vv })), u: [val(u[0]), val(u[1])], v: [val(v[0]), val(v[1])] };
@@ -1520,9 +1542,28 @@ function normalAt(S: Param, u: number, v: number): V {
   const rv = vsub(S.r(u, v + h), S.r(u, v - h)).map((x) => x / (2 * h));
   return cross(ru, rv);
 }
+/** Gauss nodes (point, normal·weight) of a parametrized surface, cached by its definition. */
+const NODES = new Map<string, Array<{ p: V; n: V; w: number }>>();
+function surfNodes(S: Param, n: number, key?: string): Array<{ p: V; n: V; w: number }> {
+  const k = key ? `${key}|${n}` : '';
+  const hit = k ? NODES.get(k) : undefined;
+  if (hit) return hit;
+  const g = gl(n);
+  const out: Array<{ p: V; n: V; w: number }> = [];
+  const hu = S.u[1] - S.u[0];
+  const hv = S.v[1] - S.v[0];
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < n; j++) {
+      const u = S.u[0] + ((g.x[i]! + 1) / 2) * hu;
+      const v = S.v[0] + ((g.x[j]! + 1) / 2) * hv;
+      out.push({ p: S.r(u, v), n: normalAt(S, u, v), w: (g.w[i]! * g.w[j]! * hu * hv) / 4 });
+    }
+  if (k) NODES.set(k, out);
+  return out;
+}
 /** ∬ g(point, normal) du dv over the parameter rectangle. */
-function surfInt(S: Param, g: (p: V, n: V) => number, n = 16): number {
-  return quad((u) => quad((v) => g(S.r(u, v), normalAt(S, u, v)), S.v[0], S.v[1], n, 1), S.u[0], S.u[1], n, 1);
+function surfInt(S: Param, g: (p: V, n: V) => number, n = 16, key?: string): number {
+  return surfNodes(S, n, key).reduce((s, nd) => s + nd.w * g(nd.p, nd.n), 0);
 }
 const curlVec = (F: Fn[], env: Env) => {
   const d = (i: number, v: string) => {
@@ -1580,10 +1621,10 @@ Object.assign(VERIFIERS, {
       const n0 = normalAt(S, um, vm);
       if (p.check!.orient === 'up') expect(n0[2]!, `${what}: upward`).toBeGreaterThan(0);
       else expect(dot(n0, S.r(um, vm).map((x, i) => (i === 2 && /z-axis/.test(p.question) ? 0 : x))), `${what}: outward`).toBeGreaterThan(0);
-      want = surfInt(S, (P, n) => dot(Fat(Fc, xyz(P)), n));
+      want = surfInt(S, (P, n) => dot(Fat(Fc, xyz(P)), n), 16, keyOf(comps, [String(u0), String(u1)], [String(v0), String(v1)]));
     } else {
       const body = task === 'area' ? () => 1 : fn(/\\iint_\{S\}\s*([\s\S]*?)\\,dS$/.exec(segs(p.question).find((s) => /\\iint_\{S\}/.test(s))!)![1]!);
-      want = surfInt(S, (P, n) => body(xyz(P)) * len(n));
+      want = surfInt(S, (P, n) => body(xyz(P)) * len(n), 16, keyOf(comps, [String(u0), String(u1)], [String(v0), String(v1)]));
     }
     expectNear(answerNum(p.answer), want, what, 1e-6);
   },
@@ -1614,7 +1655,7 @@ Object.assign(VERIFIERS, {
       });
     }
     const circ = formAlong(['x', 'y', 'z'].map((v, i) => ({ coef: Fc[i]!, v })), C, val(cd.t[0]), val(cd.t[1]), 16, 4);
-    const flux = surfInt(S, (P, n) => dot(curlVec(Fc, xyz(P)), n), 16);
+    const flux = surfInt(S, (P, n) => dot(curlVec(Fc, xyz(P)), n), 16, keyOf(sd.r, sd.u, sd.v));
     const got = answerNum(p.answer);
     expectNear(got, circ, `${what}: circulation`, 1e-6);
     expectNear(got, flux, `${what}: flux of curl`, 1e-5);
@@ -1654,17 +1695,31 @@ Object.assign(VERIFIERS, {
         const h = 1e-5;
         return s + (Fc[i]!({ ...env, [v]: env[v]! + h }) - Fc[i]!({ ...env, [v]: env[v]! - h })) / (2 * h);
       }, 0);
-    const vol = integrate(div, region.bounds, region.vars, 14);
+    const vol = boxNodes(region, 12).reduce((sum, nd) => sum + nd.w * div(nd.env), 0);
     let flux = 0;
     for (const sd of p.check!.surfaces as Array<{ r: string[]; u: [string, string]; v: [string, string] }>) {
       const S = paramOf(sd.r, sd.u, sd.v);
       const um = S.u[0] + 0.37 * (S.u[1] - S.u[0]);
       const vm = S.v[0] + 0.61 * (S.v[1] - S.v[0]);
       const sign = dot(normalAt(S, um, vm), vsub(S.r(um, vm), center)) > 0 ? 1 : -1;
-      flux += sign * surfInt(S, (P, n) => dot(Fat(Fc, xyz(P)), n), /pi/.test(sd.u.join() + sd.v.join()) ? 20 : 8);
+      flux += sign * surfInt(S, (P, n) => dot(Fat(Fc, xyz(P)), n), /pi/.test(sd.u.join() + sd.v.join()) ? 20 : 8, keyOf(sd.r, sd.u, sd.v));
     }
     const got = answerNum(p.answer);
     expectNear(got, vol, `${what}: triple integral`, 1e-5);
     expectNear(got, flux, `${what}: outward flux`, 1e-5);
   },
 } satisfies Record<string, Verifier>);
+
+// The fuzz harness re-generates identical problems (e.g. the "all options on" variant of a topic
+// without boolean options equals its defaults); verify each distinct rendered problem once.
+const DONE = new Set<string>();
+for (const k of Object.keys(VERIFIERS)) {
+  const v = VERIFIERS[k]!;
+  VERIFIERS[k] = (p) => {
+    const key = `${k}|${p.question}|${p.answer}|${JSON.stringify(p.check)}`;
+    if (DONE.has(key)) return;
+    v(p);
+    if (DONE.size > 50000) DONE.clear();
+    DONE.add(key);
+  };
+}
