@@ -136,6 +136,11 @@ function d3(f: Fn, x: number): number {
 }
 const DERIV = [(f: Fn, x: number) => f(x), d1, d2, d3];
 
+/** Simpson after x = a + (b − a)(3u² − 2u³): smooth integrands stay smooth, √-type endpoint singularities disappear. */
+function simpsonSafe(f: Fn, a: number, b: number, n = 2000): number {
+  return simpson((u) => f(a + (b - a) * (3 * u * u - 2 * u * u * u)) * (b - a) * 6 * u * (1 - u), 0, 1, n);
+}
+
 function simpson(f: Fn, a: number, b: number, n = 600): number {
   if (a === b) return 0;
   const h = (b - a) / n;
@@ -683,7 +688,7 @@ export const VERIFIERS: Record<string, Verifier> = {
     const d = definition(p.question);
     const f = fnOf(d.body, d.v);
     const [a, b] = intervalIn(p.question);
-    const avg = simpson(f, a, b, 2000) / (b - a);
+    const avg = simpsonSafe(f, a, b) / (b - a);
     if (p.check!.task === 'c') {
       const cs = answerValues(p.answer, 'c').map((t) => evalReal(t));
       cs.forEach((c) => expect(c >= a && c <= b && near(f(c), avg, 1e-6), `f(${c}) = ${avg}`).toBe(true));
@@ -715,7 +720,7 @@ export const VERIFIERS: Record<string, Verifier> = {
     const sgn = Math.sign(f(probes[0]!) - g(probes[0]!));
     probes.forEach((x) => expect(Math.sign(f(x) - g(x)), `curves do not cross at ${x}`).toBe(sgn));
     let want: number;
-    if (p.check!.measure === 'area') want = Math.abs(simpson((x) => f(x) - g(x), lo!, hi!, 2000));
+    if (p.check!.measure === 'area') want = Math.abs(simpsonSafe((x) => f(x) - g(x), lo!, hi!));
     else {
       const tail = q.slice(cut);
       let k = 0;
@@ -728,7 +733,7 @@ export const VERIFIERS: Record<string, Verifier> = {
         expect(ax[1], 'axis').toBe(ind);
       }
       probes.forEach((x) => expect((f(x) - k) * (g(x) - k) >= -1e-12, 'axis outside region').toBe(true));
-      want = Math.PI * Math.abs(simpson((x) => (f(x) - k) ** 2 - (g(x) - k) ** 2, lo!, hi!, 2000));
+      want = Math.PI * Math.abs(simpsonSafe((x) => (f(x) - k) ** 2 - (g(x) - k) ** 2, lo!, hi!));
     }
     expect(near(wordProblemValue(p), want, 1e-6), `${q} → ${p.answer} (${want})`).toBe(true);
   },

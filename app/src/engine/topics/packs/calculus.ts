@@ -6,6 +6,7 @@ import { limits } from '../calculus/limits';
 import { expLogDerivatives, higherOrderDerivatives, implicitDifferentiation, inverseTrigDerivatives, trigDerivatives } from '../calculus/diff-more';
 import { concavity, extrema, lhopital, meanValueTheorem, motion, optimization, relatedRates, tangentLines } from '../calculus/applications';
 import { averageValue, definiteIntegrals, ftc, integrationByParts, riemannSums, trigExpIntegrals, uSubstitution } from '../calculus/integration';
+import { areaBetweenCurves, volumesOfRevolution } from '../calculus/integration-apps';
 import { chainRule, derivativeDefinition, productRule, quotientRule } from '../calculus/diff-rules';
 import { continuity, limitsAtInfinity, oneSidedLimits, trigLimits } from '../calculus/limits-more';
 
@@ -45,6 +46,9 @@ const topics: TopicGenerator[] = [
   trigExpIntegrals,
   ftc,
   averageValue,
+  // Applications of Integration
+  areaBetweenCurves,
+  volumesOfRevolution,
 ];
 
 export default topics;
