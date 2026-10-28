@@ -142,7 +142,7 @@ export const trigIntegrals = defineTopic({
     let integrand: string;
     let answer: Signed[];
     let wrongs: Signed[][];
-    const c = new Frac(rng.signedInt(1, difficulty === 'easy' ? 1 : 4, true));
+    const c = new Frac(rng.signedInt(1, difficulty === 'easy' ? 3 : 5, true));
     if (family === 'sincos') {
       const even = difficulty !== 'easy' && rng.bool(difficulty === 'hard' ? 0.5 : 0.3);
       if (!even) {
@@ -397,7 +397,7 @@ export const improperIntegrals = defineTopic({
             // p = 3/2: 2c/√b
             const r = Math.sqrt(b);
             const k = new Frac(2 * c, b);
-            value = Number.isInteger(r) ? fv(new Frac(2 * c, r)) : { value: k.d === 1 ? `${k.n}\\sqrt{${b}}` : `\\frac{${k.n === 1 ? '' : k.n}\\sqrt{${b}}}{${k.d}}`, num: (2 * c) / r };
+            value = Number.isInteger(r) ? fv(new Frac(2 * c, r)) : { value: k.d === 1 ? `${k.n === 1 ? '' : k.n}\\sqrt{${b}}` : `\\frac{${k.n === 1 ? '' : k.n}\\sqrt{${b}}}{${k.d}}`, num: (2 * c) / r };
             steps.push(`$\\displaystyle \\lim_{t \\to \\infty} \\left[-\\frac{${2 * c}}{\\sqrt{x}}\\right]_{${b}}^{t}$`);
           }
           break;

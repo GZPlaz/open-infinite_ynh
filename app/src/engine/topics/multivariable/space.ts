@@ -1,10 +1,10 @@
 /** Lines and planes in space, quadric surfaces, cylindrical and spherical coordinates. */
 import { Frac, gcdAll } from '../../fraction';
-import { attempt, defineTopic, offset, strOpt } from '../../generator';
+import { attempt, defineTopic, offset } from '../../generator';
 import type { Rng } from '../../rng';
 import { decimal, m, sum } from '../../tex';
 import type { Difficulty, ProblemContent } from '../../types';
-import { cosPi, cross, dot, exMul, exQ, exRad, exScale, exTex, isZeroV, mt, norm2, piTex, randV, sinPi, taskTopic, tex, vsub, vtex, type Ex, type MT, type V3 } from './common';
+import { cosPi, cross, lincomb, dot, exMul, exQ, exRad, exScale, exTex, isZeroV, mt, norm2, piTex, randV, sinPi, taskTopic, tex, vsub, vtex, type Ex, type MT, type V3 } from './common';
 
 const CAT = 'Vectors and the Geometry of Space';
 const XYZ = ['x', 'y', 'z'] as const;
@@ -124,7 +124,7 @@ export const linesPlanes = taskTopic<LTask>({
         return {
           question: `Find an equation of the plane through ${m(named('P', P))} with normal vector ${m(`\\mathbf{n} = ${vtex(n)}`)}.`,
           answer: ans(n, d),
-          steps: [m(`${n.map((c, i) => `${c < 0 ? `(${c})` : c}(${sum([{ coef: 1, sym: XYZ[i] }, { coef: -P[i]! }])})`).join(' + ')} = 0`), ans(n, d)],
+          steps: [m(`${lincomb(n.map((c, i) => [c, sum([{ coef: 1, sym: XYZ[i] }, { coef: -P[i]! }])] as const))} = 0`), ans(n, d)],
           wrongs: [ans(n, -d || 4), ans(P.every((x) => x === 0) ? n.map((x) => x + 1) : P, dot(n, P) === d && P.some((x, i) => x !== n[i]) ? dot(P, P) : d + 1), ans(n, dot(n, n))],
           fallback: (k) => ans(n, d + offset(k)),
           check: { kind: 'multivariable.plane', task: 'normal' },
@@ -142,7 +142,7 @@ export const linesPlanes = taskTopic<LTask>({
         });
         const c = dot(n, X0);
         const ans = (q: readonly number[]) => m(pt(q));
-        const subst = n.map((k, i) => `${k < 0 ? `${k}` : k}(${sum([{ coef: p[i]! }, { coef: d[i]!, sym: 't' }])})`).join(' + ').replace(/\+ -/g, '- ');
+        const subst = lincomb(n.map((k, i) => [k, sum([{ coef: p[i]! }, { coef: d[i]!, sym: 't' }])] as const));
         return {
           question: `Find the point where the line ${m(paramTex(p, d))} intersects the plane ${m(planeTex(n, c))}.`,
           answer: ans(X0),
@@ -186,7 +186,7 @@ export const linesPlanes = taskTopic<LTask>({
         return {
           question: `Find the distance from ${m(named('P', P))} to the plane ${m(planeTex(n, c))}.`,
           answer: ans(val),
-          steps: [m(`D = \\frac{|${n.map((k, i) => `${k < 0 ? `(${k})` : k}(${P[i]})`).join(' + ')} - ${c < 0 ? `(${c})` : c}|}{\\sqrt{${norm2(n)}}} = \\frac{${top}}{\\sqrt{${norm2(n)}}}`), ans(val)],
+          steps: [m(`D = \\frac{|${n.map((k, i) => `(${k})(${P[i]})`).join(' + ')} - ${c < 0 ? `(${c})` : c}|}{\\sqrt{${norm2(n)}}} = \\frac{${top}}{\\sqrt{${norm2(n)}}}`), ans(val)],
           wrongs: [ans(exQ(new Frac(top, norm2(n)))), ans(exRad(new Frac(Math.abs(dot(n, P) + c) || top + 2, norm2(n)), norm2(n))), ans(exQ(top))],
           fallback: (k) => ans(exRad(new Frac(top + k, norm2(n)), norm2(n))),
           check: { kind: 'multivariable.plane', task: 'distance' },
@@ -231,7 +231,6 @@ interface Slot {
 function quadricEq(rng: Rng, kind: Quadric, d: Difficulty): string {
   const vars = rng.shuffle([...XYZ]);
   const sqs = [4, 9, 16, 25, 36, 1];
-  const A = () => rng.pick(sqs);
   // signs of the three square terms on the left (0 = absent), the right-hand side, and which slot is linear
   let signs: number[];
   let K: number;
@@ -291,12 +290,12 @@ function quadricEq(rng: Rng, kind: Quadric, d: Difficulty): string {
     if (K === 0) {
       const neg = signs.findIndex((s) => s < 0);
       const left = mt(new Frac(1, den[neg]!), { [vars[neg]!]: 2 });
-      return `${tex([left])} = ${tex(terms.filter((_, i) => i !== terms.length - 1).concat())}`;
+      return `${tex([left])} = ${tex(terms.slice(0, 2))}`;
     }
     return `${tex(terms)} = 1`;
   }
   // integer form: multiply through; medium = Ax² ± By² ± Cz² = K, hard = with completed squares expanded and terms moved
-  const coef = signs.map((s, i) => s * (d === 'medium' ? den[i]! : A()));
+  const coef = signs.map((s, i) => s * den[i]!);
   const slots: Slot[] = coef.map((c) => ({ sq: c, lin: 0 }));
   let rhs = K ? rng.pick([4, 9, 16, 36, 12, 18]) : 0;
   const shifts = [0, 0, 0];
@@ -309,7 +308,6 @@ function quadricEq(rng: Rng, kind: Quadric, d: Difficulty): string {
         slots[i]!.lin = -2 * h * slots[i]!.sq;
         rhs -= slots[i]!.sq * h * h; // move the constant to the right
       }
-    if (K !== 0 && rhs === 0) rhs = 0; // degenerate guarded by caller retry
   }
   const terms: MT[] = [];
   slots.forEach((s, i) => {
@@ -318,9 +316,9 @@ function quadricEq(rng: Rng, kind: Quadric, d: Difficulty): string {
   });
   if (linear >= 0) {
     const c = rng.pick([1, 2, 4, 3]);
-    if (rng.bool(0.5)) return `${tex(terms)} = ${c === 1 ? '' : c}${vars[linear]!}${rhs ? ` ${rhs > 0 ? '-' : '+'} ${Math.abs(rhs)}` : ''}`.replace(/= (\d*[xyz]) ([-+]) (\d+)$/, (_s, a, sg, n) => `= ${a} ${sg} ${n}`);
+    if (rng.bool(0.5)) return `${tex(terms)} = ${c === 1 ? '' : c}${vars[linear]!}${rhs ? ` ${rhs > 0 ? '+' : '-'} ${Math.abs(rhs)}` : ''}`;
     terms.push(mt(-c, { [vars[linear]!]: 1 }));
-    return `${tex(terms)} = ${-rhs}`;
+    return `${tex(terms)} = ${rhs}`;
   }
   return `${tex(terms)} = ${rhs}`;
 }
@@ -339,14 +337,7 @@ export const quadricSurfaces = defineTopic({
     const { rng, difficulty } = ctx;
     const pool = QUADRICS.filter((q) => ctx.options.cylinders !== false || !q.endsWith('cylinder'));
     const kind = rng.pick(pool);
-    const eq = attempt('quadric', () => {
-      const e = quadricEq(rng, kind, difficulty);
-      // a hard ellipsoid/hyperboloid/cylinder needs a non-zero (correctly signed) right side
-      if (/= 0$/.test(e) && !['Elliptic cone', 'Elliptic paraboloid', 'Hyperbolic paraboloid', 'Parabolic cylinder'].includes(kind)) return null;
-      if (/= -/.test(e) && ['Ellipsoid', 'Elliptic cylinder'].includes(kind)) return null;
-      if (kind === 'Elliptic cone' && !/= 0$/.test(e) && difficulty !== 'easy') return null;
-      return e;
-    });
+    const eq = quadricEq(rng, kind, difficulty);
     const steps: string[] = [];
     if (difficulty === 'hard') steps.push('Complete the square in each variable that has a linear term.');
     steps.push(STEP[kind]);
@@ -531,4 +522,3 @@ export const cylSph = taskTopic<CTask>({
   },
 });
 
-export const _strOpt = strOpt;

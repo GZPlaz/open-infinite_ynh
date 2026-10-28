@@ -11,11 +11,11 @@ import { Frac, lcm, type FracLike } from '../../fraction';
 import { defineTopic, distinctDistractors, strOpt } from '../../generator';
 import { simplifySqrt } from '../../radical';
 import type { Rng } from '../../rng';
-import { num } from '../../tex';
+import { num, scaled } from '../../tex';
 import type { Diagram } from '../../diagram';
 import type { Difficulty, GeneratorContext, OptionDef, RichText, TopicGenerator } from '../../types';
 
-export const VAR_ORDER = ['x', 'y', 'z', 't', 's', 'u', 'v', 'r', '\\rho', '\\phi', '\\theta'];
+export const VAR_ORDER = ['x', 'y', 'z', 's', 't', 'u', 'v', 'r', '\\rho', '\\phi', '\\theta'];
 const rank = (v: string) => {
   const i = VAR_ORDER.indexOf(v);
   return i < 0 ? 99 : i;
@@ -413,6 +413,17 @@ export function exTex(x: readonly ExT[]): string {
   const n = exNorm(x);
   if (!n.length) return '0';
   const ordered = [...n.filter((t) => t.pi || t.rad > 1 || t.sym), ...n.filter((t) => !(t.pi || t.rad > 1 || t.sym))];
+  // a common factor of π (all terms, no symbols) is written once: \frac{(4 - 2\sqrt{2})\pi}{5}
+  const p0 = ordered[0]!.pi;
+  if (ordered.length > 1 && p0 > 0 && ordered.every((t) => t.pi === p0 && !t.sym)) {
+    const inner = ordered.map((t) => ({ ...t, pi: 0 }));
+    const Lp = inner.reduce((l, t) => lcm(l, t.c.d), 1);
+    const piT = p0 === 1 ? '\\pi' : `\\pi^{${p0}}`;
+    const neg = inner[0]!.c.sign < 0;
+    const body = exTex(inner.map((t) => ({ ...t, c: t.c.mul(Lp).mul(neg ? -1 : 1) })));
+    const top = `(${body})${piT}`;
+    return `${neg ? '-' : ''}${Lp > 1 ? `\\frac{${top}}{${Lp}}` : top}`;
+  }
   const L = ordered.reduce((l, t) => lcm(l, t.c.d), 1);
   const join = (ts: ExT[]) => ts.map((t, i) => (i === 0 ? `${t.c.sign < 0 ? '-' : ''}${exMagnitude(t)}` : `${t.c.sign < 0 ? ' - ' : ' + '}${exMagnitude(t)}`)).join('');
   if (ordered.length > 1 && L > 1) {
@@ -563,4 +574,136 @@ export function taskTopic<T extends string>(d: TaskTopicDef<T>): TopicGenerator 
       };
     },
   });
+}
+
+/** `3(x + 2) - (y - 1) + 4(z)` from (coefficient, inner LaTeX) pairs; zero coefficients dropped. */
+export function lincomb(items: ReadonlyArray<readonly [FracLike, string]>): string {
+  const nz = items.map(([c, t]) => [Frac.of(c), t] as const).filter(([c]) => !c.isZero());
+  if (!nz.length) return '0';
+  return nz.map(([c, inner], i) => (i === 0 ? (c.sign < 0 ? '-' : '') : c.sign < 0 ? ' - ' : ' + ') + scaled(c.abs(), inner)).join('');
+}
+
+/** Antiderivative in v of polynomial terms and of bare atoms e^{kv}, sin kv, cos kv (no polynomial factor). */
+export function integ1(x: readonly MT[], v: string): MX {
+  const out: MT[] = [];
+  for (const t of x) {
+    if (!t.a) {
+      const k = (t.e[v] ?? 0) + 1;
+      if (k === 0) throw new Error('integ1: 1/v');
+      out.push({ c: t.c.div(k), e: cleanMono({ ...t.e, [v]: k }) });
+      continue;
+    }
+    const a = t.a;
+    if (Object.keys(t.e).length || Object.keys(a.e).join() !== v || a.e[v] !== 1) throw new Error('integ1: unsupported term');
+    if (a.fn === 'exp') out.push({ c: t.c.div(a.k), e: {}, a });
+    else if (a.fn === 'sin') out.push({ c: t.c.div(a.k).neg(), e: {}, a: { ...a, fn: 'cos' } });
+    else if (a.fn === 'cos') out.push({ c: t.c.div(a.k), e: {}, a: { ...a, fn: 'sin' } });
+    else throw new Error('integ1: ln');
+  }
+  return norm(out);
+}
+
+/** A typical slip when differentiating in v: forget the chain-rule factor, the sign of a trig derivative, or the power-rule coefficient. */
+export function wrongD(x: readonly MT[], v: string, flag: 'chain' | 'sign' | 'power'): MX {
+  const out: MT[] = [];
+  for (const t of x) {
+    const n = t.e[v] ?? 0;
+    if (n) out.push({ c: flag === 'power' ? t.c : t.c.mul(n), e: cleanMono({ ...t.e, [v]: n - 1 }), a: t.a });
+    const a = t.a;
+    const av = a?.e[v] ?? 0;
+    if (!a || !av) continue;
+    const gv = flag === 'chain' ? Frac.ONE : a.k.mul(av);
+    const mv = flag === 'chain' ? {} : cleanMono({ ...a.e, [v]: av - 1 });
+    const sg = flag === 'sign' ? -1 : 1;
+    switch (a.fn) {
+      case 'exp':
+        out.push({ c: t.c.mul(gv), e: mulMono(t.e, mv), a });
+        break;
+      case 'sin':
+        out.push({ c: t.c.mul(gv).mul(sg), e: mulMono(t.e, mv), a: { ...a, fn: 'cos' } });
+        break;
+      case 'cos':
+        out.push({ c: t.c.mul(gv).mul(-sg), e: mulMono(t.e, mv), a: { ...a, fn: 'sin' } });
+        break;
+      case 'ln':
+        out.push({ c: t.c.mul(flag === 'chain' ? 1 : av), e: cleanMono({ ...t.e, [v]: n - 1 }) });
+        break;
+    }
+  }
+  return norm(out);
+}
+
+/** Random monomial in the given variables with total degree in [lo, hi]. */
+export function randMono(rng: Rng, vars: readonly string[], lo: number, hi: number): Mono {
+  for (;;) {
+    const e: Mono = {};
+    for (const v of vars) e[v] = rng.int(0, hi);
+    const deg = Object.values(e).reduce((s, k) => s + k, 0);
+    if (deg >= lo && deg <= hi) return cleanMono(e);
+  }
+}
+
+/** Random function of several variables (depends on every variable). */
+export function randF(rng: Rng, d: Difficulty, vars: readonly string[], atoms = true): MX {
+  for (;;) {
+    const c = () => rng.signedInt(1, d === 'easy' ? 5 : 7, true);
+    const terms: MT[] = [];
+    const nPoly = d === 'easy' ? rng.int(2, 3) : 2;
+    for (let i = 0; i < nPoly; i++) terms.push(mt(c(), randMono(rng, vars, 1, d === 'easy' ? 3 : 4)));
+    if (d === 'hard' && !atoms) terms.push(mt(c(), { [vars[0]!]: rng.int(1, 2), [vars[1]!]: -rng.int(1, 2) }));
+    if (d !== 'easy' && atoms) {
+      const inner = rng.pick<Mono>(vars.length > 1 ? [{ [vars[0]!]: 1, [vars[1]!]: 1 }, { [vars[0]!]: 1 }, { [vars[1]!]: 1 }, { [vars[0]!]: 2, [vars[1]!]: 1 }] : [{ [vars[0]!]: 1 }]);
+      const fn = rng.pick<AtomFn>(['exp', 'sin', 'cos', d === 'hard' ? 'ln' : 'exp']);
+      const k = fn === 'ln' ? 1 : rng.pick([1, 1, 2, 3, -1]);
+      const factor = d === 'hard' && fn !== 'ln' ? rng.pick<Mono>([{}, { [vars[0]!]: 1 }, { [vars[vars.length - 1]!]: 1 }]) : {};
+      terms.push(mt(c(), factor, { fn, k, e: inner }));
+    }
+    const f = norm(terms);
+    const uses = (v: string) => f.some((t) => (t.e[v] ?? 0) !== 0 || (t.a?.e[v] ?? 0) !== 0);
+    if (f.length >= 2 && vars.every(uses)) return f;
+  }
+}
+
+// ---------------------------------------------------------------- exact trigonometric integrals
+
+function dfact(n: number): number {
+  let r = 1;
+  for (let k = n; k > 1; k -= 2) r *= k;
+  return r;
+}
+
+/**
+ * ∫_0^{T} cosᵐt·sinⁿt dt for T = π/2 ('quarter'), π ('half') or 2π ('full'), exactly.
+ * Uses Wallis' formula for the quarter period and symmetry for the others.
+ */
+export function wallis(mm: number, n: number, T: 'quarter' | 'half' | 'full'): Ex {
+  const quarter = (): Ex => {
+    const c = new Frac(dfact(mm - 1) * dfact(n - 1), dfact(mm + n));
+    return mm % 2 === 0 && n % 2 === 0 ? exPi(c.div(2)) : exQ(c);
+  };
+  if (T === 'quarter') return quarter();
+  if (T === 'half') return mm % 2 === 1 ? [] : exScale(quarter(), 2);
+  return mm % 2 === 1 || n % 2 === 1 ? [] : exScale(quarter(), 4);
+}
+
+/**
+ * Exact integral of a polynomial MX whose variables come in (cos, sin) pairs over standard ranges
+ * and/or plain variables over rational bounds. `trig` maps a pair name to [cosVar, sinVar, range];
+ * `poly` maps a plain variable to [lo, hi].
+ */
+export function trigPolyIntegral(x: readonly MT[], trig: ReadonlyArray<readonly [string, string, 'quarter' | 'half' | 'full']>, poly: Readonly<Record<string, readonly [FracLike, FracLike]>> = {}): Ex {
+  let total: Ex = [];
+  for (const t of norm(x)) {
+    if (t.a) throw new Error('trigPolyIntegral: atoms');
+    let v: Ex = ex(t.c);
+    for (const [cv, sv, range] of trig) v = exMul(v, wallis(t.e[cv] ?? 0, t.e[sv] ?? 0, range));
+    for (const [pv, [lo, hi]] of Object.entries(poly)) {
+      const k = (t.e[pv] ?? 0) + 1;
+      v = exMul(v, exQ(F(hi).pow(k).sub(F(lo).pow(k)).div(k)));
+    }
+    const used = new Set([...trig.flatMap(([a, b]) => [a, b]), ...Object.keys(poly)]);
+    if (Object.keys(t.e).some((k) => !used.has(k))) throw new Error('trigPolyIntegral: free variable');
+    total = exAdd(total, v);
+  }
+  return total;
 }

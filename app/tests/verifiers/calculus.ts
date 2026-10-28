@@ -7,7 +7,7 @@
 import { expect } from 'vitest';
 import type { ProblemContent } from '../../src/engine/types';
 import { close, evalReal, evaluate, listItems, mathSegments, onlyMath, splitTop, stripUnits } from '../evaluator';
-import { answerValues, rhs, sides, type Verifier } from '../verify';
+import { answerValues, curvePoints, rhs, sides, type Verifier } from '../verify';
 
 type Fn = (x: number) => number;
 const POS = [0.7, 1.3, 1.9, 2.6, 3.4];
@@ -138,7 +138,19 @@ const DERIV = [(f: Fn, x: number) => f(x), d1, d2, d3];
 
 /** Simpson after x = a + (b − a)(3u² − 2u³): smooth integrands stay smooth, √-type endpoint singularities disappear. */
 function simpsonSafe(f: Fn, a: number, b: number, n = 2000): number {
-  return simpson((u) => f(a + (b - a) * (3 * u * u - 2 * u * u * u)) * (b - a) * 6 * u * (1 - u), 0, 1, n);
+  return simpson((u) => {
+    const w = 6 * u * (1 - u);
+    return w === 0 ? 0 : f(a + (b - a) * (3 * u * u - 2 * u * u * u)) * (b - a) * w;
+  }, 0, 1, n);
+}
+
+/** d1, falling back to one-sided differences at the edge of the domain (e.g. x^{3/2} at 0). */
+function d1edge(f: Fn, x: number): number {
+  const c = d1(f, x);
+  if (Number.isFinite(c)) return c;
+  const h = 1e-6;
+  const fwd = (-3 * f(x) + 4 * f(x + h) - f(x + 2 * h)) / (2 * h);
+  return Number.isFinite(fwd) ? fwd : (3 * f(x) - 4 * f(x - h) + f(x - 2 * h)) / (2 * h);
 }
 
 function simpson(f: Fn, a: number, b: number, n = 600): number {
@@ -339,9 +351,551 @@ function deQuad(f: Fn, a: number, b: number, T: number, h = 1 / 32): number {
 
 const boundVal = (t: string) => (t.trim() === '\\infty' ? Infinity : t.trim() === '-\\infty' ? -Infinity : evalReal(t));
 
+
+// ---------------------------------------------------------------- differential equations
+
+interface DE {
+  dep: string;
+  ind: string;
+  rhs: string;
+  F: (x: number, y: number) => number;
+}
+
+/** `\frac{dy}{dx} = …` segment of a rich string. */
+function parseDE(rich: string): DE {
+  for (const seg of mathSegments(rich)) {
+    const mm = /^\\frac\{d([a-zA-Z])\}\{d([a-zA-Z])\} = ([\s\S]+)$/.exec(strip(seg));
+    if (mm) {
+      const [, dep, ind, rhs0] = mm as unknown as [string, string, string, string];
+      return { dep, ind, rhs: rhs0, F: (x, y) => ev(rhs0, { [ind]: x, [dep]: y }) };
+    }
+  }
+  throw new Error(`no differential equation in ${rich}`);
+}
+
+/** Initial condition `y(a) = b` for the dependent variable. */
+function initialOf(rich: string, dep: string): [number, number] | null {
+  for (const seg of mathSegments(rich)) {
+    const mm = /^([a-zA-Z])\(([^()]+)\) = (.+)$/.exec(strip(seg));
+    if (mm && mm[1] === dep) return [evalReal(mm[2]!), evalReal(mm[3]!)];
+  }
+  return null;
+}
+
+type Path = { t: 'path'; pts: ReadonlyArray<readonly [number, number]>; ink?: string; role?: string };
+/** Slope marks of a slope-field figure: two-point paths in 'ink'. */
+function slopeMarks(p: ProblemContent): Array<{ x: number; y: number; s: number }> {
+  return ((p.diagram?.items ?? []) as unknown as Path[])
+    .filter((it) => it.t === 'path' && it.pts.length === 2 && it.ink === 'ink' && !it.role)
+    .map(({ pts: [[x1, y1], [x2, y2]] }) => ({ x: (x1 + x2) / 2, y: (y1 + y2) / 2, s: (y2 - y1) / (x2 - x1) }));
+}
+
+
+// ---------------------------------------------------------------- parametric, polar, vector
+
+/** `x = …` and `y = …` (in t) of a parametric question. */
+function paramXY(q: string): [Fn, Fn] {
+  const segs = mathSegments(q).map(strip);
+  const xs = segs.find((x) => /^x = /.test(x))!;
+  const ys = segs.find((x) => /^y = /.test(x))!;
+  return [fnOf(rhs(xs), 't'), fnOf(rhs(ys), 't')];
+}
+
+/** `a \le v \le b` → [v, a, b] */
+function chainInterval(q: string): [string, number, number] {
+  for (const seg of mathSegments(q).map(strip)) {
+    const { parts, rels } = splitTop(seg, ['\\le']);
+    if (rels.length === 2 && /^[a-z]$/.test(parts[1]!.trim())) return [parts[1]!.trim(), evalReal(parts[0]!), evalReal(parts[2]!)];
+  }
+  throw new Error(`no interval in ${q}`);
+}
+
+const untheta = (t: string) => t.replace(/\\theta/g, ' t ').replace(/\s+/g, ' ').trim();
+
+/** Vector `\left\langle a, b \right\rangle` → [a, b] as TeX. */
+const vecItems = (t: string) => listItems(strip(t));
+
+/** Check a `y = mx + b` answer against a line through (x0, y0) with slope m. */
+function expectLine(answer: string, x0: number, y0: number, slope: number, what: string): void {
+  const ans = strip(onlyMath(answer));
+  expect(ans, answer).toMatch(/^y = /);
+  for (const x of [x0 - 1.5, x0 + 0.5, x0 + 2]) expect(near(evalReal(rhs(ans), { vars: { x } }), y0 + slope * (x - x0), 1e-6), `${what} → ${answer} at x=${x}`).toBe(true);
+}
+
+
+// ---------------------------------------------------------------- series
+
+/** `\sum_{n=k}^{\infty} body` in a segment. */
+function parseSum(seg: string): { from: number; body: string } {
+  const mm = /\\sum_\{n=(-?\d+)\}\^\{\\infty\}\s*([\s\S]+)$/.exec(strip(seg));
+  if (!mm) throw new Error(`no series in ${seg}`);
+  return { from: Number(mm[1]), body: mm[2]!.trim() };
+}
+
+/** Exact signs: (−1)^n → u, (−1)^{n+1} → w, (−k)^n → u·k^n (cpow of negatives at large n is inexact). */
+function signed(body: string): string {
+  return body.replace(/\(-1\)\^\{n\+1\}/g, ' w ').replace(/\(-1\)\^\{n\}/g, ' u ').replace(/\(-(\d+)\)\^\{n\}/g, ' u $1^{n} ');
+}
+function termFn(body: string, extra: Record<string, number> = {}, vSign = 1): (n: number) => number {
+  const b = signed(body);
+  return (n) => ev(b, { ...extra, n, u: n % 2 === 0 ? 1 : -1, w: n % 2 === 0 ? -1 : 1, v: n % 2 === 0 ? 1 : vSign });
+}
+
+/** Value after the last ≤ of the answer's math. */
+const leValue = (p: ProblemContent) => val(splitTop(strip(mathSegments(p.answer).at(-1)!), ['\\le']).parts.at(-1)!);
+
+interface SeriesInfo {
+  verdict: 'conv' | 'div';
+  sum?: number;
+  /** ratio-test limit estimate, when the ratio settles */
+  L?: number;
+}
+
+/** Numerical convergence: ratio of terms (fast path), nth-term test, then the doubling-block tail test. */
+function analyse(a: (n: number) => number, n0: number): SeriesInfo {
+  // (indices stay small: the evaluator's complex division overflows for huge numerators/denominators)
+  const r = (n: number) => Math.abs(a(n + 1) / a(n));
+  const r1 = r(n0 + 20);
+  const r2 = r(n0 + 40);
+  const steady = Math.abs(r(n0 + 21) - r1) < 0.05 * Math.max(1, r1) && Math.abs(r(n0 + 41) - r2) < 0.05 * Math.max(1, r2);
+  const L = Number.isFinite(r1) && Number.isFinite(r2) && steady ? 2 * r2 - r1 : undefined;
+  if (L !== undefined && L < 0.9 && r2 < 0.97) {
+    let s = 0;
+    for (let n = n0; n < n0 + 500; n++) {
+      const t = a(n);
+      if (!Number.isFinite(t)) break;
+      s += t;
+      if (n > n0 + 20 && Math.abs(t) < 1e-18 * Math.max(1, Math.abs(s))) break;
+    }
+    return { verdict: 'conv', sum: s, L };
+  }
+  if (L !== undefined && L > 1.1) return { verdict: 'div', L };
+  if (L === undefined && steady && Number.isFinite(r1) && r1 > 1.1) return { verdict: 'div', L: r1 };
+  const marks: Record<number, number> = {};
+  let s = 0;
+  // N = 128 keeps b^n (b ≤ 5) and its square inside double range
+  for (let n = n0; n <= 128; n++) {
+    s += a(n);
+    if (n === 32 || n === 64 || n === 128) marks[n] = s;
+  }
+  if (!Number.isFinite(s)) return { verdict: 'div' };
+  const aN = Math.abs(a(128));
+  if (aN > 1e-3 && aN >= 0.9 * Math.abs(a(64))) return { verdict: 'div' };
+  const D1 = marks[64]! - marks[32]!;
+  const D2 = marks[128]! - marks[64]!;
+  if (D1 === 0 && D2 === 0) return { verdict: 'conv', sum: s };
+  const q = Math.abs(D2) / Math.abs(D1);
+  if (q < 0.85) return { verdict: 'conv', sum: 2 * marks[128]! - marks[64]! };
+  if (q > 0.93) return { verdict: 'div' };
+  throw new Error(`series convergence is numerically ambiguous (block ratio ${q})`);
+}
+
+/** Is P the degree-n Taylor polynomial of f about a? Degree ≤ n and f − P = O((x − a)^{n+1}). */
+function expectTaylor(f: Fn, P: Fn, a: number, n: number, what: string): void {
+  // (n+1)-th finite difference of a degree-≤n polynomial vanishes
+  const h0 = 0.37;
+  let diff = 0;
+  let scale = 0;
+  for (let k = 0; k <= n + 1; k++) {
+    const c = binom(n + 1, k) * (k % 2 ? -1 : 1);
+    const v = P(a - 0.5 + k * h0);
+    diff += c * v;
+    scale += Math.abs(c * v);
+  }
+  expect(Math.abs(diff), `${what}: degree at most ${n}`).toBeLessThan(1e-9 * Math.max(1, scale));
+  const e = (h: number) => Math.max(Math.abs(f(a + h) - P(a + h)), Math.abs(f(a - h) - P(a - h)));
+  const e1 = e(0.1);
+  const e2 = e(0.05);
+  if (e2 < 1e-13) return;
+  expect(Math.log2(e1 / e2), `${what}: error order ${Math.log2(e1 / e2)} < ${n + 1}`).toBeGreaterThan(n + 0.6);
+}
+function binom(n: number, k: number): number {
+  let r = 1;
+  for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i;
+  return r;
+}
+
 // ---------------------------------------------------------------- verifiers
 
 export const VERIFIERS: Record<string, Verifier> = {
+
+  /** Limits of sequences a_n: "Converges to $L$" or "Diverges". */
+  'calculus.sequence'(p) {
+    const seg = mathSegments(p.question).map(strip).find((x) => /^a_\{n\} = /.test(x))!;
+    const a = termFn(rhs(seg));
+    // the largest scale at which every value is a number (exponentials overflow early)
+    let vals: number[] = [];
+    for (const N of [1e6, 1e4, 1e3, 300, 100]) {
+      vals = [2 * N, 2 * N + 1, 4 * N, 4 * N + 1].map(a);
+      if (vals.every((x) => !Number.isNaN(x))) break;
+    }
+    const v = vals[2]!;
+    const conv = vals.every(Number.isFinite) && Math.max(...vals) - Math.min(...vals) <= 1e-4 * Math.max(1, Math.abs(v));
+    if (/diverg/i.test(p.answer)) expect(conv, `${seg} should diverge: ${vals}`).toBe(false);
+    else {
+      expect(conv, `${seg} should converge: ${vals}`).toBe(true);
+      expect(near(val(onlyMath(p.answer)), v, 1e-4), `${p.answer} vs ${v}`).toBe(true);
+    }
+  },
+
+  /** Series convergence (and sum / ratio-test limit when stated); check.absolute splits absolute vs conditional. */
+  'calculus.series'(p) {
+    const seg = mathSegments(p.question).find((x) => x.includes('\\sum'))!;
+    const { from, body } = parseSum(seg);
+    const a = termFn(body);
+    const info = analyse(a, from);
+    const ans = p.answer;
+    if (p.check!.absolute) {
+      const absInfo = analyse((n) => Math.abs(a(n)), from);
+      const kind = info.verdict === 'div' ? 'div' : absInfo.verdict === 'conv' ? 'abs' : 'cond';
+      const said = /diverg/i.test(ans) ? 'div' : /conditional/i.test(ans) ? 'cond' : /absolute/i.test(ans) ? 'abs' : '?';
+      expect(said, `${seg}: ${kind}`).toBe(kind);
+      return;
+    }
+    expect(/diverg/i.test(ans) ? 'div' : 'conv', `${seg} (${JSON.stringify(info)}) → ${ans}`).toBe(info.verdict);
+    const to = /Converges to \$([^$]+)\$/.exec(ans);
+    if (to) expect(near(evalReal(to[1]!), info.sum!, 1e-6), `${ans} vs ${info.sum}`).toBe(true);
+    const Lm = /\$L = ([^$]+)\$/.exec(ans);
+    if (Lm) {
+      const root = p.check!.test === 'root';
+      const est = (n: number) => (root ? Math.abs(a(n)) ** (1 / n) : Math.abs(a(n + 1) / a(n)));
+      const e1 = est(from + 20);
+      const e2 = est(from + 40);
+      if (Lm[1] === '\\infty') expect(e2 > 3 && e2 > 1.3 * e1, `L = ∞ for ${seg}: ${e1}, ${e2}`).toBe(true);
+      else expect(Math.abs(2 * e2 - e1 - evalReal(Lm[1]!)), `L for ${seg}: ${e1}, ${e2}`).toBeLessThan(0.02);
+    }
+  },
+
+  /** Alternating series error bound: the stated bound is |a_{N+1}| and covers the true error. */
+  'calculus.alterror'(p) {
+    const { from, body } = parseSum(mathSegments(p.question).find((x) => x.includes('\\sum'))!);
+    const a = termFn(body);
+    const N = p.check!.N as number;
+    let SN = 0;
+    for (let n = from; n < from + N; n++) SN += a(n);
+    let S = 0;
+    let prev = 0;
+    for (let n = from; n <= 20000; n++) {
+      const t = a(n);
+      if (!Number.isFinite(t)) break;
+      prev = S;
+      S += t;
+    }
+    const Sinf = (S + prev) / 2;
+    const bound = leValue(p);
+    expect(near(bound, Math.abs(a(from + N)), 1e-9), `bound is the first omitted term`).toBe(true);
+    expect(bound >= Math.abs(Sinf - SN) * (1 - 1e-6), `bound ${bound} ≥ error ${Math.abs(Sinf - SN)}`).toBe(true);
+  },
+
+  /** Radius and interval of convergence, by probing inside, outside and at the endpoints. */
+  'calculus.powerseries'(p) {
+    const { from, body } = parseSum(mathSegments(p.question).find((x) => x.includes('\\sum'))!);
+    // (x − a)^n with x − a < 0 is evaluated as v·|x − a|^n with an exact sign v = (±1)^n
+    const base = /\((x [+-] \d+)\)\^\{n\}|x\^\{n\}/.exec(body);
+    const conv = (x: number) => {
+      if (!base) return analyse(termFn(body, { x }), from).verdict === 'conv';
+      const t = evalReal(base[1] ?? 'x', { vars: { x } });
+      const b2 = body.replace(base[0], ` v ${Math.abs(t)}^{n} `);
+      return analyse(termFn(b2, { x }, t < 0 ? -1 : 1), from).verdict === 'conv';
+    };
+    const segs = mathSegments(p.answer).map(strip);
+    const Rtex = rhs(segs[0]!);
+    if (/only at/.test(p.answer)) {
+      expect(Rtex).toBe('0');
+      const a = evalReal(rhs(segs[1]!));
+      for (const d of [0.05, 0.3, -0.05, -0.3]) expect(conv(a + d), `diverges at ${a + d}`).toBe(false);
+      return;
+    }
+    const mm = /^([[(])(.*),(.*?)([\])])$/.exec(segs[1]!)!;
+    expect(mm, segs[1]).toBeTruthy();
+    if (Rtex === '\\infty') {
+      expect(segs[1]!.replace(/\s/g, '')).toBe('(-\\infty,\\infty)');
+      for (const x of [-5.3, -1.1, 0.7, 2.9, 6.1]) expect(conv(x), `converges at ${x}`).toBe(true);
+      return;
+    }
+    const lo = evalReal(mm[2]!);
+    const hi = evalReal(mm[3]!);
+    const R = evalReal(Rtex);
+    expect(near((hi - lo) / 2, R, 1e-12), 'interval width matches R').toBe(true);
+    const a = (lo + hi) / 2;
+    for (const x of [a - R / 2, a + R / 2]) expect(conv(x), `converges inside at ${x}`).toBe(true);
+    for (const x of [a - 1.5 * R, a + 1.5 * R]) expect(conv(x), `diverges outside at ${x}`).toBe(false);
+    expect(conv(lo), `left endpoint ${lo}`).toBe(mm[1] === '[');
+    expect(conv(hi), `right endpoint ${hi}`).toBe(mm[4] === ']');
+  },
+
+  /** Taylor polynomials: degree and order of contact; or the approximation P_n(b) via numeric derivatives (n ≤ 3). */
+  'calculus.taylor'(p) {
+    const d = definition(p.question);
+    const f = fnOf(d.body, 'x');
+    const n = p.check!.n as number;
+    const a = p.check!.a as number;
+    if (p.check!.approx) {
+      const b = evalReal(/^f\((.+)\)$/.exec(mathSegments(p.question).map(strip).find((x) => /^f\([^x)]+\)$/.test(x))!)![1]!);
+      let want = 0;
+      let fact = 1;
+      for (let k = 0; k <= n; k++) {
+        if (k) fact *= k;
+        want += (DERIV[k]!(f, a) / fact) * (b - a) ** k;
+      }
+      expect(Math.abs(wordProblemValue(p) - want), `${p.answer} vs ${want}`).toBeLessThanOrEqual(6e-5);
+      return;
+    }
+    const ans = strip(onlyMath(p.answer));
+    expect(ans.startsWith(`P_{${n}}(x) =`), 'P_n notation').toBe(true);
+    const P = fnOf(rhs(ans), 'x');
+    expectTaylor(f, P, a, n, `${p.question} → ${p.answer}`);
+  },
+
+  /** Maclaurin series in sigma notation: partial sums match f near 0. */
+  'calculus.maclaurin'(p) {
+    const f = fnOf(rhs(strip(onlyMath(p.question))), 'x');
+    const { from, body } = parseSum(onlyMath(p.answer));
+    for (const x of [0.03, -0.05, 0.07]) {
+      const t = termFn(body, { x });
+      let s = 0;
+      for (let n = from; n < from + 160; n++) {
+        const v = t(n);
+        if (!Number.isFinite(v)) break;
+        s += v;
+        if (n > from + 10 && Math.abs(v) < 1e-18) break;
+      }
+      expect(near(s, f(x), 1e-9), `${p.answer} at x=${x}: ${s} vs ${f(x)}`).toBe(true);
+    }
+  },
+
+  /** Lagrange error bound: P is the Taylor polynomial, the bound covers the true error and has the stated value. */
+  'calculus.lagrange'(p) {
+    const segs = mathSegments(p.question).map(strip);
+    const Pseg = segs.find((x) => /^P_\{\d+\}\(x\) = /.test(x))!;
+    const P = fnOf(rhs(Pseg), 'x');
+    const f = fnOf(rhs(segs.find((x) => /^f\(x\) = /.test(x))!), 'x');
+    const n = p.check!.n as number;
+    expectTaylor(f, P, 0, n, Pseg);
+    const mm = /R_\{(\d+)\}\((.+?)\)/.exec(onlyMath(p.answer))!;
+    const b = evalReal(mm[2]!);
+    const bound = leValue(p);
+    expect(bound >= Math.abs(f(b) - P(b)) * (1 - 1e-9), `bound ${bound} ≥ ${Math.abs(f(b) - P(b))}`).toBe(true);
+    expect(near(bound, p.check!.value as number, 1e-9), 'bound value').toBe(true);
+  },
+
+  /** Parametric curves: dy/dx, d²y/dx² (in t), tangent line at t = t0, horizontal/vertical tangents. */
+  'calculus.parametric'(p) {
+    const [X, Y] = paramXY(p.question);
+    const task = p.check!.task as string;
+    if (task === 'hv') {
+      const parts = labeled(p.answer);
+      for (const [label, g, other] of [['horizontal', Y, X], ['vertical', X, Y]] as const) {
+        const part = parts.find((pp) => pp.label.includes(label))!;
+        expect(part, `${label} in ${p.answer}`).toBeTruthy();
+        const listed = part.segs.map(tupleOf);
+        const roots = signChanges((t) => d1(g, t), -10.013, 10.017, 800).filter((t) => Math.abs(d1(other, t)) > 1e-6);
+        expect(listed.length, `${label}: roots ${roots.join(', ')} vs ${p.answer}`).toBe(roots.length);
+        for (const t of roots) expect(listed.some(([x, y]) => near(x!, X(t), 1e-6) && near(y!, Y(t), 1e-6)), `${label} point at t=${t}`).toBe(true);
+      }
+      return;
+    }
+    if (task === 'tangent') {
+      const t0 = evalReal(rhs(mathSegments(p.question).map(strip).find((x) => /^t = /.test(x))!));
+      expectLine(p.answer, X(t0), Y(t0), d1(Y, t0) / d1(X, t0), p.question);
+      return;
+    }
+    const ans = rhs(strip(onlyMath(p.answer)));
+    let checked = 0;
+    for (const t of [0.7, 1.3, -0.6, 2.1, -1.7, 0.35]) {
+      const xp = d1(X, t);
+      if (Math.abs(xp) < 0.05) continue;
+      const want = task === 'dydx' ? d1(Y, t) / xp : (d2(Y, t) * xp - d1(Y, t) * d2(X, t)) / xp ** 3;
+      expect(near(evalReal(ans, { vars: { t } }), want, 1e-5), `${p.question} → ${p.answer} at t=${t}`).toBe(true);
+      checked++;
+    }
+    expect(checked).toBeGreaterThanOrEqual(3);
+  },
+
+  /** Arc length of y = f(x) or of x(t), y(t) over the interval `a \le v \le b`. */
+  'calculus.arclength'(p) {
+    const [v, a, b] = chainInterval(p.question);
+    let speed: Fn;
+    if (v === 't') {
+      const [X, Y] = paramXY(p.question);
+      speed = (t) => Math.hypot(d1edge(X, t), d1edge(Y, t));
+    } else {
+      const d = definition(p.question, v);
+      const f = fnOf(d.body, v);
+      speed = (x) => Math.hypot(1, d1edge(f, x));
+    }
+    const L = simpsonSafe(speed, a, b, 800);
+    const got = wordProblemValue(p);
+    if (p.check!.approx) expect(Math.abs(got - L), `${p.answer} vs ${L}`).toBeLessThanOrEqual(5.1e-4);
+    else expect(near(got, L, 1e-7), `${p.answer} vs ${L}`).toBe(true);
+  },
+
+  /** Polar slope dy/dx or tangent line at θ = θ0. */
+  'calculus.polar'(p) {
+    const segs = mathSegments(p.question).map((x) => untheta(strip(x)));
+    const r = fnOf(rhs(segs.find((x) => /^r = /.test(x))!), 't');
+    const t0 = evalReal(rhs(segs.find((x) => /^t = /.test(x))!));
+    const R = r(t0);
+    const dR = d1(r, t0);
+    const slope = (dR * Math.sin(t0) + R * Math.cos(t0)) / (dR * Math.cos(t0) - R * Math.sin(t0));
+    if (p.check!.task === 'slope') expect(near(val(rhs(strip(onlyMath(p.answer)))), slope, 1e-6), `${p.question} → ${p.answer} (${slope})`).toBe(true);
+    else expectLine(p.answer, R * Math.cos(t0), R * Math.sin(t0), slope, p.question);
+  },
+
+  /** Polar area: ½∫r² over one region (bounds are zeros of r or a full turn), or between two curves. */
+  'calculus.polararea'(p) {
+    const curves = mathSegments(p.question)
+      .map((x) => untheta(strip(x)))
+      .filter((x) => /^r = /.test(x))
+      .map((x) => fnOf(rhs(x), 't'));
+    const [lo, hi] = p.check!.bounds as [number, number];
+    const probes = Array.from({ length: 39 }, (_, i) => lo + ((hi - lo) * (i + 0.5)) / 39);
+    let want: number;
+    if (!p.check!.between) {
+      expect(curves.length).toBe(1);
+      const r = curves[0]!;
+      const full = close(hi - lo, 2 * Math.PI);
+      for (const b of [lo, hi]) expect(full || Math.abs(r(b)) < 1e-9, `bound ${b} is a zero of r`).toBe(true);
+      const sgn = Math.sign(r(probes[0]!));
+      probes.forEach((t) => expect(r(t) * sgn >= -1e-12, `one region (r keeps its sign) at ${t}`).toBe(true));
+      want = 0.5 * simpsonSafe((t) => r(t) ** 2, lo, hi);
+    } else {
+      expect(curves.length).toBe(2);
+      const [outer, inner] = curves as [Fn, Fn];
+      for (const b of [lo, hi]) expect(near(outer(b), inner(b), 1e-9), `curves meet at ${b}`).toBe(true);
+      probes.forEach((t) => expect(outer(t) >= inner(t) - 1e-12 && inner(t) >= -1e-12, `inside ${t}`).toBe(true));
+      want = 0.5 * simpsonSafe((t) => outer(t) ** 2 - inner(t) ** 2, lo, hi);
+    }
+    expect(near(wordProblemValue(p), want, 1e-7), `${p.question} → ${p.answer} (${want})`).toBe(true);
+  },
+
+  /** Plane motion r(t) = ⟨x, y⟩: velocity/acceleration, speed, displacement, distance. */
+  'calculus.vector2d'(p) {
+    const seg = mathSegments(p.question).map(strip).find((x) => /^r\(t\) = /.test(x))!;
+    const [xs, ys] = vecItems(rhs(seg)) as [string, string];
+    const X = fnOf(xs, 't');
+    const Y = fnOf(ys, 't');
+    const task = p.check!.task as string;
+    const qs = mathSegments(p.question).map(strip);
+    if (task === 'va') {
+      for (const s0 of mathSegments(p.answer).map(strip)) {
+        const [l, r0] = sides(s0);
+        const mm = /^([va])\((.+)\)$/.exec(l.trim())!;
+        const t = evalReal(mm[2]!);
+        const got = vecItems(r0).map((x) => evalReal(x));
+        const want = mm[1] === 'v' ? [d1(X, t), d1(Y, t)] : [d2(X, t), d2(Y, t)];
+        expect(near(got[0]!, want[0]!, 1e-5) && near(got[1]!, want[1]!, 1e-5), `${s0} vs ${want}`).toBe(true);
+      }
+    } else if (task === 'speed') {
+      const ans = strip(onlyMath(p.answer));
+      const t = evalReal(/^\|v\((.+)\)\|/.exec(ans)![1]!);
+      expect(near(evalReal(rhs(ans)), Math.hypot(d1(X, t), d1(Y, t)), 1e-6), `${p.answer}`).toBe(true);
+    } else if (task === 'displacement') {
+      const ts = qs.filter((x) => /^t = /.test(x)).map((x) => evalReal(rhs(x)));
+      const got = vecItems(onlyMath(p.answer)).map((x) => evalReal(x));
+      expect(near(got[0]!, X(ts[1]!) - X(ts[0]!), 1e-9) && near(got[1]!, Y(ts[1]!) - Y(ts[0]!), 1e-9), p.answer).toBe(true);
+    } else {
+      const [, a, b] = chainInterval(p.question);
+      const want = simpsonSafe((t) => Math.hypot(d1(X, t), d1(Y, t)), a, b, 800);
+      expect(near(wordProblemValue(p), want, 1e-7), `${p.answer} vs ${want}`).toBe(true);
+    }
+  },
+
+  /** Solutions of differential equations, checked by substitution (C sampled when present) and the initial condition. */
+  'calculus.ode'(p) {
+    const de = parseDE(p.question);
+    const ans = strip(onlyMath(p.answer));
+    expect(splitTop(ans, ['=']).parts[0]!.trim(), 'solved for the dependent variable').toBe(de.dep);
+    const G = rhs(ans);
+    const init = initialOf(p.question, de.dep);
+    const hasC = /(?<!\\[a-zA-Z]*)C/.test(G);
+    if (init) {
+      expect(hasC, 'particular solution has no C').toBe(false);
+      expect(near(ev(G, { [de.ind]: init[0] }), init[1], 1e-9), `${p.answer} at ${init[0]}`).toBe(true);
+    } else expect(hasC, 'general solution keeps C').toBe(true);
+    let checked = 0;
+    for (const C of hasC ? [0.7, 1.9, 3.1] : [0]) {
+      const g = (t: number) => ev(G, { [de.ind]: t, C });
+      for (const x of (p.check!.pts as number[] | undefined) ?? [0.15, 0.3, 0.45, -0.2, -0.35]) {
+        const y = g(x);
+        if (!Number.isFinite(y)) continue;
+        expect(near(d1(g, x), de.F(x, y), 1e-5), `${p.question} → ${p.answer} at ${de.ind}=${x}, C=${C}`).toBe(true);
+        checked++;
+      }
+    }
+    expect(checked, 'substitution points').toBeGreaterThanOrEqual(3);
+  },
+
+  /** Euler's method recomputed from the rendered equation, start, step and target. */
+  'calculus.euler'(p) {
+    const de = parseDE(p.question);
+    const [x0, y0] = initialOf(p.question, de.dep)!;
+    const segs = mathSegments(p.question).map(strip);
+    const h = evalReal(rhs(segs.find((x) => /^h = /.test(x))!));
+    const T = evalReal(/^y\((.+)\)$/.exec(segs.find((x) => /^y\([^)]*\)$/.test(x))!)![1]!);
+    const n = Math.round((T - x0) / h);
+    expect(close(x0 + n * h, T), 'whole number of steps').toBe(true);
+    let x = x0;
+    let y = y0;
+    for (let k = 0; k < n; k++) {
+      y += h * de.F(x, y);
+      x += h;
+    }
+    expect(near(wordProblemValue(p), y, 1e-9), `${p.question} → ${p.answer} (${y})`).toBe(true);
+  },
+
+  /** Slope fields: the answer matches every drawn mark and each distractor misses one; or a sketched solution. */
+  'calculus.slopefield'(p) {
+    const marks = slopeMarks(p);
+    expect(marks.length, 'slope marks drawn').toBeGreaterThan(20);
+    const fits = (F: (x: number, y: number) => number) => marks.every((mk) => near(F(mk.x, mk.y), mk.s, 1e-6));
+    if (p.check!.task === 'match') {
+      expect(fits(parseDE(p.answer).F), `${p.answer} fits the field`).toBe(true);
+      for (const d of p.distractors!.slice(0, 3)) expect(fits(parseDE(d).F), `${d} should not fit`).toBe(false);
+      return;
+    }
+    const de = parseDE(p.question);
+    expect(fits(de.F), 'field drawn for the question equation').toBe(true);
+    const pt = mathSegments(p.question).map(strip).find((x) => /^\\left\(/.test(x))!;
+    const [x0, y0] = listItems(pt).map((t) => evalReal(t)) as [number, number];
+    const xs = [-0.5, -0.2, 0.3, 0.6];
+    const solves = (rich: string) => {
+      const G = rhs(strip(onlyMath(rich)));
+      const g = (t: number) => ev(G, { x: t });
+      return near(g(x0), y0, 1e-9) && xs.every((x) => Number.isFinite(g(x)) && near(d1(g, x), de.F(x, g(x)), 1e-5));
+    };
+    expect(solves(p.answer), `${p.answer} solves ${de.rhs} through (${x0}, ${y0})`).toBe(true);
+    for (const d of p.distractors!.slice(0, 3)) expect(solves(d), `${d} should not solve the IVP`).toBe(false);
+    const G = rhs(strip(onlyMath(p.answer)));
+    const pts = curvePoints(p.answerDiagram);
+    expect(pts.length).toBeGreaterThan(5);
+    for (const [x, y] of pts) expect(near(ev(G, { x }), y, 1e-9), `curve point (${x}, ${y})`).toBe(true);
+  },
+
+  /** Logistic models: carrying capacity, fastest growth, long-run limit (RK4). */
+  'calculus.logistic'(p) {
+    const de = parseDE(p.question);
+    const R = (P: number) => de.F(0, P);
+    const got = wordProblemValue(p);
+    const task = p.check!.task as string;
+    if (task === 'capacity') {
+      expect(Math.abs(R(got)), `R(${got}) = 0`).toBeLessThan(1e-9 * Math.max(1, got));
+      expect(got > 0 && R(got / 2) > 0, 'positive growth below K').toBe(true);
+    } else if (task === 'fastest') {
+      expect(R(got) > 0 && R(got) > R(got * 0.99) && R(got) > R(got * 1.01), `maximum growth at ${got}`).toBe(true);
+    } else {
+      let [t, P] = initialOf(p.question, de.dep)!;
+      const dt = 0.05;
+      for (; t < 300; t += dt) {
+        const k1 = R(P);
+        const k2 = R(P + (dt / 2) * k1);
+        const k3 = R(P + (dt / 2) * k2);
+        const k4 = R(P + dt * k3);
+        P += (dt / 6) * (k1 + 2 * k2 + 2 * k3 + k4);
+      }
+      expect(near(got, P, 1e-4), `limit ${got} vs ${P}`).toBe(true);
+    }
+  },
 
   /** Improper integrals: "Diverges" or "Converges to $v$", by DE quadrature and its truncation tail. */
   'calculus.improper'(p) {

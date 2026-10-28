@@ -8,6 +8,9 @@ import { concavity, extrema, lhopital, meanValueTheorem, motion, optimization, r
 import { averageValue, definiteIntegrals, ftc, integrationByParts, riemannSums, trigExpIntegrals, uSubstitution } from '../calculus/integration';
 import { areaBetweenCurves, crossSections, shellMethod, volumesOfRevolution } from '../calculus/integration-apps';
 import { improperIntegrals, partialFractions, trigIntegrals, trigSubstitution } from '../calculus/techniques';
+import { eulersMethod, exponentialModels, logisticGrowth, separableEquations, slopeFields } from '../calculus/diffeq';
+import { arcLength, parametricDerivatives, polarArea, polarDerivatives, vectorFunctions } from '../calculus/parametric';
+import { alternatingSeries, comparisonTests, geometricSeries, lagrangeError, maclaurinSeries, powerSeriesInterval, pSeries, ratioRootTests, sequenceConvergence, taylorPolynomials } from '../calculus/series';
 import { chainRule, derivativeDefinition, productRule, quotientRule } from '../calculus/diff-rules';
 import { continuity, limitsAtInfinity, oneSidedLimits, trigLimits } from '../calculus/limits-more';
 
@@ -57,6 +60,29 @@ const topics: TopicGenerator[] = [
   volumesOfRevolution,
   crossSections,
   shellMethod,
+  // Differential Equations
+  slopeFields,
+  eulersMethod,
+  separableEquations,
+  exponentialModels,
+  logisticGrowth,
+  // Parametric, Polar and Vector-Valued Functions
+  parametricDerivatives,
+  arcLength,
+  polarDerivatives,
+  polarArea,
+  vectorFunctions,
+  // Infinite Sequences and Series
+  sequenceConvergence,
+  geometricSeries,
+  pSeries,
+  comparisonTests,
+  ratioRootTests,
+  alternatingSeries,
+  powerSeriesInterval,
+  taylorPolynomials,
+  maclaurinSeries,
+  lagrangeError,
 ];
 
 export default topics;
