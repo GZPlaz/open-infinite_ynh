@@ -388,8 +388,16 @@ function factorial(n: number): number {
 }
 
 /** Evaluate a LaTeX expression. */
+const TOKENS = new Map<string, Tok[]>();
+
 export function evaluate(tex: string, opts: EvalOptions = {}): C {
-  return new Parser(tokenize(tex), opts).parseAll();
+  // the parser never mutates its token list, so tokenisations can be reused
+  let toks = TOKENS.get(tex);
+  if (!toks) {
+    if (TOKENS.size > 20000) TOKENS.clear();
+    TOKENS.set(tex, (toks = tokenize(tex)));
+  }
+  return new Parser(toks, opts).parseAll();
 }
 
 /** Evaluate and require a real result. */
