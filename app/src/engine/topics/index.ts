@@ -16,6 +16,7 @@ import alg2Sequences from './packs/alg2-sequences-probability';
 import alg2Systems from './packs/alg2-systems-matrices-complex';
 import calculus from './packs/calculus';
 import geometry from './packs/geometry';
+import multivariable from './packs/multivariable';
 import prealgebra from './packs/prealgebra';
 import precalculus from './packs/precalculus';
 import trigonometry from './packs/trigonometry';
@@ -35,6 +36,7 @@ const PACKED: readonly TopicGenerator[] = [
   ...trigonometry,
   ...precalculus,
   ...calculus,
+  ...multivariable,
 ];
 
 const isTopic = (v: unknown): v is TopicGenerator =>

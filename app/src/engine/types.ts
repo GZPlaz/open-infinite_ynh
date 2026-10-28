@@ -17,7 +17,7 @@ export const DIFFICULTIES: readonly Difficulty[] = ['easy', 'medium', 'hard'];
  */
 export type RichText = string;
 
-export type SubjectId = 'prealgebra' | 'algebra1' | 'algebra2' | 'geometry' | 'trigonometry' | 'precalculus' | 'calculus';
+export type SubjectId = 'prealgebra' | 'algebra1' | 'algebra2' | 'geometry' | 'trigonometry' | 'precalculus' | 'calculus' | 'multivariable';
 
 export interface Subject {
   id: SubjectId;
@@ -32,6 +32,7 @@ export const SUBJECTS: readonly Subject[] = [
   { id: 'trigonometry', title: 'Trigonometry' },
   { id: 'precalculus', title: 'Precalculus' },
   { id: 'calculus', title: 'Calculus' },
+  { id: 'multivariable', title: 'Multivariable Calculus' },
 ];
 
 export interface BooleanOptionDef {
