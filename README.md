@@ -10,7 +10,7 @@ Everything happens **in the browser**: problem generation, step-by-step solution
 
 | Area | What you get |
 | --- | --- |
-| **Topics** | 266 topic generators in 7 subjects — Pre-Algebra, Algebra 1, Algebra 2, Geometry, Trigonometry, Precalculus and Calculus — grouped by category (see below). Each has Easy / Medium / Hard tiers and its own options, e.g. integer vs. fractional answers, negative numbers, rounding vs. exact (radical/π) form, units, special cases. |
+| **Topics** | 285 topic generators in 7 subjects — Pre-Algebra, Algebra 1, Algebra 2, Geometry, Trigonometry, Precalculus and Calculus — grouped by category (see below). Each has Easy / Medium / Hard tiers and its own options, e.g. integer vs. fractional answers, negative numbers, rounding vs. exact (radical/π) form, units, special cases. |
 | **Formats** | Free response or multiple choice. Distractors are built from typical mistakes (sign errors, forgetting to distribute, wrong formula…). |
 | **Layout** | 1, 2 or 3 columns; work space under each problem (none → XL); Name / Date / Period / Score fields; title and subtitle; US Letter or A4; text size; page numbers. |
 | **Editing** | Regenerate everything (new seed) or a single problem; reorder by drag-and-drop or ↑/↓; edit any question, answer, choice or solution step by hand (LaTeX between `$…$`); delete; undo/redo. |
@@ -81,13 +81,15 @@ Grouped by subject and category, as in the topic picker. Generated with `npx vit
 
 </details>
 
-<details><summary><b>Trigonometry</b> — 16 topics</summary>
+<details><summary><b>Trigonometry</b> — 35 topics</summary>
 
-- **Angles and Angle Measure:** Angles and Angle Measure · Converting Between Degrees and Radians · Degrees and Degrees-Minutes-Seconds · Coterminal Angles · Arc Length and Sector Area
+- **Angles and Angle Measure:** Angles and Angle Measure · Reference Angles · Converting Between Degrees and Radians · Degrees and Degrees-Minutes-Seconds · Coterminal Angles · Arc Length and Sector Area · Linear and Angular Speed
 - **Right Triangle Trigonometry:** Right Triangle Trig: Finding Ratios · Right Triangle Trig: Finding Angle Measures · Right Triangle Trig: Finding Angles and Sides
-- **Trigonometric Functions:** Trig Functions of Any Angle · Graphing Trig Functions
-- **Laws of Sines and Cosines:** The Law of Sines · The Law of Cosines · Area and Laws of Sines and Cosines
-- **Trigonometric Identities and Equations:** Angle Sum and Difference Identities · Double-Angle and Half-Angle Identities · Solving Trigonometric Equations
+- **Trigonometric Functions:** The Unit Circle · Trig Functions of Any Angle · Graphing Trig Functions · Graphing Tangent, Cotangent, Secant and Cosecant · Writing Equations of Sinusoids · Sinusoidal Models
+- **Inverse Trigonometric Functions:** Evaluating Inverse Trig Functions · Compositions of Trig and Inverse Trig Functions
+- **Laws of Sines and Cosines:** The Law of Sines · The Law of Cosines · Area and Laws of Sines and Cosines · Applications of the Laws of Sines and Cosines
+- **Trigonometric Identities and Equations:** Fundamental Identities · Verifying Trigonometric Identities · Angle Sum and Difference Identities · Double-Angle and Half-Angle Identities · Product-to-Sum and Sum-to-Product Identities · Solving Trigonometric Equations · Solving Trig Equations with Multiple Angles
+- **Polar Coordinates, Complex Numbers and Vectors:** Polar Coordinates · Converting Polar and Rectangular Equations · Graphing Polar Equations · Trigonometric Form of Complex Numbers · Vectors: Magnitude and Direction Angle · Dot Product and Angle Between Vectors
 
 </details>
 
@@ -113,7 +115,7 @@ Grouped by subject and category, as in the topic picker. Generated with `npx vit
 
 </details>
 
-<!-- 266 topics in total -->
+<!-- 285 topics in total -->
 
 ## How it works
 

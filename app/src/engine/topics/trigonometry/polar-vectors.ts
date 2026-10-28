@@ -83,7 +83,7 @@ export const vectorMagnitudeDirection = defineTopic({
         answer,
         steps: [
           m(`${NORM} = \\sqrt{(${x})^{2} + (${y})^{2}} = \\sqrt{${n2}}${isPerfectSquare(n2) ? ` = ${Math.round(Math.sqrt(n2))}` : sqrtTex(n2) === `\\sqrt{${n2}}` ? '' : ` = ${sqrtTex(n2)}`}`),
-          m(`\\tan \\theta' = \\left|\\frac{${y}}{${x}}\\right| \\Rightarrow \\theta' \\approx ${decimal(ref)}^\\circ`),
+          m(`\\tan \\theta' = \\left|\\frac{${y}}{${x}}\\right| \\Rightarrow \\theta' ${Math.abs(roundTo(ref, 1) - ref) > 1e-9 ? '\\approx' : '='} ${decimal(ref)}^\\circ`),
           `The vector points into Quadrant ${x > 0 ? (y > 0 ? 'I' : 'IV') : y > 0 ? 'II' : 'III'}, so ${m(angTex(dir))}.`,
         ],
         distractors: distinctDistractors(answer, [fmt(mag, ref), fmt(mag, direction(y, x)), fmt(wrongMag, dir), fmt(mag, (dir + 180) % 360)], (k) => fmt(mag, (dir + 10 * k) % 360)),

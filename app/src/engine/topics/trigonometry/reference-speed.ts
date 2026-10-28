@@ -10,7 +10,7 @@ import { angleTex, mod360, piTex, QUADRANTS, quadrantOf, referenceAngle, type An
 // ---------------------------------------------------------------- reference angles
 
 function pickAngle(rng: Rng, d: Difficulty, unit: AngleUnit): number {
-  const [lo, hi] = { easy: [0, 360], medium: [-360, 720], hard: [-1440, 1440] }[d];
+  const [lo, hi] = { easy: unit === 'rad' ? [-360, 720] : [0, 360], medium: [-360, 720], hard: [-1440, 1440] }[d];
   return attempt('reference angle', () => {
     let deg: number;
     if (unit === 'deg') deg = rng.int(Math.ceil(lo! / 5), Math.floor(hi! / 5)) * 5;
@@ -106,7 +106,7 @@ function build(rng: Rng, s: Scenario): Built {
           name: '\\omega',
           unit: 'rad/s',
           value: w,
-          steps: [m(`\\omega = \\frac{2\\pi}{${T}} = ${piTex(new Frac(2, T))} \\approx ${decimal(w, 2)}\\text{ rad/s}`)],
+          steps: [m(`\\omega = \\frac{2\\pi}{${T}}${new Frac(2, T).n === 2 ? '' : ` = ${piTex(new Frac(2, T))}`} \\approx ${decimal(w, 3)}\\text{ rad/s}`)],
           wrong: [360 / T, 1 / T, (TAU * r) / T, Math.PI / T],
           params: { r, T },
         };
@@ -235,7 +235,7 @@ export const linearAngularSpeed = defineTopic({
   title: 'Linear and Angular Speed',
   description: 'Word problems with wheels, Ferris wheels, pulleys, gears, satellites and Earth’s rotation, including unit conversions.',
   category: 'Angles and Angle Measure',
-  instruction: 'Solve each problem. Round answers to the nearest hundredth.',
+  instruction: 'Solve each problem. Round answers to the nearest hundredth (thousandth for values less than 1).',
   multipleChoice: true,
   defaultCount: 6,
   options: [
@@ -263,12 +263,13 @@ export const linearAngularSpeed = defineTopic({
     const pool = f === 'angular' || f === 'linear' || f === 'rpm' ? pools[f]![difficulty] : [...pools.angular![difficulty], ...pools.linear![difficulty], ...pools.rpm![difficulty]];
     const scenario = rng.pick(pool);
     const b = build(rng, scenario);
+    const places = Math.abs(b.value) < 1 ? 3 : 2;
     const fmt = (v: number) => {
-      const r = roundTo(v, 2);
-      return m(`${b.name} ${Math.abs(r - v) > 1e-9 ? '\\approx' : '='} ${decimal(v, 2)}\\text{ ${b.unit}}`);
+      const r = roundTo(v, places);
+      return m(`${b.name} ${Math.abs(r - v) > 1e-9 ? '\\approx' : '='} ${decimal(v, places)}\\text{ ${b.unit}}`);
     };
     const answer = fmt(b.value);
-    const differs = (w: number) => Number.isFinite(w) && w > 0 && Math.abs(roundTo(w, 2) - roundTo(b.value, 2)) > 0.005;
+    const differs = (w: number) => Number.isFinite(w) && w > 0 && Math.abs(roundTo(w, places) - roundTo(b.value, places)) > 0.5 * 10 ** -places;
     return {
       question: b.question,
       answer,

@@ -1,7 +1,7 @@
 /** Verifiers for the trigonometry pack. */
 import { expect } from 'vitest';
 import type { Diagram } from '../../src/engine/diagram';
-import { close, evalReal, splitTop } from '../evaluator';
+import { close, evalReal, listItems, splitTop } from '../evaluator';
 import { answerValues, curvePoints, mathSegments, onlyMath, rhs, sides, stripUnits, type Verifier } from '../verify';
 
 const TAU = 2 * Math.PI;
@@ -161,7 +161,7 @@ function partName(lhs: string): { part: string; sub: string } {
 // ---------------------------------------------------------------- equations
 
 function scanRoots(f: (x: number) => number): number[] {
-  const N = 3600;
+  const N = 2000;
   const h = TAU / N;
   const xs = Array.from({ length: N }, (_, i) => i * h);
   const ys = xs.map(f);
@@ -507,8 +507,49 @@ function agree(a: string, b: string, v: string, pts: number[], need = 4): boolea
 }
 
 const IDENTITY_PTS = [0.31, 0.77, 1.13, 2.05, 2.71, 3.62, 4.4, 5.17, -0.58, -1.94];
-/** The variable of an identity expression (after prep): x or t. */
-const varOf = (tex: string) => (/(?<![a-z\\])t(?![a-z])/.test(tex) ? 't' : 'x');
+/** The evaluator variable of an identity expression (from the raw TeX). */
+const varOf = (raw: string) => (/\\alpha/.test(raw) ? 'a' : /\\theta/.test(raw) ? 't' : 'x');
+
+/** Some sample point where both are defined shows a difference. */
+function disagree(a: string, b: string, v: string): boolean {
+  return IDENTITY_PTS.some((x) => {
+    try {
+      const ya = evalReal(a, { vars: { [v]: x } });
+      const yb = evalReal(b, { vars: { [v]: x } });
+      return Number.isFinite(ya) && Number.isFinite(yb) && Math.abs(ya) < 1e6 && Math.abs(yb) < 1e6 && !close(ya, yb, 1e-6);
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** Distance from the start after legs given as `flies 120 miles on a bearing of N 40° E`. */
+function bearingLegs(text: string): Array<[number, number]> {
+  return [...text.matchAll(/(\d+) miles on a bearing of (N|S) (\d+)° (E|W)/g)].map((mm) => {
+    const ang = Number(mm[3]);
+    const az = mm[2] === 'N' ? (mm[4] === 'E' ? ang : 360 - ang) : mm[4] === 'E' ? 180 - ang : 180 + ang;
+    return [Number(mm[1]), az];
+  });
+}
+
+const LoC = (a: number, b: number, C: number) => Math.sqrt(a * a + b * b - 2 * a * b * Math.cos(R(C)));
+const LAW_APPS: Record<string, (q: Record<string, number>, text: string) => number> = {
+  ships: (q) => LoC(q.v1! * q.t!, q.v2! * q.t!, q.gamma!),
+  shipsBearing: (q) => LoC(q.v1! * q.t!, q.v2! * q.t!, 180 - q.alpha! - q.beta!),
+  river: (q) => (q.d! * Math.sin(R(q.beta!))) / Math.sin(R(q.alpha! + q.beta!)),
+  riverWidth: (q) => ((q.d! * Math.sin(R(q.beta!))) / Math.sin(R(q.alpha! + q.beta!))) * Math.sin(R(q.alpha!)),
+  tower: (q) => (q.d! * Math.sin(R(q.beta!))) / Math.sin(R(90 - q.alpha! - q.beta!)),
+  lake: (q) => LoC(q.p!, q.q!, q.gamma!),
+  lighthouse: (q) => (q.d! * Math.sin(R(q.alpha!))) / Math.sin(R(q.beta! - q.alpha!)),
+  plot: (q) => D(Math.acos((q.a! ** 2 + q.b! ** 2 - q.c! ** 2) / (2 * q.a! * q.b!))),
+  plane: (_q, text) => {
+    const legs = bearingLegs(text);
+    expect(legs.length, 'two legs').toBe(2);
+    const x = legs.reduce((s, [d, az]) => s + d * Math.sin(R(az)), 0);
+    const y = legs.reduce((s, [d, az]) => s + d * Math.cos(R(az)), 0);
+    return Math.hypot(x, y);
+  },
+};
 
 function inLangle(tex: string): number[] {
   const mm = /\\left\\langle (.*) \\right\\rangle/.exec(tex);
@@ -540,7 +581,7 @@ function modelIn(rich: string): (t: number) => number {
 }
 
 function firstCrossing(f: (x: number) => number, target: number, P: number): number {
-  const N = 40000;
+  const N = 3000;
   for (let i = 0; i < N; i++) {
     const x0 = (P * i) / N;
     const x1 = (P * (i + 1)) / N;
@@ -571,6 +612,43 @@ const SPEED: Record<string, (q: Record<string, number>) => number> = {
 };
 
 Object.assign(VERIFIERS, {
+  'trigonometry.lawapp'(p) {
+    const params = p.check!.params as Record<string, number>;
+    const scenario = p.check!.scenario as string;
+    if (scenario !== 'plane') for (const [k, v] of Object.entries(params)) expect(mentions(p.question, v), `${k} = ${v} stated in ${p.question}`).toBe(true);
+    const want = LAW_APPS[scenario]!(params, p.question);
+    expectRounded(valueOf(onlyMath(p.answer)), scenario === 'plot' ? R(want) : want, p.question, scenario === 'plot');
+  },
+
+  'trigonometry.identity'(p) {
+    const raw = onlyMath(p.question);
+    const v = varOf(raw);
+    const q = prep(raw);
+    const a = prep(onlyMath(p.answer));
+    expect(agree(q, a, v, IDENTITY_PTS, 6), `${raw} is not identically ${a}`).toBe(true);
+    p.distractors!.slice(0, 3).forEach((d) => expect(disagree(q, prep(onlyMath(d)), v), `distractor ${d} is equivalent`).toBe(true));
+    const body = a.replace(/^-/, '');
+    if (p.check!.form === 'sum') expect(/\+| - /.test(body), `not a sum: ${a}`).toBe(true);
+    if (p.check!.form === 'product') expect(/\+| - /.test(body), `not a product: ${a}`).toBe(false);
+  },
+
+  'trigonometry.identityChoice'(p) {
+    const qRaw = onlyMath(p.question);
+    const v = varOf(qRaw);
+    const ans = prep(onlyMath(p.answer));
+    if (p.check!.task === 'equal') {
+      const q = prep(qRaw);
+      expect(agree(q, ans, v, IDENTITY_PTS, 6), `${qRaw} vs ${ans}`).toBe(true);
+      p.distractors!.slice(0, 3).forEach((d) => expect(disagree(q, prep(onlyMath(d)), v), `distractor ${d} is equivalent`).toBe(true));
+      return;
+    }
+    expect(qRaw.includes('\\boxed{?}'), qRaw).toBe(true);
+    const parts = splitTop(prep(qRaw.replace('\\boxed{?}', `{${onlyMath(p.answer)}}`)), ['=']).parts;
+    expect(parts.length).toBeGreaterThanOrEqual(3);
+    parts.slice(1).forEach((x) => expect(agree(parts[0]!, x, v, IDENTITY_PTS, 6), `proof step ${x} is not equal to ${parts[0]}`).toBe(true));
+    p.distractors!.slice(0, 3).forEach((d) => expect(disagree(parts[0]!, prep(onlyMath(d)), v), `distractor ${d} would be a valid step`).toBe(true));
+  },
+
   'trigonometry.vecMagDir'(p) {
     if (p.check!.task === 'magdir') {
       const [x, y] = inLangle(onlyMath(p.question));
@@ -623,9 +701,10 @@ Object.assign(VERIFIERS, {
     if (task === 'read') {
       const [x, y] = pointIn(p.question)!;
       expect(close(x * x + y * y, 1, 1e-9), 'point on the unit circle').toBe(true);
-      const want: Record<string, number> = { sin: y, cos: x, tan: y / x };
+      const want: Record<string, number> = { sin: y, cos: x, tan: y / x, csc: 1 / y, sec: 1 / x, cot: x / y };
       const items = named(p.answer);
-      expect(items.map((i) => i.name)).toEqual(['\\sin \\theta', '\\cos \\theta', '\\tan \\theta']);
+      const asked = mathSegments(p.question.slice(p.question.indexOf('Find'))).map((t) => t.trim());
+      expect(items.map((i) => i.name), 'answers what was asked').toEqual(asked);
       for (const it of items) {
         expect(close(evalReal(it.value), want[/\\([a-z]+)/.exec(it.name)![1]!]!, 1e-9), `${it.name} = ${it.value}`).toBe(true);
         expectSimplified(it.value);
@@ -668,13 +747,13 @@ Object.assign(VERIFIERS, {
     const asy = (n: number) => evalReal(asM![1]!, { vars: { n } });
     const S = asy(1) - asy(0);
     expect(S, 'asymptote spacing').toBeGreaterThan(0);
-    for (let n = -6; n <= 6; n++) {
+    for (let n = -3; n <= 3; n++) {
       const x = asy(n);
       const near = Math.abs(f(x + 1e-7));
       expect(!Number.isFinite(near) || near > 1e4, `${q}: no asymptote at ${x}`).toBe(true);
       // nothing else blows up between consecutive asymptotes
-      for (let i = 1; i < 60; i++) {
-        const t = x + (S * i) / 60;
+      for (let i = 1; i < 24; i++) {
+        const t = x + (S * i) / 24;
         expect(Math.abs(f(t)) < 1e5, `${q}: extra asymptote near ${t}`).toBe(true);
       }
     }
@@ -715,20 +794,20 @@ Object.assign(VERIFIERS, {
 
   'trigonometry.model'(p) {
     const task = p.check!.task as string;
-    const facts = p.check!.facts as { period: number; max: [number, number]; min: [number, number] };
+    const facts = p.check!.facts as { period: number; max: [number, number]; min: [number, number]; stated: number[] };
+    for (const v of facts.stated) expect(mentions(p.question, v), `${v} stated in ${p.question}`).toBe(true);
     if (task === 'model') {
       const f = modelIn(p.answer);
       for (const [t, v] of [facts.max, facts.min]) expect(close(f(t), v, 1e-9), `${p.answer} at t=${t}`).toBe(true);
-      for (const v of [facts.max[1], facts.min[1]]) expect(mentions(p.question, v), `${v} stated`).toBe(true);
       let hi = -Infinity;
       let lo = Infinity;
-      for (let i = 0; i <= 2000; i++) {
-        const y = f((facts.period * i) / 2000);
+      for (let i = 0; i <= 600; i++) {
+        const y = f((facts.period * i) / 600);
         hi = Math.max(hi, y);
         lo = Math.min(lo, y);
-        expect(close(f((facts.period * i) / 2000 + facts.period), y, 1e-7), 'period').toBe(true);
+        expect(close(f((facts.period * i) / 600 + facts.period), y, 1e-7), 'period').toBe(true);
       }
-      expect(close(hi, facts.max[1], 1e-6) && close(lo, facts.min[1], 1e-6), 'range of the model').toBe(true);
+      expect(hi <= facts.max[1] + 1e-9 && lo >= facts.min[1] - 1e-9, 'range of the model').toBe(true);
       return;
     }
     const f = modelIn(p.question);

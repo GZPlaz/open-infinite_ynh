@@ -241,7 +241,7 @@ export const inverseCompositions = defineTopic({
       const inv = rng.pick<Inv>(['sin', 'cos', 'tan']);
       const deg = attempt('angle', () => {
         const a = rng.pick(SPECIAL_DEG) + (difficulty === 'hard' ? 360 * rng.pick([-1, 0, 1]) : difficulty === 'medium' ? 360 * rng.pick([-1, 0]) : 0);
-        if (inv === 'tan' && a % 180 === 90) return null;
+        if (inv === 'tan' && ((a % 180) + 180) % 180 === 90) return null;
         return a;
       });
       const v = trigExact(inv, deg)!;
@@ -267,7 +267,8 @@ export const inverseCompositions = defineTopic({
         const n = rng.int(1, inv === 'tan' ? 9 : d - 1);
         return new Frac(n, d).d === d || inv === 'tan' ? { num: n * (rng.bool() ? 1 : -1), den: d } : null;
       }
-      const [a, b, c] = rng.pick(triples(41).filter(([, , z]) => z <= (difficulty === 'easy' ? 13 : 41)));
+      const [a0, b0, c] = rng.pick(triples(41).filter(([, , z]) => z <= (difficulty === 'easy' ? 17 : 41)));
+      const [a, b] = rng.bool() ? [a0, b0] : [b0, a0];
       const sgn = difficulty === 'easy' ? 1 : rng.sign();
       return inv === 'tan' ? { num: sgn * a, den: b } : { num: sgn * a, den: c };
     });

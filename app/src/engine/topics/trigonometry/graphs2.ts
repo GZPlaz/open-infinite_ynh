@@ -80,10 +80,10 @@ export const graphingReciprocal = defineTopic({
     const f = strOpt(ctx, 'fns');
     const g = rng.pick<R>(f === 'tancot' ? ['tan', 'cot'] : f === 'seccsc' ? ['sec', 'csc'] : ['tan', 'cot', 'sec', 'csc']);
     const { a, b, phi, d } = attempt('reciprocal graph', () => {
-      const a = rng.signedInt(1, difficulty === 'easy' ? 2 : 3, difficulty !== 'easy');
+      const a = rng.signedInt(1, 3, difficulty !== 'easy');
       const b = rng.pick(difficulty === 'easy' ? fracs([1, 1], [2, 1]) : fracs([1, 1], [2, 1], [1, 2]));
       let phi = new Frac(0);
-      let d = 0;
+      let d = difficulty === 'easy' ? rng.pick([0, 0, 1, -1]) : 0;
       if (difficulty !== 'easy') {
         const k = rng.int(0, 2);
         if (k !== 1) phi = rng.pick(fracs([1, 4], [1, 2], [3, 4])).mul(rng.sign());
@@ -134,7 +134,7 @@ export const graphingReciprocal = defineTopic({
       }
       const bv = b.value;
       const cv = c.value * Math.PI;
-      plot(B, (x) => a * BASE[g](bv * (x - cv)) + d, w, {}, 960);
+      plot(B, (x) => a * BASE[g](bv * (x - cv)) + d, w, {}, 600);
       out.answerDiagram = B.build(`Graph of ${eq} with dashed asymptotes`);
     }
     return out;
@@ -194,7 +194,7 @@ export const sinusoidEquations = defineTopic({
     const form = strOpt(ctx, 'form');
     const fn = form === 'sin' || form === 'cos' ? form : rng.pick(['sin', 'cos'] as const);
     const s: Sin = attempt('sinusoid', () => {
-      const a = rng.int(1, difficulty === 'easy' ? 3 : 4);
+      const a = rng.int(1, 4);
       const b = rng.pick(fracs([1, 1], [2, 1], [1, 2]));
       const P = new Frac(2).div(b);
       const quarter = P.div(4);
@@ -204,7 +204,7 @@ export const sinusoidEquations = defineTopic({
         c = quarter.mul(k);
         if (difficulty === 'hard' && rng.bool(0.5)) c = c.neg();
       }
-      const d = difficulty === 'easy' ? 0 : rng.int(-2, 2);
+      const d = difficulty === 'easy' ? rng.int(-1, 1) : rng.int(-2, 2);
       if (Math.abs(d) + a > 5) return null;
       return { fn, a, b, c, d };
     });
@@ -233,7 +233,7 @@ export const sinusoidEquations = defineTopic({
       question: 'Write an equation for the graph.',
       answer,
       steps: [
-        m(`\\text{Amplitude: } a = \\frac{${s.a + s.d} - (${s.d - s.a})}{2} = ${s.a}`),
+        m(`\\text{Amplitude: } a = \\frac{${s.a + s.d} - ${s.d - s.a < 0 ? `(${s.d - s.a})` : s.d - s.a}}{2} = ${s.a}`),
         m(`\\text{Midline: } y = ${s.d}`),
         m(`\\text{Period} = ${piTex(P)} \\Rightarrow b = \\frac{2\\pi}{${piTex(P)}} = ${s.b.toTex()}`),
         s.c.isZero() ? `The graph starts a ${fn === 'sin' ? 'rising midline crossing' : 'maximum'} at ${m('x = 0')}: no phase shift.` : `A ${fn === 'sin' ? 'rising midline crossing' : 'maximum'} occurs at ${m(`x = ${piTex(s.c)}`)}, so ${m(`c = ${piTex(s.c)}`)}.`,
@@ -263,6 +263,8 @@ interface Model {
   period: number;
   max: [number, number];
   min: [number, number];
+  /** Numbers given in the story. */
+  stated: number[];
 }
 
 function makeModel(rng: Rng, s: Scenario, d: Difficulty): Model {
@@ -283,12 +285,13 @@ function makeModel(rng: Rng, s: Scenario, d: Difficulty): Model {
       period: T,
       max: [T / 2, D + p],
       min: [0, p],
+      stated: [D, p, T],
     };
   }
   if (s === 'tide') {
-    const m0 = rng.int(1, 6);
+    const m0 = rng.int(2, 6);
     const M = m0 + rng.int(4, 14);
-    const t0 = rng.int(0, 11);
+    const t0 = rng.int(1, 11);
     return {
       A: (M - m0) / 2,
       B: new Frac(1, 6),
@@ -301,6 +304,7 @@ function makeModel(rng: Rng, s: Scenario, d: Difficulty): Model {
       period: 12,
       max: [t0, M],
       min: [t0 + 6, m0],
+      stated: [M, m0, t0, 12],
     };
   }
   if (s === 'daylight') {
@@ -319,6 +323,7 @@ function makeModel(rng: Rng, s: Scenario, d: Difficulty): Model {
       period: 365,
       max: [172, roundTo((L + S) / 2, 2) + roundTo((L - S) / 2, 2)],
       min: [172 + 182.5, roundTo((L + S) / 2, 2) - roundTo((L - S) / 2, 2)],
+      stated: [L, S, 172, 365],
     };
   }
   const lo = rng.int(-10, 45);
@@ -336,6 +341,7 @@ function makeModel(rng: Rng, s: Scenario, d: Difficulty): Model {
     period: 12,
     max: [7, hi],
     min: [13, lo],
+    stated: [hi, lo, 12],
   };
 }
 
@@ -346,7 +352,7 @@ function modelTex(md: Model, alt: { fn?: 'sin' | 'cos'; A?: number; B?: Frac; t0
   const k = alt.k ?? md.k;
   const fn = alt.fn ?? 'cos';
   const Btex = piTex(B);
-  const arg = t0 === 0 ? `\\left(${Btex}t\\right)` : `\\left(${Btex}(t ${t0 > 0 ? '-' : '+'} ${Math.abs(t0)})\\right)`;
+  const arg = t0 === 0 ? `\\left(${Btex} t\\right)` : `\\left(${Btex}(t ${t0 > 0 ? '-' : '+'} ${Math.abs(t0)})\\right)`;
   return `${md.fname}(t) = ${coefTex(A)}\\${fn}${arg}${shiftTex(k)}`;
 }
 
@@ -384,7 +390,7 @@ export const sinusoidalModels = defineTopic({
     const md = makeModel(rng, scenario, difficulty);
     const f = modelFn(md);
     const model = modelTex(md);
-    const facts = { period: md.period, max: md.max, min: md.min };
+    const facts = { period: md.period, max: md.max, min: md.min, stated: md.stated };
 
     if (task === 'model') {
       const answer = m(model);
@@ -399,7 +405,7 @@ export const sinusoidalModels = defineTopic({
         question: md.story,
         answer,
         steps: [
-          m(`\\text{Amplitude} = \\frac{${md.max[1]} - ${md.min[1]}}{2} = ${Math.abs(md.A)}, \\; \\text{midline} = ${md.k}`),
+          m(`\\text{Amplitude} = \\frac{${md.max[1]} - ${md.min[1] < 0 ? `(${md.min[1]})` : md.min[1]}}{2} = ${Math.abs(md.A)}, \\; \\text{midline} = ${md.k}`),
           m(`B = \\frac{2\\pi}{${md.period}} = ${piTex(md.B)}`),
           md.A < 0 ? `The rider starts at the minimum, so use ${m('-\\cos')} with no shift.` : `The maximum occurs at ${m(`t = ${md.t0}`)}, so shift the cosine ${m(String(md.t0))} units right.`,
           answer,
@@ -423,7 +429,7 @@ export const sinusoidalModels = defineTopic({
       return {
         question: `${md.story} The model is ${m(model)}. Find ${m(`${md.fname}(${tt})`)}.`,
         answer,
-        steps: [m(`${md.fname}(${tt}) = ${coefTex(md.A)}\\cos\\left(${piTex(md.B)}(${tt} ${md.t0 >= 0 ? '-' : '+'} ${Math.abs(md.t0)})\\right)${shiftTex(md.k)} \\approx ${decimal(v)}`)],
+        steps: [m(`${md.fname}(${tt}) = ${coefTex(md.A)}\\cos\\left(${piTex(md.B)}${md.t0 === 0 ? `(${tt})` : `(${tt} - ${md.t0})`}\\right)${shiftTex(md.k)} \\approx ${decimal(v)}`)],
         distractors: distinctDistractors(answer, wrong.filter((w) => Math.abs(roundTo(w, 1) - roundTo(v, 1)) > 0.05).map((w) => fmt(w, `${md.fname}(${tt})`)), (k) => fmt(v + k * 1.3, `${md.fname}(${tt})`)),
         check: { kind: 'trigonometry.model', task, facts },
       };
@@ -440,7 +446,7 @@ export const sinusoidalModels = defineTopic({
     // first solution: scan
     const P = md.period;
     let first = NaN;
-    const N = 20000;
+    const N = 3000;
     for (let i = 0; i < N; i++) {
       const x0 = (P * i) / N;
       const x1 = (P * (i + 1)) / N;
@@ -463,8 +469,8 @@ export const sinusoidalModels = defineTopic({
       question: `${md.story} The model is ${m(model)}. When, for ${m('t > 0')}, does ${m(md.fname)} first equal ${m(String(target))}?`,
       answer,
       steps: [
-        m(`${coefTex(md.A)}\\cos\\left(${piTex(md.B)}(t ${md.t0 >= 0 ? '-' : '+'} ${Math.abs(md.t0)})\\right)${shiftTex(md.k)} = ${target}`),
-        m(`\\cos\\left(${piTex(md.B)}(t ${md.t0 >= 0 ? '-' : '+'} ${Math.abs(md.t0)})\\right) = ${decimal((target - md.k) / md.A, 4)}`),
+        m(`${coefTex(md.A)}\\cos\\left(${piTex(md.B)}${md.t0 === 0 ? ' t' : `(t - ${md.t0})`}\\right)${shiftTex(md.k)} = ${target}`),
+        m(`\\cos\\left(${piTex(md.B)}${md.t0 === 0 ? ' t' : `(t - ${md.t0})`}\\right) = ${decimal((target - md.k) / md.A, 4)}`),
         m(`\\cos^{-1}(${decimal((target - md.k) / md.A, 4)}) \\approx ${decimal(theta, 4)}`),
         `The first positive solution is ${answer}.`,
       ],

@@ -4,7 +4,7 @@ Everything is computed in the browser of whoever uses it: problem generation, wo
 
 ### Features
 
-- 266 topics in 7 subjects (Pre-Algebra, Algebra 1, Algebra 2, Geometry, Trigonometry, Precalculus, Calculus), grouped by category: from integers and order of operations through equations, functions, systems, polynomials, radicals, rational expressions, conic sections, logarithms, probability, triangles and circles, trig identities and the laws of sines and cosines, polar and parametric equations, to derivatives, integrals and their applications
+- 285 topics in 7 subjects (Pre-Algebra, Algebra 1, Algebra 2, Geometry, Trigonometry, Precalculus, Calculus), grouped by category: from integers and order of operations through equations, functions, systems, polynomials, radicals, rational expressions, conic sections, logarithms, probability, triangles and circles, the unit circle, trig graphs, inverse trig, identities and equations, the laws of sines and cosines, polar and parametric equations, to derivatives, integrals and their applications
 - Easy / Medium / Hard tiers and per-topic options (integer or fractional answers, negative numbers, exact or rounded answers, units…)
 - Free-response or multiple-choice problems
 - One-click answer key with optional worked solutions

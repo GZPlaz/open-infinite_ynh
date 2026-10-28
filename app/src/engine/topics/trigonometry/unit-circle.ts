@@ -50,7 +50,7 @@ function pickSpecial(rng: Rng, d: Difficulty, allowAxes: boolean): number {
     const a = rng.pick(SPECIAL);
     if (!allowAxes && a % 90 === 0) return null;
     if (a % 90 === 0 && rng.bool(0.6)) return null;
-    const turns = d === 'hard' ? rng.pick([-2, -1, 0, 1]) : d === 'medium' ? rng.pick([-1, 0, 0]) : 0;
+    const turns = d === 'hard' ? rng.pick([-2, -1, 0, 1]) : d === 'medium' ? rng.pick([-1, 0, 0, 1]) : rng.pick([0, 0, 1, -1]);
     const deg = a + 360 * turns;
     return deg;
   });
@@ -122,7 +122,7 @@ export const unitCircle = defineTopic({
     const fmtAngles = (list: number[]) => m(`\\theta = ${[...new Set(list.map(mod360))].sort((p, q) => p - q).map(A).join(', ')}`);
 
     if (task === 'angles') {
-      const usePoint = difficulty === 'easy' || rng.bool(0.4);
+      const usePoint = rng.bool(difficulty === 'easy' ? 0.5 : 0.4);
       const a = attempt('angles', () => {
         const x = rng.pick(SPECIAL);
         return x % 90 === 0 && rng.bool(0.7) ? null : x;
@@ -161,9 +161,35 @@ export const unitCircle = defineTopic({
     const y = sinExact(deg);
     const tn = y.div(x);
     const fmt = (s: Exact, c: Exact, t2: Exact) => [m(`\\sin \\theta = ${s.toTex()}`), m(`\\cos \\theta = ${c.toTex()}`), m(`\\tan \\theta = ${t2.toTex()}`)].join(', ');
+    const where = `The terminal side of ${m('\\theta')} meets the unit circle at ${m(`P${tupleTex(x, y)}`)}.`;
+    const all = rng.bool(0.4);
+    if (!all) {
+      const VALS: Record<string, [Exact, string]> = {
+        sin: [y, 'y'],
+        cos: [x, 'x'],
+        tan: [tn, '\\frac{y}{x}'],
+        csc: [Exact.ONE.div(y), '\\frac{1}{y}'],
+        sec: [Exact.ONE.div(x), '\\frac{1}{x}'],
+        cot: [x.div(y), '\\frac{x}{y}'],
+      };
+      const fn = rng.pick(Object.keys(VALS));
+      const [v, def] = VALS[fn]!;
+      const one = (e: Exact) => m(`\\${fn} \\theta = ${e.toTex()}`);
+      const answer = one(v);
+      const recip = { sin: 'csc', cos: 'sec', tan: 'cot', csc: 'sin', sec: 'cos', cot: 'tan' }[fn]!;
+      const co = { sin: 'cos', cos: 'sin', tan: 'cot', cot: 'tan', sec: 'csc', csc: 'sec' }[fn]!;
+      return {
+        question: `${where} Find ${m(`\\${fn} \\theta`)}.`,
+        answer,
+        steps: [m(`\\${fn} \\theta = ${def} = ${v.toTex()}`)],
+        distractors: distinctDistractors(answer, [one(VALS[recip]![0]), one(VALS[co]![0]), one(v.neg()), one(VALS[co]![0].neg())], (k) => one(v.add(Exact.of(k)))),
+        diagram: fig ? circleFigure({ deg, point: true, pointLabel: `(${plainCoord(x)}, ${plainCoord(y)})` }, 'Unit circle with the point P') : undefined,
+        check: { kind: 'trigonometry.unitcircle', task },
+      };
+    }
     const answer = fmt(y, x, tn);
     return {
-      question: `The terminal side of ${m('\\theta')} meets the unit circle at ${m(`P${tupleTex(x, y)}`)}.`,
+      question: `${where} Find ${m('\\sin \\theta')}, ${m('\\cos \\theta')} and ${m('\\tan \\theta')}.`,
       answer,
       steps: [m(`\\sin \\theta = y = ${y.toTex()}`), m(`\\cos \\theta = x = ${x.toTex()}`), m(`\\tan \\theta = \\frac{y}{x} = ${tn.toTex()}`)],
       distractors: distinctDistractors(answer, [fmt(x, y, x.div(y)), fmt(y, x, x.div(y)), fmt(y.neg(), x, tn.neg()), fmt(y, x.neg(), tn.neg())], (k) => fmt(y, x, tn.add(Exact.of(k)))),
