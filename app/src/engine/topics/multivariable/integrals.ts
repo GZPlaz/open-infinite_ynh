@@ -1,6 +1,6 @@
 /** Double and triple integrals: iterated integrals, general regions, order reversal, polar, cylindrical, spherical, applications. */
 import { Frac } from '../../fraction';
-import { attempt, offset } from '../../generator';
+import { offset } from '../../generator';
 import type { Rng } from '../../rng';
 import { m, num } from '../../tex';
 import type { Difficulty } from '../../types';

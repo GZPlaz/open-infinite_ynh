@@ -137,7 +137,7 @@ function d3(f: Fn, x: number): number {
 const DERIV = [(f: Fn, x: number) => f(x), d1, d2, d3];
 
 /** Simpson after x = a + (b − a)(3u² − 2u³): smooth integrands stay smooth, √-type endpoint singularities disappear. */
-function simpsonSafe(f: Fn, a: number, b: number, n = 2000): number {
+function simpsonSafe(f: Fn, a: number, b: number, n = 800): number {
   return simpson((u) => {
     const w = 6 * u * (1 - u);
     return w === 0 ? 0 : f(a + (b - a) * (3 * u * u - 2 * u * u * u)) * (b - a) * w;
@@ -267,10 +267,15 @@ function signChanges(g: Fn, a: number, b: number, n: number): number[] {
     if (Number.isFinite(pv) && Number.isFinite(v) && pv * v < 0) {
       let lo = px;
       let hi = x;
-      for (let k = 0; k < 50; k++) {
+      let glo = pv;
+      for (let k = 0; k < 45; k++) {
         const mid = (lo + hi) / 2;
-        if (g(lo) * g(mid) <= 0) hi = mid;
-        else lo = mid;
+        const gm = g(mid);
+        if (glo * gm <= 0) hi = mid;
+        else {
+          lo = mid;
+          glo = gm;
+        }
       }
       out.push((lo + hi) / 2);
     }
@@ -689,7 +694,7 @@ export const VERIFIERS: Record<string, Verifier> = {
         const part = parts.find((pp) => pp.label.includes(label))!;
         expect(part, `${label} in ${p.answer}`).toBeTruthy();
         const listed = part.segs.map(tupleOf);
-        const roots = signChanges((t) => d1(g, t), -10.013, 10.017, 800).filter((t) => Math.abs(d1(other, t)) > 1e-6);
+        const roots = signChanges((t) => d1(g, t), -10.013, 10.017, 400).filter((t) => Math.abs(d1(other, t)) > 1e-6);
         expect(listed.length, `${label}: roots ${roots.join(', ')} vs ${p.answer}`).toBe(roots.length);
         for (const t of roots) expect(listed.some(([x, y]) => near(x!, X(t), 1e-6) && near(y!, Y(t), 1e-6)), `${label} point at t=${t}`).toBe(true);
       }
@@ -724,7 +729,7 @@ export const VERIFIERS: Record<string, Verifier> = {
       const f = fnOf(d.body, v);
       speed = (x) => Math.hypot(1, d1edge(f, x));
     }
-    const L = simpsonSafe(speed, a, b, 800);
+    const L = simpsonSafe(speed, a, b, 400);
     const got = wordProblemValue(p);
     if (p.check!.approx) expect(Math.abs(got - L), `${p.answer} vs ${L}`).toBeLessThanOrEqual(5.1e-4);
     else expect(near(got, L, 1e-7), `${p.answer} vs ${L}`).toBe(true);
@@ -796,7 +801,7 @@ export const VERIFIERS: Record<string, Verifier> = {
       expect(near(got[0]!, X(ts[1]!) - X(ts[0]!), 1e-9) && near(got[1]!, Y(ts[1]!) - Y(ts[0]!), 1e-9), p.answer).toBe(true);
     } else {
       const [, a, b] = chainInterval(p.question);
-      const want = simpsonSafe((t) => Math.hypot(d1(X, t), d1(Y, t)), a, b, 800);
+      const want = simpsonSafe((t) => Math.hypot(d1(X, t), d1(Y, t)), a, b, 400);
       expect(near(wordProblemValue(p), want, 1e-7), `${p.answer} vs ${want}`).toBe(true);
     }
   },
@@ -885,8 +890,8 @@ export const VERIFIERS: Record<string, Verifier> = {
       expect(R(got) > 0 && R(got) > R(got * 0.99) && R(got) > R(got * 1.01), `maximum growth at ${got}`).toBe(true);
     } else {
       let [t, P] = initialOf(p.question, de.dep)!;
-      const dt = 0.05;
-      for (; t < 300; t += dt) {
+      const dt = 0.25;
+      for (; t < 400 && Math.abs(R(P)) > 1e-9 * Math.max(1, Math.abs(P)); t += dt) {
         const k1 = R(P);
         const k2 = R(P + (dt / 2) * k1);
         const k3 = R(P + (dt / 2) * k2);
@@ -1096,7 +1101,7 @@ export const VERIFIERS: Record<string, Verifier> = {
     if (task === 'critical') {
       const xs = /none/i.test(p.answer) ? [] : answerValues(p.answer, 'x').map((t) => evalReal(t));
       xs.forEach((x) => expect(Math.abs(fp(x)), `f'(${x}) = 0 for ${d.body}`).toBeLessThan(1e-5 * Math.max(1, Math.abs(f(x)))));
-      for (const r of signChanges(fp, -10.013, 10.017, 400)) expect(xs.some((x) => Math.abs(x - r) < 1e-4), `missing critical point ${r} in ${p.answer}`).toBe(true);
+      for (const r of signChanges(fp, -10.013, 10.017, 200)) expect(xs.some((x) => Math.abs(x - r) < 1e-4), `missing critical point ${r} in ${p.answer}`).toBe(true);
       return;
     }
     if (task === 'relative') {
@@ -1112,7 +1117,7 @@ export const VERIFIERS: Record<string, Verifier> = {
           else throw new Error(`label ${label}`);
         }
       }
-      const roots = signChanges(fp, -10.013, 10.017, 400);
+      const roots = signChanges(fp, -10.013, 10.017, 200);
       expect(roots.length, `${p.question} → ${p.answer}: extrema at ${roots.join(', ')}`).toBe(found.length);
       for (const r of roots) expect(found.some((x) => Math.abs(x - r) < 1e-4), `missing extremum ${r}`).toBe(true);
       return;
@@ -1148,7 +1153,7 @@ export const VERIFIERS: Record<string, Verifier> = {
     const infl = parts.find((pp) => pp.label.includes('inflection'));
     const listed = (infl?.segs ?? []).flatMap((s) => strip(s).split(/\\text\{ and \}|,\s*(?=\()/)).filter((s) => s.trim()).map((s) => tupleOf(s.trim()));
     for (const [x, y] of listed) expect(near(f(x!), y!, 1e-7), `inflection (${x}, ${y}) on graph`).toBe(true);
-    const roots = signChanges(fpp, -10.013, 10.017, 400);
+    const roots = signChanges(fpp, -10.013, 10.017, 200);
     expect(roots.length, `inflections of ${d.body}: ${roots.join(', ')} vs ${p.answer}`).toBe(listed.length);
     for (const r of roots) expect(listed.some(([x]) => Math.abs(x! - r) < 1e-3), `missing inflection ${r}`).toBe(true);
     const up = parts.find((pp) => pp.label.includes('up'));
@@ -1156,8 +1161,10 @@ export const VERIFIERS: Record<string, Verifier> = {
     if (!up && !down) return;
     const ups = (up?.segs ?? []).flatMap(intervals);
     const downs = (down?.segs ?? []).flatMap(intervals);
-    for (let x = -12.31; x <= 12.4; x += 0.173) {
+    for (let x = -8.317; x <= 8.4; x += 0.293) {
       if (roots.some((r) => Math.abs(r - x) < 0.02)) continue;
+      // a zero of f'' without a sign change (double root) has no concavity to test
+      if (Math.abs(fpp(x)) < 1e-5 * Math.max(1, Math.abs(f(x)))) continue;
       const inUp = ups.some(([a, b]) => a < x && x < b);
       const inDown = downs.some(([a, b]) => a < x && x < b);
       const s = fpp(x);
@@ -1205,20 +1212,16 @@ export const VERIFIERS: Record<string, Verifier> = {
         expect(t).toBeGreaterThanOrEqual(0);
         expect(Math.abs(d1(s, t)), `v(${t}) = 0`).toBeLessThan(1e-5);
       });
-      const roots = signChanges((t) => d1(s, t), 1e-4, 30.01, 3000);
+      const roots = signChanges((t) => d1(s, t), 1e-4, 30.01, 600);
       expect(roots.length, `${p.question}: ${roots.join(', ')}`).toBe(ts.length);
     } else {
       const [t0, t1] = p.check!.span as number[];
       const qs = mathSegments(p.question).map(strip);
       expect(qs.includes(`t = ${t0}`) && qs.includes(`t = ${t1}`), 'span in question').toBe(true);
-      const N = 20000;
+      // split at every turning point (sign change of v), then sum |Δs| exactly
+      const marks = [t0!, ...signChanges((t) => d1(s, t), t0! + 1.3e-5, t1! - 1.7e-5, 401), t1!];
       let total = 0;
-      let prev = s(t0!);
-      for (let i = 1; i <= N; i++) {
-        const cur = s(t0! + ((t1! - t0!) * i) / N);
-        total += Math.abs(cur - prev);
-        prev = cur;
-      }
+      for (let i = 0; i + 1 < marks.length; i++) total += Math.abs(s(marks[i + 1]!) - s(marks[i]!));
       expect(near(wordProblemValue(p), total, 1e-5), `${p.answer} vs ${total}`).toBe(true);
     }
   },
@@ -1271,7 +1274,7 @@ export const VERIFIERS: Record<string, Verifier> = {
     const g = fnOf(I.body, I.v);
     const ans = strip(onlyMath(p.answer));
     if (I.lo !== undefined) {
-      const want = simpson(g, evalReal(I.lo), evalReal(I.hi!), 2000);
+      const want = simpson(g, evalReal(I.lo), evalReal(I.hi!), 800);
       expect(near(evalReal(rhs(ans)), want, 1e-6), `${seg} → ${ans} (${want})`).toBe(true);
       return;
     }

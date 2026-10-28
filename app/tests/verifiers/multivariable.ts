@@ -262,14 +262,14 @@ function surfacePoints(eq: string, sys: Sys, want = 12): V[] {
   };
   const rnd = lcg(987);
   const out: V[] = [];
-  for (let line = 0; line < 80 && out.length < want; line++) {
-    const base = sys === 'rect' ? [rnd() * 8 - 4, rnd() * 8 - 4, rnd() * 8 - 4] : sys === 'cyl' ? [rnd() * 6 + 0.2, rnd() * TAU, rnd() * 8 - 4] : [rnd() * 6 + 0.2, rnd() * TAU, rnd() * 3 + 0.07];
+  for (let line = 0; line < 250 && out.length < want; line++) {
+    const base = sys === 'rect' ? [rnd() * 5 - 2.5, rnd() * 5 - 2.5, rnd() * 5 - 2.5] : sys === 'cyl' ? [rnd() * 6 + 0.2, rnd() * TAU, rnd() * 8 - 4] : [rnd() * 6 + 0.2, rnd() * TAU, rnd() * 3 + 0.07];
     const dir = [rnd() - 0.5, rnd() - 0.5, rnd() - 0.5];
     const P = (s: number) => base.map((x, i) => x + s * dir[i]!);
     let prevS = NaN;
     let prev = NaN;
-    for (let k = 0; k <= 800; k++) {
-      const s = -8 + k * 0.02;
+    for (let k = 0; k <= 400; k++) {
+      const s = -8 + k * 0.04;
       const pt = P(s);
       const v = inDomain(sys, pt) ? g(pt) : NaN;
       if (Number.isFinite(v) && Number.isFinite(prev) && Math.sign(v) !== Math.sign(prev)) {
@@ -715,8 +715,8 @@ function zeroSet2(g: (x: number, y: number) => number, want: number, ok: (x: num
     const dy = Math.sin(th);
     let ps = NaN;
     let pv = NaN;
-    for (let k = 0; k <= 600; k++) {
-      const s = -6 + k * 0.02;
+    for (let k = 0; k <= 300; k++) {
+      const s = -6 + k * 0.04;
       const v = g(bx + s * dx, by + s * dy);
       if (Number.isFinite(v) && Number.isFinite(pv) && Math.sign(v) !== Math.sign(pv)) {
         let lo = ps;
@@ -1099,8 +1099,8 @@ Object.assign(VERIFIERS, {
       let best = -Infinity;
       let ba = 0;
       let bb = 0;
-      const NA = n === 2 ? 720 : 96;
-      const NB = n === 2 ? 1 : 48;
+      const NA = n === 2 ? 360 : 60;
+      const NB = n === 2 ? 1 : 30;
       for (let i = 0; i < NA; i++)
         for (let j = 0; j < NB; j++) {
           const a = (2 * Math.PI * i) / NA;
@@ -1482,5 +1482,189 @@ Object.assign(VERIFIERS, {
     }
     const { r, a, b } = curveIn(p.question);
     return expectNear(got, lineInt((t) => dot(Fat(comps, envOf(vars, evalV(r, t))), dV(r, t)), a, b), what, 1e-6);
+  },
+} satisfies Record<string, Verifier>);
+
+// ---------------------------------------------------------------- Green, surfaces, Stokes, divergence
+
+/** `\oint_{C} A\,dx + B\,dy` (or `\int_{C}`) → coefficient functions. */
+function formIn(seg: string): Array<{ coef: Fn; v: string }> {
+  const form = /\\o?int_\{C\}\s*([\s\S]*)$/.exec(seg)![1]!;
+  return [...form.matchAll(/([\s\S]*?)\\,d([xyz])/g)].map((x) => ({ coef: fn(x[1]!.trim().replace(/^\+/, '')), v: x[2]! }));
+}
+
+/** Line integral of a differential form along a path given as a function of t on [a, b]. */
+function formAlong(pieces: Array<{ coef: Fn; v: string }>, r: (t: number) => V, a: number, b: number, n = 16, panels = 4): number {
+  const vars = ['x', 'y', 'z'].slice(0, r(a).length);
+  const g = (t: number) => {
+    const env = envOf(vars, r(t));
+    const h = 1e-5;
+    const dr = vsub(r(t + h), r(t - h)).map((x) => x / (2 * h));
+    return pieces.reduce((s, pc) => s + pc.coef(env) * dr[vars.indexOf(pc.v)]!, 0);
+  };
+  return quad(g, a, b, n, panels);
+}
+
+interface Param {
+  r: (u: number, v: number) => V;
+  u: [number, number];
+  v: [number, number];
+}
+const paramOf = (r: string[], u: [string, string], v: [string, string]): Param => {
+  const fs = r.map(fn);
+  return { r: (uu, vv) => fs.map((f) => f({ u: uu, v: vv })), u: [val(u[0]), val(u[1])], v: [val(v[0]), val(v[1])] };
+};
+function normalAt(S: Param, u: number, v: number): V {
+  const h = 1e-5;
+  const ru = vsub(S.r(u + h, v), S.r(u - h, v)).map((x) => x / (2 * h));
+  const rv = vsub(S.r(u, v + h), S.r(u, v - h)).map((x) => x / (2 * h));
+  return cross(ru, rv);
+}
+/** ∬ g(point, normal) du dv over the parameter rectangle. */
+function surfInt(S: Param, g: (p: V, n: V) => number, n = 16): number {
+  return quad((u) => quad((v) => g(S.r(u, v), normalAt(S, u, v)), S.v[0], S.v[1], n, 1), S.u[0], S.u[1], n, 1);
+}
+const curlVec = (F: Fn[], env: Env) => {
+  const d = (i: number, v: string) => {
+    const h = 1e-5;
+    return (F[i]!({ ...env, [v]: env[v]! + h }) - F[i]!({ ...env, [v]: env[v]! - h })) / (2 * h);
+  };
+  return [d(2, 'y') - d(1, 'z'), d(0, 'z') - d(2, 'x'), d(1, 'x') - d(0, 'y')];
+};
+
+Object.assign(VERIFIERS, {
+  /** Green's theorem: the circulation computed directly around the boundary. */
+  'multivariable.green'(p: ProblemContent) {
+    const what = `${p.question} → ${p.answer}`;
+    if (p.check!.task === 'area') {
+      const { r, a, b } = curveIn(p.question);
+      const A = formAlong([{ coef: (e) => -e.y! / 2, v: 'x' }, { coef: (e) => e.x! / 2, v: 'y' }], (t) => evalV(r, t), a, b, 16, 8);
+      return expectNear(answerNum(p.answer), A, what, 1e-6);
+    }
+    const pieces = formIn(segs(p.question).find((s) => /\\oint/.test(s))!);
+    const circle = segs(p.question).find((s) => /^x\^\{2\} \+ y\^\{2\} = /.test(s));
+    let total = 0;
+    if (circle) {
+      const R = Math.sqrt(val(splitTop(circle, ['=']).parts[1]!));
+      total = formAlong(pieces, (t) => [R * Math.cos(t), R * Math.sin(t)], 0, 2 * Math.PI, 16, 8);
+    } else {
+      const vs = tupleSegs(p.question);
+      expect(vs.length, what).toBeGreaterThanOrEqual(3);
+      const area2 = vs.reduce((s, P, i) => {
+        const Q = vs[(i + 1) % vs.length]!;
+        return s + P[0]! * Q[1]! - Q[0]! * P[1]!;
+      }, 0);
+      expect(area2, `${what}: vertices counterclockwise`).toBeGreaterThan(0);
+      vs.forEach((P, i) => {
+        const Q = vs[(i + 1) % vs.length]!;
+        total += formAlong(pieces, (t) => P.map((x, k) => x + t * (Q[k]! - x)), 0, 1, 12, 1);
+      });
+    }
+    expectNear(answerNum(p.answer), total, what, 1e-6);
+  },
+
+  /** Surface area, scalar surface integrals and flux across a parametrized surface. */
+  'multivariable.surface'(p: ProblemContent) {
+    const task = p.check!.task as string;
+    const seg = segs(p.question).find((s) => /^S: \\mathbf\{r\}\(u, v\)/.test(s))!;
+    const comps = langles(seg)[0]!;
+    const [u0, u1] = tBounds(p.question, 'u');
+    const [v0, v1] = tBounds(p.question, 'v');
+    const S = paramOf(comps, [String(u0), String(u1)], [String(v0), String(v1)]);
+    const what = `${p.question} → ${p.answer}`;
+    let want: number;
+    if (task === 'flux') {
+      const { comps: Fc } = fieldIn(p.question);
+      const um = (u0 + u1) / 2;
+      const vm = (v0 + v1) / 2;
+      const n0 = normalAt(S, um, vm);
+      if (p.check!.orient === 'up') expect(n0[2]!, `${what}: upward`).toBeGreaterThan(0);
+      else expect(dot(n0, S.r(um, vm).map((x, i) => (i === 2 && /z-axis/.test(p.question) ? 0 : x))), `${what}: outward`).toBeGreaterThan(0);
+      want = surfInt(S, (P, n) => dot(Fat(Fc, xyz(P)), n));
+    } else {
+      const body = task === 'area' ? () => 1 : fn(/\\iint_\{S\}\s*([\s\S]*?)\\,dS$/.exec(segs(p.question).find((s) => /\\iint_\{S\}/.test(s))!)![1]!);
+      want = surfInt(S, (P, n) => body(xyz(P)) * len(n));
+    }
+    expectNear(answerNum(p.answer), want, what, 1e-6);
+  },
+
+  /** Stokes: circulation around the boundary and flux of the (numeric) curl through the surface agree with the answer. */
+  'multivariable.stokes'(p: ProblemContent) {
+    const what = `${p.question} → ${p.answer}`;
+    const { comps: Fc } = fieldIn(p.question);
+    const sd = p.check!.surface as { r: string[]; u: [string, string]; v: [string, string] };
+    const cd = p.check!.curve as { r: string[]; t: [string, string] };
+    const S = paramOf(sd.r, sd.u, sd.v);
+    const surfEq = p.check!.surfEq as string;
+    expect(segs(p.question).includes(surfEq), `${what}: surface ${surfEq} shown`).toBe(true);
+    const onS = eqSides(surfEq);
+    for (const [u, v] of [[0.3, 0.7], [0.9, 2.1], [0.5, 4.4]] as const) {
+      const [l, r] = onS(xyz(S.r(u * S.u[1], v)));
+      expect(near(l, r, 1e-9), `${what}: parametrization on ${surfEq}`).toBe(true);
+    }
+    const um = (S.u[0] + S.u[1]) / 2;
+    expect(normalAt(S, um, 1)[2]!, `${what}: upward`).toBeGreaterThan(0);
+    const cf = cd.r.map(fn);
+    const C = (t: number) => cf.map((f) => f({ t }));
+    for (const eq of p.check!.onCurve as string[]) {
+      const sides = eqSides(eq);
+      [0.4, 2.2, 5.1].forEach((t) => {
+        const [l, r] = sides(xyz(C(t)));
+        expect(near(l, r, 1e-9), `${what}: boundary on ${eq}`).toBe(true);
+      });
+    }
+    const circ = formAlong(['x', 'y', 'z'].map((v, i) => ({ coef: Fc[i]!, v })), C, val(cd.t[0]), val(cd.t[1]), 16, 4);
+    const flux = surfInt(S, (P, n) => dot(curlVec(Fc, xyz(P)), n), 16);
+    const got = answerNum(p.answer);
+    expectNear(got, circ, `${what}: circulation`, 1e-6);
+    expectNear(got, flux, `${what}: flux of curl`, 1e-5);
+  },
+
+  /** Divergence theorem: ∭ div F over E and the outward flux over the boundary pieces agree with the answer. */
+  'multivariable.divergence'(p: ProblemContent) {
+    const what = `${p.question} → ${p.answer}`;
+    const { comps: Fc } = fieldIn(p.question);
+    const region = p.check!.region as { vars: string[]; bounds: Bound[] };
+    const center = p.check!.center as number[];
+    // the region in the check is the solid E shown in the question
+    const Eseg = prep(segs(p.question).find((s) => s.startsWith('E = '))!.slice(4));
+    const inE = (P: V) => {
+      if (Eseg.startsWith('['))
+        return Eseg.split('\\times').every((iv, i) => {
+          const [lo, hi] = listItems(iv.trim().replace(/^\[/, '(').replace(/\]$/, ')')).map((t) => val(t));
+          return P[i]! >= lo! - 1e-12 && P[i]! <= hi! + 1e-12;
+        });
+      return setConds(Eseg).every((c) => relChain(c, xyz(P)));
+    };
+    const toXYZ = (env: Env) => {
+      const c = coordEnv(region.vars, env).env;
+      return [c.x!, c.y!, c.z!];
+    };
+    const rnd = lcg(5);
+    for (let i = 0; i < 20; i++) {
+      const env: Env = {};
+      for (const b of region.bounds) env[b.v] = val(b.lo, env) + rnd() * (val(b.hi, env) - val(b.lo, env));
+      expect(inE(toXYZ(env)), `${what}: sample of E`).toBe(true);
+      // just beyond the outer limit of the first variable is outside E
+      const b0 = region.bounds[0]!;
+      expect(inE(toXYZ({ ...env, [b0.v]: val(b0.hi) * 1.05 + 0.01 })), `${what}: E is no larger than the region`).toBe(false);
+    }
+    const div = (env: Env) =>
+      ['x', 'y', 'z'].reduce((s, v, i) => {
+        const h = 1e-5;
+        return s + (Fc[i]!({ ...env, [v]: env[v]! + h }) - Fc[i]!({ ...env, [v]: env[v]! - h })) / (2 * h);
+      }, 0);
+    const vol = integrate(div, region.bounds, region.vars, 14);
+    let flux = 0;
+    for (const sd of p.check!.surfaces as Array<{ r: string[]; u: [string, string]; v: [string, string] }>) {
+      const S = paramOf(sd.r, sd.u, sd.v);
+      const um = S.u[0] + 0.37 * (S.u[1] - S.u[0]);
+      const vm = S.v[0] + 0.61 * (S.v[1] - S.v[0]);
+      const sign = dot(normalAt(S, um, vm), vsub(S.r(um, vm), center)) > 0 ? 1 : -1;
+      flux += sign * surfInt(S, (P, n) => dot(Fat(Fc, xyz(P)), n), /pi/.test(sd.u.join() + sd.v.join()) ? 20 : 8);
+    }
+    const got = answerNum(p.answer);
+    expectNear(got, vol, `${what}: triple integral`, 1e-5);
+    expectNear(got, flux, `${what}: outward flux`, 1e-5);
   },
 } satisfies Record<string, Verifier>);

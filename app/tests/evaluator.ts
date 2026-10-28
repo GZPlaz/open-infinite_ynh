@@ -16,10 +16,17 @@ const c = (re: number, im = 0): C => ({ re, im });
 const cadd = (a: C, b: C): C => c(a.re + b.re, a.im + b.im);
 const csub = (a: C, b: C): C => c(a.re - b.re, a.im - b.im);
 const cmul = (a: C, b: C): C => c(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re);
+/** Smith's algorithm: no overflow from squaring a large denominator. */
 const cdiv = (a: C, b: C): C => {
-  const d = b.re * b.re + b.im * b.im;
-  if (d === 0) return c(NaN, NaN);
-  return c((a.re * b.re + a.im * b.im) / d, (a.im * b.re - a.re * b.im) / d);
+  if (b.re === 0 && b.im === 0) return c(NaN, NaN);
+  if (Math.abs(b.re) >= Math.abs(b.im)) {
+    const r = b.im / b.re;
+    const d = b.re + b.im * r;
+    return c((a.re + a.im * r) / d, (a.im - a.re * r) / d);
+  }
+  const r = b.re / b.im;
+  const d = b.re * r + b.im;
+  return c((a.re * r + a.im) / d, (a.im * r - a.re) / d);
 };
 const cabs = (a: C): number => Math.hypot(a.re, a.im);
 const cexp = (a: C): C => c(Math.exp(a.re) * Math.cos(a.im), Math.exp(a.re) * Math.sin(a.im));
@@ -65,6 +72,9 @@ const INVERSE: Record<string, string> = { sin: 'arcsin', cos: 'arccos', tan: 'ar
 
 type Tok = { k: 'num'; v: number } | { k: 'var'; v: string } | { k: 'cmd'; v: string } | { k: 'sym'; v: string };
 
+/** Greek letters used as variables (θ, φ, t-like parameters); \pi stays a constant. */
+const GREEK = new Set(['theta', 'phi', 'varphi', 'alpha', 'beta', 'rho']);
+
 function tokenize(src: string): Tok[] {
   const out: Tok[] = [];
   let i = 0;
@@ -95,6 +105,7 @@ function tokenize(src: string): Tok[] {
       if (name === '{' || name === '}') out.push({ k: 'sym', v: name === '{' ? '(' : ')' });
       else if (name === 'lvert' || name === 'rvert' || name === 'vert' || name === '|') out.push({ k: 'sym', v: '|' });
       else if (name === 'dfrac' || name === 'tfrac') out.push({ k: 'cmd', v: 'frac' });
+      else if (GREEK.has(name)) out.push({ k: 'var', v: name });
       else if (name === 'lt') out.push({ k: 'sym', v: '<' });
       else if (name === 'gt') out.push({ k: 'sym', v: '>' });
       else out.push({ k: 'cmd', v: name });

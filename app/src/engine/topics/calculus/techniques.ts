@@ -247,11 +247,11 @@ export const trigSubstitution = defineTopic({
   options: [],
   generate(ctx): ProblemContent {
     const { rng, difficulty } = ctx;
-    const POOL: Record<Difficulty, string[]> = { easy: ['asin', 'atan', 'atanFrac'], medium: ['sqrtArea', 'invX2', 'x2over', 'atanFrac'], hard: ['pow32', 'lnSqrt', 'secForm', 'invX2', 'x2over'] };
+    const POOL: Record<Difficulty, string[]> = { easy: ['asin', 'atan'], medium: ['sqrtArea', 'invX2', 'x2over', 'atanFrac'], hard: ['pow32', 'lnSqrt', 'secForm', 'invX2', 'x2over'] };
     const kind = rng.pick(POOL[difficulty]);
     const a = rng.int(1, difficulty === 'easy' ? 4 : 5);
     const a2 = a * a;
-    const c = new Frac(rng.signedInt(1, difficulty === 'easy' ? 1 : 3, true));
+    const c = new Frac(rng.signedInt(1, difficulty === 'easy' ? 3 : 4, true));
     const asin = a === 1 ? '\\sin^{-1} x' : `\\sin^{-1}\\left(\\frac{x}{${a}}\\right)`;
     const atan = a === 1 ? '\\tan^{-1} x' : `\\tan^{-1}\\left(\\frac{x}{${a}}\\right)`;
     const R = (s: string) => `\\sqrt{${s}}`;

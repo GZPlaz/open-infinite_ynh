@@ -233,11 +233,11 @@ export const cylSphIntegrals = taskTopic<CSTask>({
 
 type ATask = 'mass' | 'center' | 'centroid';
 
-function lamina(rng: Rng, d: Difficulty): B[] {
-  const a = rng.int(1, 3);
-  const k = rng.int(1, 3);
+function lamina(rng: Rng, d: Difficulty, centroid = false): B[] {
+  const a = rng.int(1, centroid ? 4 : 3);
+  const k = rng.int(1, centroid ? 4 : 3);
   return rng.pick<B[]>(
-    d === 'easy'
+    d === 'easy' && !centroid
       ? [
           [{ v: 'x', lo: cst(0), hi: cst(a) }, { v: 'y', lo: cst(0), hi: cst(rng.int(1, 3)) }],
           [{ v: 'x', lo: cst(0), hi: cst(a) }, { v: 'y', lo: cst(0), hi: vr('x', k) }],
@@ -266,7 +266,7 @@ export const applicationsMultiple = taskTopic<ATask>({
   ],
   mix: { easy: ['mass', 'centroid'], medium: ['mass', 'center', 'centroid'], hard: ['center', 'mass'] },
   build(task, { rng, difficulty }) {
-    const bs = lamina(rng, difficulty);
+    const bs = lamina(rng, difficulty, task === 'centroid');
     const k = rng.int(1, 4);
     const dens: MX = task === 'centroid' ? [mt(1)] : rng.pick<MX>([[mt(k, { x: 1 })], [mt(k, { y: 1 })], norm([mt(1, { x: 1 }), mt(1, { y: 1 })]), [mt(k, { x: 1, y: 1 })], norm([mt(k), mt(1, { x: 1 })]), [mt(k, { x: 2 })]]);
     const M = exactIter(dens, bs);

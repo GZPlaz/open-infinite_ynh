@@ -378,13 +378,6 @@ function polarPair(rng: Rng, nonAxis = true): { r: Ex; th: Frac; k: number } {
   return { r: exQ(k), th, k };
 }
 
-interface EqTemplate {
-  from: 'rect' | 'cyl' | 'sph';
-  to: 'rect' | 'cyl' | 'sph';
-  q: (a: number) => string;
-  a: (a: number) => string;
-}
-
 const sq = (a: number) => a * a;
 const CYL_EQ: Array<{ rect: (a: number) => string; cyl: (a: number) => string }> = [
   { rect: (a) => `x^{2} + y^{2} = ${sq(a)}`, cyl: (a) => `r = ${a}` },
