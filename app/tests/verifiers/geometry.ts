@@ -474,3 +474,681 @@ export const VERIFIERS: Record<string, Verifier> = {
 };
 
 export { angleAt, close, labelsOf, noDeg, norm, visible };
+
+// ================================================================ two-column proofs
+//
+// The checker reads the rendered proof table (and the Given / Prove lines of the
+// question), parses every statement, checks that it is true in the figure, and
+// that its reason really justifies it from earlier statements and the figure.
+
+type Tri3 = [Pt, Pt, Pt];
+
+type St =
+  | { k: 'segc'; a: string; b: string }
+  | { k: 'angc'; a: string; b: string }
+  | { k: 'tric' | 'sim'; a: string; b: string }
+  | { k: 'par' | 'perp'; a: string; b: string }
+  | { k: 'mid'; p: string; s: string }
+  | { k: 'bis'; ray: string; ang: string }
+  | { k: 'supp' | 'rights'; a: string; b: string }
+  | { k: 'rtri'; a: string; b: string }
+  | { k: 'eq'; tex: string };
+
+interface ProofFig {
+  points: Record<string, Pt>;
+  lines: Record<string, [Pt, Pt]>;
+  numbered: Record<string, Tri3>;
+}
+
+const squash = (s: string) => s.replace(/\s+/g, '').replace(/\\ /g, '');
+
+export function parseStatement(tex: string): St {
+  const s = squash(tex);
+  let mm: RegExpExecArray | null;
+  if ((mm = /^\\overline\{(\w+)\}\\cong\\overline\{(\w+)\}$/.exec(s))) return { k: 'segc', a: mm[1]!, b: mm[2]! };
+  if ((mm = /^\\angle(\w+)\\cong\\angle(\w+)$/.exec(s))) return { k: 'angc', a: mm[1]!, b: mm[2]! };
+  if ((mm = /^\\triangle(\w+)\\cong\\triangle(\w+)$/.exec(s))) return { k: 'tric', a: mm[1]!, b: mm[2]! };
+  if ((mm = /^\\triangle(\w+)\\sim\\triangle(\w+)$/.exec(s))) return { k: 'sim', a: mm[1]!, b: mm[2]! };
+  const line = '(?:\\\\overline\\{(\\w+)\\}|([a-z]))';
+  if ((mm = new RegExp(`^${line}\\\\parallel${line}$`).exec(s))) return { k: 'par', a: mm[1] ?? mm[2]!, b: mm[3] ?? mm[4]! };
+  if ((mm = /^\\overline\{(\w+)\}\\perp\\overline\{(\w+)\}$/.exec(s))) return { k: 'perp', a: mm[1]!, b: mm[2]! };
+  if ((mm = /^(\w)\\text\{isthemidpointof\}\\overline\{(\w+)\}$/.exec(s))) return { k: 'mid', p: mm[1]!, s: mm[2]! };
+  if ((mm = /^\\overrightarrow\{(\w+)\}\\text\{bisects\}\\angle(\w+)$/.exec(s))) return { k: 'bis', ray: mm[1]!, ang: mm[2]! };
+  if ((mm = /^\\angle(\w+)\\text\{and\}\\angle(\w+)\\text\{aresupplementary\}$/.exec(s))) return { k: 'supp', a: mm[1]!, b: mm[2]! };
+  if ((mm = /^\\angle(\w+)\\text\{and\}\\angle(\w+)\\text\{arerightangles\}$/.exec(s))) return { k: 'rights', a: mm[1]!, b: mm[2]! };
+  if ((mm = /^\\triangle(\w+)\\text\{and\}\\triangle(\w+)\\text\{arerighttriangles\}$/.exec(s))) return { k: 'rtri', a: mm[1]!, b: mm[2]! };
+  if (s.includes('=') && !s.includes('\\cong')) return { k: 'eq', tex: tex.trim() };
+  throw new Error(`unparsed statement: ${tex}`);
+}
+
+/** Rows of a rendered proof table: [statement tex, reason text]. */
+export function parseTable(tex: string): Array<[string, string]> {
+  const body = tex.trim().replace(/^\\begin\{array\}\{\|l\|l\|\}\s*\\hline/, '').replace(/\\end\{array\}$/, '');
+  const rows = body
+    .split('\\\\ \\hline')
+    .map((r) => r.trim())
+    .filter(Boolean);
+  rows.shift(); // header
+  return rows.map((r) => {
+    const amp = r.indexOf(' & ');
+    expect(amp, `row without two cells: ${r}`).toBeGreaterThan(0);
+    const st = r.slice(0, amp).replace(/^\d+\.\\ /, '').trim();
+    const rs = r.slice(amp + 3).trim();
+    const reason = /^\\text\{(.*)\}$/.exec(rs)?.[1] ?? rs;
+    return [st, reason];
+  });
+}
+
+const dist2 = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const unitv = (v: Pt): Pt => {
+  const l = Math.hypot(v[0], v[1]);
+  return [v[0] / l, v[1] / l];
+};
+const crossv = (a: Pt, b: Pt) => a[0] * b[1] - a[1] * b[0];
+const dotv = (a: Pt, b: Pt) => a[0] * b[0] + a[1] * b[1];
+const sameDir = (a: Pt, b: Pt) => Math.abs(crossv(unitv(a), unitv(b))) < 1e-7 && dotv(a, b) > 0;
+const opposite = (a: Pt, b: Pt) => Math.abs(crossv(unitv(a), unitv(b))) < 1e-7 && dotv(a, b) < 0;
+const near = (a: Pt, b: Pt) => dist2(a, b) < 1e-7;
+
+class ProofChecker {
+  constructor(readonly fig: ProofFig) {}
+
+  pt(n: string): Pt {
+    const p = this.fig.points[n];
+    if (!p) throw new Error(`unknown point ${n}`);
+    return p;
+  }
+  angle(name: string): Tri3 {
+    if (/^\d+$/.test(name)) {
+      const t = this.fig.numbered[name];
+      if (!t) throw new Error(`unknown angle ${name}`);
+      return t;
+    }
+    if (name.length !== 3) throw new Error(`bad angle ${name}`);
+    return [this.pt(name[0]!), this.pt(name[1]!), this.pt(name[2]!)];
+  }
+  measure(name: string): number {
+    const [a, v, c] = this.angle(name);
+    return angleAt(a, v, c);
+  }
+  sameAngle(x: string, y: string): boolean {
+    return this.sameTri(this.angle(x), this.angle(y));
+  }
+  sameTri([a1, v1, c1]: Tri3, [a2, v2, c2]: Tri3): boolean {
+    if (!near(v1, v2)) return false;
+    const r1 = [sub(a1, v1), sub(c1, v1)];
+    const r2 = [sub(a2, v2), sub(c2, v2)];
+    return (sameDir(r1[0]!, r2[0]!) && sameDir(r1[1]!, r2[1]!)) || (sameDir(r1[0]!, r2[1]!) && sameDir(r1[1]!, r2[0]!));
+  }
+  segLen(s: string): number {
+    return dist2(this.pt(s[0]!), this.pt(s[1]!));
+  }
+  line(ref: string): [Pt, Pt] {
+    if (ref.length === 1) {
+      const l = this.fig.lines[ref];
+      if (!l) throw new Error(`unknown line ${ref}`);
+      return l;
+    }
+    return [this.pt(ref[0]!), this.pt(ref[1]!)];
+  }
+  onLine(p: Pt, [a, b]: [Pt, Pt]): boolean {
+    return Math.abs(crossv(unitv(sub(b, a)), sub(p, a))) < 1e-7;
+  }
+  alongLine(v: Pt, [a, b]: [Pt, Pt]): boolean {
+    return Math.abs(crossv(unitv(sub(b, a)), unitv(v))) < 1e-7;
+  }
+  vertical(x: string, y: string): boolean {
+    const [a1, v1, c1] = this.angle(x);
+    const [a2, v2, c2] = this.angle(y);
+    if (!near(v1, v2)) return false;
+    const r1 = [sub(a1, v1), sub(c1, v1)];
+    const r2 = [sub(a2, v2), sub(c2, v2)];
+    return (opposite(r1[0]!, r2[0]!) && opposite(r1[1]!, r2[1]!)) || (opposite(r1[0]!, r2[1]!) && opposite(r1[1]!, r2[0]!));
+  }
+  linearPair(x: string, y: string): boolean {
+    const [a1, v1, c1] = this.angle(x);
+    const [a2, v2, c2] = this.angle(y);
+    if (!near(v1, v2)) return false;
+    const r1 = [sub(a1, v1), sub(c1, v1)];
+    const r2 = [sub(a2, v2), sub(c2, v2)];
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) if (sameDir(r1[i]!, r2[j]!) && opposite(r1[1 - i]!, r2[1 - j]!)) return true;
+    return false;
+  }
+  /** Relation of two angles formed by lines l1, l2 and the transversal through their vertices. */
+  relation(x: string, y: string, l1: [Pt, Pt], l2: [Pt, Pt]): string | null {
+    const A = this.angle(x);
+    const B = this.angle(y);
+    let [p, q] = [A, B];
+    let [m1, m2] = [l1, l2];
+    if (!this.onLine(p[1], m1)) [m1, m2] = [m2, m1];
+    if (!this.onLine(p[1], m1) || !this.onLine(q[1], m2) || this.onLine(p[1], m2) || this.onLine(q[1], m1)) return null;
+    const t = sub(q[1], p[1]);
+    const split = (tri: Tri3, lineSeg: [Pt, Pt]) => {
+      const rays = [sub(tri[0], tri[1]), sub(tri[2], tri[1])];
+      const ti = rays.findIndex((r) => this.alongLine(r, [p[1], q[1]]));
+      if (ti < 0 || !this.alongLine(rays[1 - ti]!, lineSeg)) return null;
+      return { tr: rays[ti]!, lr: rays[1 - ti]! };
+    };
+    const s1 = split(p, m1);
+    const s2 = split(q, m2);
+    if (!s1 || !s2) return null;
+    const in1 = dotv(s1.tr, t) > 0;
+    const in2 = dotv(s2.tr, t) < 0;
+    const same = Math.sign(crossv(t, s1.lr)) === Math.sign(crossv(t, s2.lr));
+    if (in1 && in2) return same ? 'ssi' : 'altInt';
+    if (!in1 && !in2) return same ? 'sse' : 'altExt';
+    return same ? 'corr' : null;
+  }
+
+  /** Is the statement true in the figure? */
+  holds(st: St, linearValue: (tex: string) => number): boolean {
+    const eqA = (u: number, v: number) => Math.abs(u - v) < 1e-6 * Math.max(1, u, v);
+    switch (st.k) {
+      case 'segc':
+        return eqA(this.segLen(st.a), this.segLen(st.b));
+      case 'angc':
+        return eqA(this.measure(st.a), this.measure(st.b));
+      case 'tric':
+      case 'sim': {
+        const r = [0, 1, 2].map((k) => this.segLen(st.b[(k + 1) % 3]! + st.b[(k + 2) % 3]!) / this.segLen(st.a[(k + 1) % 3]! + st.a[(k + 2) % 3]!));
+        return eqA(r[0]!, r[1]!) && eqA(r[1]!, r[2]!) && (st.k === 'sim' || eqA(r[0]!, 1));
+      }
+      case 'par':
+      case 'perp': {
+        const [a, b] = this.line(st.a);
+        const [c, d] = this.line(st.b);
+        const u = unitv(sub(b, a));
+        const w = unitv(sub(d, c));
+        return st.k === 'par' ? Math.abs(crossv(u, w)) < 1e-7 && !this.onLine(c, [a, b]) : Math.abs(dotv(u, w)) < 1e-7;
+      }
+      case 'mid':
+        return near(this.pt(st.p), [(this.pt(st.s[0]!)[0] + this.pt(st.s[1]!)[0]) / 2, (this.pt(st.s[0]!)[1] + this.pt(st.s[1]!)[1]) / 2]);
+      case 'bis': {
+        const [A, V, C] = [this.pt(st.ang[0]!), this.pt(st.ang[1]!), this.pt(st.ang[2]!)];
+        const D = this.pt(st.ray[1]!);
+        return st.ray[0] === st.ang[1] && eqA(angleAt(A, V, D), angleAt(D, V, C)) && eqA(angleAt(A, V, D) * 2, angleAt(A, V, C));
+      }
+      case 'supp':
+        return eqA(this.measure(st.a) + this.measure(st.b), 180);
+      case 'rights':
+        return eqA(this.measure(st.a), 90) && eqA(this.measure(st.b), 90);
+      case 'rtri':
+        return [st.a, st.b].every((t) => [0, 1, 2].some((k) => eqA(angleAt(this.pt(t[(k + 1) % 3]!), this.pt(t[k]!), this.pt(t[(k + 2) % 3]!)), 90)));
+      case 'eq':
+        return Math.abs(linearValue(st.tex)) < 1e-6;
+    }
+  }
+}
+
+/** Measures in an equation (`AB`, `m\angle ABC`, `m\angle 1`) as evaluator variables. */
+class MeasureVars {
+  readonly keys: string[] = [];
+  readonly values: number[] = [];
+  constructor(readonly c: ProofChecker) {}
+  private idx(kind: 'seg' | 'ang', name: string): number {
+    for (let i = 0; i < this.keys.length; i++) {
+      const k = this.keys[i]!;
+      if (kind === 'seg' && k === `s:${[...name].sort().join('')}`) return i;
+      if (kind === 'ang' && k.startsWith('a:') && this.c.sameAngle(k.slice(2), name)) return i;
+    }
+    this.keys.push(kind === 'seg' ? `s:${[...name].sort().join('')}` : `a:${name}`);
+    this.values.push(kind === 'seg' ? this.c.segLen(name) : this.c.measure(name));
+    return this.keys.length - 1;
+  }
+  /** Equation tex → evaluator tex with v_{i} variables. */
+  rewrite(tex: string): string {
+    return tex
+      .replace(/\^\{?\\circ\}?/g, '')
+      .replace(/m\\angle\s*(\d+|[A-Z]{3})/g, (_, n: string) => ` v_{${this.idx('ang', n)}} `)
+      .replace(/(?<![\\A-Za-z])([A-Z]{2})(?![A-Za-z])/g, (_, n: string) => ` v_{${this.idx('seg', n)}} `);
+  }
+  env(vals: number[]): Record<string, number> {
+    return Object.fromEntries(vals.map((v, i) => [`v_${i}`, v]));
+  }
+}
+
+const ALG_SAMPLES = [-2.3, 0.7, 3.1];
+
+/** Check a full proof; returns an error message or null when the proof is valid. */
+export function checkProof(rows: Array<[string, string]>, givens: string[], prove: string, fig: ProofFig): string | null {
+  const c = new ProofChecker(fig);
+  const mv = new MeasureVars(c);
+  const algebra = rows.some(([s]) => /(?<![a-z\\])x(?![a-z])/.test(s) && !/\\angle|\\overline/.test(s));
+  const sts: St[] = [];
+  try {
+    for (const [s] of rows) sts.push(parseStatement(s));
+  } catch (e) {
+    return (e as Error).message;
+  }
+  const sides = (tex: string) => {
+    const { parts, rels } = splitTop(tex, ['=']);
+    if (rels.length !== 1) throw new Error(`not one '=': ${tex}`);
+    return [parts[0]!, parts[1]!] as const;
+  };
+  // equation as a function of a sample index (algebra: x; geometry: measure vars)
+  const nVars = () => mv.keys.length;
+  const samples = (k: number): Record<string, number> =>
+    algebra ? { x: ALG_SAMPLES[k] ?? 1 } : mv.env(Array.from({ length: nVars() + 8 }, (_, i) => (k === 3 ? 1 : Math.sin(1.7 * i + 2.1 * k + 0.4) * 3 + 1.3 * k)));
+  const sideFn = (t: string) => (k: number) => evalReal(algebra ? t : mv.rewrite(t), { vars: samples(k) });
+  const fns = (tex: string) => {
+    const [l, r] = sides(tex);
+    return [sideFn(l), sideFn(r)] as const;
+  };
+  const same = (f: (k: number) => number, g: (k: number) => number) => [0, 1, 2].every((k) => Math.abs(f(k) - g(k)) < 1e-7 * Math.max(1, Math.abs(f(k))));
+  // linear form of an equation (geometry): coefficient vector over measure vars + constant
+  const linForm = (tex: string): number[] => {
+    const [l, r] = sides(mv.rewrite(tex));
+    const f = (vals: number[]) => evalReal(l, { vars: mv.env(vals) }) - evalReal(r, { vars: mv.env(vals) });
+    const n = nVars();
+    const zero = Array(n).fill(0) as number[];
+    const c0 = f(zero);
+    const coefs = zero.map((_, i) => f(zero.map((z, j) => (j === i ? 1 : z))) - c0);
+    const test = zero.map((_, i) => 0.3 + i * 0.7);
+    if (Math.abs(f(test) - (c0 + coefs.reduce((s, a, i) => s + a * test[i]!, 0))) > 1e-6) throw new Error(`nonlinear ${tex}`);
+    return [...coefs, c0];
+  };
+  const vecOf = (st: St): number[] | null => {
+    if (st.k === 'eq') return linForm(st.tex);
+    if (st.k === 'segc') return linForm(`${st.a} = ${st.b}`);
+    if (st.k === 'angc') return linForm(`m\\angle ${st.a} = m\\angle ${st.b}`);
+    if (st.k === 'supp') return linForm(`m\\angle ${st.a} + m\\angle ${st.b} = 180`);
+    return null;
+  };
+  const inSpan = (target: number[], basis: number[][]): boolean => {
+    const n = target.length;
+    const pad = (v: number[]) => [...v.slice(0, -1), ...Array(n - v.length).fill(0), v[v.length - 1]!];
+    const rowsM = basis.map(pad).map((v) => [...v]);
+    // Gaussian elimination, then reduce the target
+    const piv: number[] = [];
+    let r = 0;
+    for (let col = 0; col < n && r < rowsM.length; col++) {
+      let best = r;
+      for (let i = r; i < rowsM.length; i++) if (Math.abs(rowsM[i]![col]!) > Math.abs(rowsM[best]![col]!)) best = i;
+      if (Math.abs(rowsM[best]![col]!) < 1e-9) continue;
+      [rowsM[r], rowsM[best]] = [rowsM[best]!, rowsM[r]!];
+      for (let i = 0; i < rowsM.length; i++) {
+        if (i === r) continue;
+        const f = rowsM[i]![col]! / rowsM[r]![col]!;
+        for (let j = 0; j < n; j++) rowsM[i]![j]! -= f * rowsM[r]![j]!;
+      }
+      piv.push(col);
+      r++;
+    }
+    const t = [...target];
+    piv.forEach((col, i) => {
+      const f = t[col]! / rowsM[i]![col]!;
+      for (let j = 0; j < n; j++) t[j]! -= f * rowsM[i]![j]!;
+    });
+    return t.every((v) => Math.abs(v) < 1e-7);
+  };
+  const isSeg = (st: St, a: string, b: string) => st.k === 'segc' && ((sameSegName(st.a, a) && sameSegName(st.b, b)) || (sameSegName(st.a, b) && sameSegName(st.b, a)));
+  const sameSegName = (x: string, y: string) => [...x].sort().join('') === [...y].sort().join('');
+  const congOf = (st: St, x: string, y: string, kind: 'segc' | 'angc') =>
+    st.k === kind && (kind === 'segc' ? isSeg(st, x, y) : (c.sameAngle(st.a, x) && c.sameAngle(st.b, y)) || (c.sameAngle(st.a, y) && c.sameAngle(st.b, x)));
+  const norms = givens.map(squash);
+  const triAngle = (t: string, k: number): Tri3 => [c.pt(t[(k + 1) % 3]!), c.pt(t[k]!), c.pt(t[(k + 2) % 3]!)];
+
+  for (let i = 0; i < rows.length; i++) {
+    const [stTex, reason] = rows[i]!;
+    const st = sts[i]!;
+    const prior = sts.slice(0, i);
+    const where = `row ${i + 1} (${stTex} | ${reason})`;
+    try {
+      if (algebra) {
+        if (st.k !== 'eq') return `${where}: not an equation`;
+        // every equation has the solution of the given one
+        const [l0, r0] = fns(rows[0]![0]);
+        const [l, r] = fns(stTex);
+        const root = (f: (k: number) => number, g: (k: number) => number) => {
+          const d0 = f(0) - g(0);
+          const d1 = f(1) - g(1);
+          return ALG_SAMPLES[0]! - (d0 * (ALG_SAMPLES[1]! - ALG_SAMPLES[0]!)) / (d1 - d0);
+        };
+        if (Math.abs(root(l, r) - root(l0, r0)) > 1e-7) return `${where}: not equivalent to the given equation`;
+      } else if (
+        !c.holds(st, (t) => {
+          const [l, r] = sides(mv.rewrite(t));
+          return evalReal(l, { vars: mv.env(mv.values) }) - evalReal(r, { vars: mv.env(mv.values) });
+        })
+      )
+        return `${where}: false in the figure`;
+
+      // in algebraic proofs each step follows from the line just above it
+      const prevEqs = (algebra ? prior.slice(-1) : prior).filter((p): p is { k: 'eq'; tex: string } => p.k === 'eq');
+      const ok = ((): boolean => {
+        switch (reason) {
+          case 'Given':
+            return norms.includes(squash(stTex));
+          case 'Reflexive Prop.':
+            if (st.k === 'segc') return sameSegName(st.a, st.b);
+            if (st.k === 'angc') return c.sameAngle(st.a, st.b);
+            if (st.k === 'eq') return squash(sides(st.tex)[0]) === squash(sides(st.tex)[1]);
+            return false;
+          case 'Symmetric Prop. of Equality': {
+            if (st.k !== 'eq') return false;
+            const [l, r] = fns(st.tex);
+            return prevEqs.some((p) => {
+              const [pl, pr] = fns(p.tex);
+              return same(l, pr) && same(r, pl) && squash(p.tex) !== squash(st.tex);
+            });
+          }
+          case 'Transitive Prop.': {
+            if (st.k !== 'segc' && st.k !== 'angc') return false;
+            const kind = st.k;
+            const pairs = prior.filter((p) => p.k === kind) as Array<{ a: string; b: string }>;
+            const eqName = (x: string, y: string) => (kind === 'segc' ? sameSegName(x, y) : c.sameAngle(x, y));
+            for (const p1 of pairs)
+              for (const p2 of pairs) {
+                if (p1 === p2) continue;
+                for (const [x, y] of [[p1.a, p1.b], [p1.b, p1.a]] as const)
+                  for (const [y2, z] of [[p2.a, p2.b], [p2.b, p2.a]] as const)
+                    if (eqName(y, y2) && !eqName(x, y) && !eqName(y, z) && ((eqName(x, st.a) && eqName(z, st.b)) || (eqName(x, st.b) && eqName(z, st.a)))) return true;
+              }
+            return false;
+          }
+          case 'Substitution Prop.': {
+            if (st.k !== 'eq' || algebra) return false;
+            const target = linForm(st.tex);
+            const basis = prior.map(vecOf).filter((v): v is number[] => v !== null);
+            if (basis.some((v) => inSpan(target, [v]))) return false;
+            return inSpan(target, basis);
+          }
+          case 'Def. of congruent segments':
+          case 'Def. of congruent angles': {
+            const kind = reason === 'Def. of congruent segments' ? 'segc' : 'angc';
+            const target = vecOf(st);
+            if (!target) return false;
+            if (st.k === kind) return prevEqs.some((p) => inSpan(linForm(p.tex), [target]) && inSpan(target, [linForm(p.tex)]));
+            if (st.k !== 'eq') return false;
+            // a single measure on each side
+            if (!sides(st.tex).every((side) => /^(m\\angle\s*\w+|[A-Z]{2})$/.test(side.trim()))) return false;
+            const nz = target.slice(0, -1).filter((v) => Math.abs(v) > 1e-9);
+            if (nz.length !== 2 || Math.abs(target[target.length - 1]!) > 1e-9) return false;
+            return prior.some((p) => p.k === kind && inSpan(vecOf(p)!, [target]) && inSpan(target, [vecOf(p)!]));
+          }
+          case 'Def. of midpoint':
+            return st.k === 'segc' && prior.some((p) => p.k === 'mid' && isSeg(st, p.s[0]! + p.p, p.p + p.s[1]!));
+          case 'Def. of angle bisector':
+            return st.k === 'angc' && prior.some((p) => p.k === 'bis' && congOf(st, p.ang[0]! + p.ang[1]! + p.ray[1]!, p.ray[1]! + p.ang[1]! + p.ang[2]!, 'angc'));
+          case 'Segment Addition Post.': {
+            if (st.k !== 'eq') return false;
+            const names = [...squash(st.tex).matchAll(/(?<![\\A-Za-z])([A-Z]{2})(?![A-Za-z])/g)].map((x) => x[1]!);
+            if (names.length !== 3) return false;
+            const v = linForm(st.tex);
+            if (Math.abs(v[v.length - 1]!) > 1e-9) return false;
+            // which one is the whole?  the two parts share the middle point
+            for (let w = 0; w < 3; w++) {
+              const parts = names.filter((_, j) => j !== w);
+              const shared = [...parts[0]!].find((ch) => parts[1]!.includes(ch));
+              if (!shared) continue;
+              const ends = [...parts[0]!, ...parts[1]!].filter((ch) => ch !== shared);
+              if (!sameSegName(ends.join(''), names[w]!)) continue;
+              const [X, Y, Z] = [c.pt(ends[0]!), c.pt(shared), c.pt(ends[1]!)];
+              const between = Math.abs(dist2(X, Y) + dist2(Y, Z) - dist2(X, Z)) < 1e-7;
+              const exp = linForm(`${parts[0]} + ${parts[1]} = ${names[w]}`);
+              if (between && (inSpan(v, [exp]) && inSpan(exp, [v]))) return true;
+            }
+            return false;
+          }
+          case 'Angle Addition Post.': {
+            if (st.k !== 'eq') return false;
+            const names = [...squash(st.tex).matchAll(/m\\angle(\d+|[A-Z]{3})/g)].map((x) => x[1]!);
+            if (names.length !== 3) return false;
+            const v = linForm(st.tex);
+            for (let w = 0; w < 3; w++) {
+              const parts = names.filter((_, j) => j !== w);
+              const exp = linForm(`m\\angle ${parts[0]} + m\\angle ${parts[1]} = m\\angle ${names[w]}`);
+              if (!(inSpan(v, [exp]) && inSpan(exp, [v]))) continue;
+              const [a1, v1, c1] = c.angle(parts[0]!);
+              const [a2, v2, c2] = c.angle(parts[1]!);
+              const W = c.angle(names[w]!);
+              if (!near(v1, v2) || !near(v1, W[1])) continue;
+              const r1 = [sub(a1, v1), sub(c1, v1)];
+              const r2 = [sub(a2, v2), sub(c2, v2)];
+              for (let i1 = 0; i1 < 2; i1++)
+                for (let i2 = 0; i2 < 2; i2++)
+                  if (sameDir(r1[i1]!, r2[i2]!)) {
+                    const outer: Tri3 = [add2(v1, r1[1 - i1]!), v1, add2(v1, r2[1 - i2]!)];
+                    if (c.sameTri(outer, W) && Math.abs(c.measure(parts[0]!) + c.measure(parts[1]!) - c.measure(names[w]!)) < 1e-6) return true;
+                  }
+            }
+            return false;
+          }
+          case 'Vertical Angles Thm.':
+            return st.k === 'angc' && c.vertical(st.a, st.b);
+          case 'Linear Pair Post.':
+            return st.k === 'supp' && c.linearPair(st.a, st.b);
+          case 'Def. of supplementary angles': {
+            if (st.k === 'eq') {
+              const v = linForm(st.tex);
+              return prior.some((p) => p.k === 'supp' && inSpan(vecOf(p)!, [v]) && inSpan(v, [vecOf(p)!]));
+            }
+            if (st.k === 'supp') return prevEqs.some((p) => inSpan(linForm(p.tex), [vecOf(st)!]) && inSpan(vecOf(st)!, [linForm(p.tex)]));
+            return false;
+          }
+          case 'Congruent Supplements Thm.': {
+            if (st.k !== 'angc') return false;
+            const supps = prior.filter((p) => p.k === 'supp') as Array<{ a: string; b: string }>;
+            const partner = (x: string) => supps.flatMap((p) => (c.sameAngle(p.a, x) ? [p.b] : c.sameAngle(p.b, x) ? [p.a] : []));
+            return partner(st.a).some((b1) => partner(st.b).some((b2) => c.sameAngle(b1, b2) || prior.some((p) => congOf(p, b1, b2, 'angc'))));
+          }
+          case 'Def. of perpendicular lines': {
+            if (st.k !== 'rights') return false;
+            return prior.some((p) => {
+              if (p.k !== 'perp') return false;
+              const l1 = c.line(p.a);
+              const l2 = c.line(p.b);
+              return [st.a, st.b].every((n) => {
+                const [a, v, cc] = c.angle(n);
+                const r = [sub(a, v), sub(cc, v)];
+                return c.onLine(v, l1) && c.onLine(v, l2) && ((c.alongLine(r[0]!, l1) && c.alongLine(r[1]!, l2)) || (c.alongLine(r[0]!, l2) && c.alongLine(r[1]!, l1)));
+              });
+            });
+          }
+          case 'Right Angles Congruence Thm.': {
+            if (st.k !== 'angc') return false;
+            const rights = prior.flatMap((p) => (p.k === 'rights' ? [p.a, p.b] : []));
+            return [st.a, st.b].every((n) => rights.some((r) => c.sameAngle(r, n)));
+          }
+          case 'Def. of right triangle': {
+            if (st.k !== 'rtri') return false;
+            const rights = prior.flatMap((p) => (p.k === 'rights' ? [p.a, p.b] : []));
+            return [st.a, st.b].every((t) => [0, 1, 2].some((k) => rights.some((r) => c.sameTri(c.angle(r), triAngle(t, k)))));
+          }
+          case 'Corresponding Angles Post.':
+          case 'Alt. Interior Angles Thm.':
+          case 'Alt. Exterior Angles Thm.':
+          case 'Same-Side Interior Angles Thm.': {
+            const want = { 'Corresponding Angles Post.': 'corr', 'Alt. Interior Angles Thm.': 'altInt', 'Alt. Exterior Angles Thm.': 'altExt', 'Same-Side Interior Angles Thm.': 'ssi' }[reason]!;
+            if (want === 'ssi' ? st.k !== 'supp' : st.k !== 'angc') return false;
+            const s2 = st as { a: string; b: string };
+            return prior.some((p) => p.k === 'par' && c.relation(s2.a, s2.b, c.line(p.a), c.line(p.b)) === want);
+          }
+          case 'Converse of Corresponding Angles Post.':
+          case 'Converse of Alt. Interior Angles Thm.':
+          case 'Converse of Alt. Exterior Angles Thm.':
+          case 'Converse of Same-Side Interior Angles Thm.': {
+            if (st.k !== 'par') return false;
+            const want = { 'Converse of Corresponding Angles Post.': 'corr', 'Converse of Alt. Interior Angles Thm.': 'altInt', 'Converse of Alt. Exterior Angles Thm.': 'altExt', 'Converse of Same-Side Interior Angles Thm.': 'ssi' }[reason]!;
+            const kind = want === 'ssi' ? 'supp' : 'angc';
+            return prior.some((p) => p.k === kind && c.relation((p as { a: string }).a, (p as { b: string }).b, c.line(st.a), c.line(st.b)) === want);
+          }
+          case 'SSS':
+          case 'SAS':
+          case 'ASA':
+          case 'AAS':
+          case 'HL': {
+            if (st.k !== 'tric') return false;
+            const [T1, T2] = [st.a, st.b];
+            const S: number[] = [];
+            const A: number[] = [];
+            for (let k = 0; k < 3; k++) {
+              const [i, j] = [(k + 1) % 3, (k + 2) % 3];
+              const s1 = T1[i]! + T1[j]!;
+              const s2 = T2[i]! + T2[j]!;
+              if (prior.some((p) => p.k === 'segc' && ((sameSegName(p.a, s1) && sameSegName(p.b, s2)) || (sameSegName(p.b, s1) && sameSegName(p.a, s2)))))
+                S.push(k);
+              if (prior.some((p) => p.k === 'angc' && ((c.sameTri(c.angle(p.a), triAngle(T1, k)) && c.sameTri(c.angle(p.b), triAngle(T2, k))) || (c.sameTri(c.angle(p.b), triAngle(T1, k)) && c.sameTri(c.angle(p.a), triAngle(T2, k))))))
+                A.push(k);
+            }
+            let rightIdx: number | null = null;
+            const rt = prior.some((p) => p.k === 'rtri' && [...p.a].sort().join('') === [...T1].sort().join('') && [...p.b].sort().join('') === [...T2].sort().join(''));
+            if (rt) {
+              const k = [0, 1, 2].find((kk) => Math.abs(angleAt(...triAngle(T1, kk)) - 90) < 1e-6 && Math.abs(angleAt(...triAngle(T2, kk)) - 90) < 1e-6);
+              if (k !== undefined) {
+                rightIdx = k;
+                if (!A.includes(k)) A.push(k);
+              }
+            }
+            return congruenceCriterion(S, A, rightIdx) === reason;
+          }
+          case 'CPCTC':
+          case 'Def. of similar triangles': {
+            const kind = reason === 'CPCTC' ? 'tric' : 'sim';
+            const tris = prior.filter((p) => p.k === kind) as Array<{ a: string; b: string }>;
+            return tris.some(({ a: T1, b: T2 }) => {
+              const map = (s: string) => [...s].map((ch) => (T1.includes(ch) ? T2[T1.indexOf(ch)]! : '?')).join('');
+              if (kind === 'tric') {
+                const inT1 = (x: string) => [...x].every((ch) => T1.includes(ch));
+                if (st.k === 'segc') return (inT1(st.a) && sameSegName(map(st.a), st.b)) || (inT1(st.b) && sameSegName(map(st.b), st.a));
+                if (st.k === 'angc') return [0, 1, 2].some((k) => (c.sameTri(c.angle(st.a), triAngle(T1, k)) && c.sameTri(c.angle(st.b), triAngle(T2, k))) || (c.sameTri(c.angle(st.b), triAngle(T1, k)) && c.sameTri(c.angle(st.a), triAngle(T2, k))));
+                return false;
+              }
+              if (st.k !== 'eq') return false;
+              const fr = [...squash(st.tex).matchAll(/\\frac\{([A-Z]{2})\}\{([A-Z]{2})\}/g)].map((x) => [x[1]!, x[2]!] as const);
+              if (fr.length !== 2) return false;
+              // both ratios are (side of T1) / (corresponding side of T2), or both the other way
+              const inT1 = (x: string) => [...x].every((ch) => T1.includes(ch));
+              const fwd = fr.every(([n, d]) => inT1(n) && sameSegName(map(n), d));
+              const inv = (s: string) => [...s].map((ch) => (T2.includes(ch) ? T1[T2.indexOf(ch)]! : '?')).join('');
+              const inT2 = (x: string) => [...x].every((ch) => T2.includes(ch));
+              const bwd = fr.every(([n, d]) => inT2(n) && sameSegName(inv(n), d));
+              return fwd || bwd;
+            });
+          }
+          case 'AA Similarity': {
+            if (st.k !== 'sim') return false;
+            let count = 0;
+            for (let k = 0; k < 3; k++)
+              if (
+                prior.some(
+                  (p) =>
+                    p.k === 'angc' &&
+                    ((c.sameTri(c.angle(p.a), triAngle(st.a, k)) && c.sameTri(c.angle(p.b), triAngle(st.b, k))) || (c.sameTri(c.angle(p.b), triAngle(st.a, k)) && c.sameTri(c.angle(p.a), triAngle(st.b, k)))),
+                )
+              )
+                count++;
+            return count >= 2;
+          }
+          // ---- properties of equality (algebra, and simplifying measure equations)
+          case 'Distributive Prop.':
+          case 'Simplify':
+          case 'Addition Prop. of Equality':
+          case 'Subtraction Prop. of Equality':
+          case 'Multiplication Prop. of Equality':
+          case 'Division Prop. of Equality': {
+            if (st.k !== 'eq') return false;
+            const [l, r] = fns(st.tex);
+            return prevEqs.some((p) => {
+              const [pl, pr] = fns(p.tex);
+              const parens = (t: string) => (t.match(/\(/g) ?? []).length;
+              if (same(l, pl) && same(r, pr)) {
+                if (squash(p.tex) === squash(st.tex)) return false;
+                if (reason === 'Distributive Prop.') return parens(st.tex) < parens(p.tex);
+                return reason === 'Simplify' && parens(st.tex) === parens(p.tex);
+              }
+              const dl = [0, 1, 2].map((k) => l(k) - pl(k));
+              const dr = [0, 1, 2].map((k) => r(k) - pr(k));
+              if (dl.every((v, k) => Math.abs(v - dr[k]!) < 1e-7 * Math.max(1, Math.abs(v)))) {
+                if (dl.every((v) => Math.abs(v) < 1e-9)) return false;
+                // the added quantity: a constant or a multiple of x (or of one measure)
+                const varying = Math.abs(dl[0]! - dl[1]!) > 1e-9 || Math.abs(dl[1]! - dl[2]!) > 1e-9;
+                // sign of the added quantity: constant, a multiple of x, or a (positive) measure
+                let sign: number;
+                if (!varying) sign = Math.sign(dl[0]!);
+                else if (algebra) {
+                  const slope = (dl[2]! - dl[0]!) / (ALG_SAMPLES[2]! - ALG_SAMPLES[0]!);
+                  if (Math.abs(dl[0]! - slope * ALG_SAMPLES[0]!) > 1e-7) return false; // must be a pure multiple of x
+                  sign = Math.sign(slope);
+                } else sign = Math.sign(l(3) - pl(3));
+                return reason === (sign > 0 ? 'Addition Prop. of Equality' : 'Subtraction Prop. of Equality');
+              }
+              // both sides scaled by the same factor k
+              const ref = [0, 1, 2].flatMap((k) => [[l(k), pl(k)], [r(k), pr(k)]]).find(([, b]) => Math.abs(b!) > 1e-6);
+              if (ref) {
+                const k = ref[0]! / ref[1]!;
+                const scaled = [0, 1, 2].every((j) => Math.abs(l(j) - k * pl(j)) < 1e-7 * Math.max(1, Math.abs(l(j))) && Math.abs(r(j) - k * pr(j)) < 1e-7 * Math.max(1, Math.abs(r(j))));
+                if (!scaled) return false;
+                if (Math.abs(Math.abs(k) - 1) < 1e-9) return false;
+                return reason === (Math.abs(k) > 1 ? 'Multiplication Prop. of Equality' : 'Division Prop. of Equality');
+              }
+              return false;
+            });
+          }
+          default:
+            return false;
+        }
+      })();
+      if (!ok) return `${where}: reason does not justify the statement`;
+    } catch (e) {
+      return `${where}: ${(e as Error).message}`;
+    }
+  }
+  if (squash(rows[rows.length - 1]![0]) !== squash(prove)) return `last statement is not the Prove statement (${prove})`;
+  return null;
+}
+
+const add2 = (a: Pt, b: Pt): Pt => [a[0] + b[0], a[1] + b[1]];
+
+/** Given statements, Prove statement and the table of a proof question. */
+function proofQuestion(p: ProblemContent): { givens: string[]; prove: string; table: string } {
+  const segs = mathSegments(p.question);
+  const table = segs[segs.length - 1]!;
+  const prove = segs[segs.length - 2]!;
+  const givens = segs.slice(0, -2);
+  expect(p.question.indexOf('Prove:'), 'Prove after Given').toBeGreaterThan(p.question.indexOf('Given:'));
+  expect(givens.length).toBeGreaterThan(0);
+  return { givens, prove, table };
+}
+
+/** Fill the blanks `\underline{\quad\text{(a)}\quad}` of a table from an answer like `(a) SAS; (b) $\overline{AB} \cong \overline{CD}$`. */
+function fillBlanks(table: string, answer: string): string {
+  const entries = answer.split(/;\s*(?=\([a-z]\) )/).map((e) => {
+    const mm = /^\(([a-z])\) (.*)$/.exec(e.trim());
+    expect(mm, `answer entry ${e}`).not.toBeNull();
+    return [mm![1]!, mm![2]!.trim()] as const;
+  });
+  let out = table;
+  for (const [letter, content] of entries) {
+    const mark = `\\underline{\\quad\\text{(${letter})}\\quad}`;
+    expect(out.includes(mark), `blank (${letter}) in the table`).toBe(true);
+    const math = /^\$(.*)\$$/.exec(content);
+    out = out.replace(mark, math ? math[1]! : `\\text{${content}}`);
+  }
+  expect(out.includes('\\underline{'), 'every blank answered').toBe(false);
+  return out;
+}
+
+Object.assign(VERIFIERS, {
+  'geometry.proof'(p: ProblemContent) {
+    const c = p.check!;
+    const fig: ProofFig = { points: (c.points ?? {}) as Record<string, Pt>, lines: (c.lines ?? {}) as Record<string, [Pt, Pt]>, numbered: (c.numbered ?? {}) as Record<string, Tri3> };
+    const { givens, prove, table } = proofQuestion(p);
+    if (c.mode === 'full') {
+      const rows = parseTable(mathSegments(p.answer)[0]!);
+      const blank = table.split('\\\\ \\hline').length;
+      expect(blank, 'blank table has one row per proof step').toBe(table.split('\\\\ \\hline').length);
+      expect((table.match(/\\vphantom/g) ?? []).length, 'blank rows').toBe(rows.length);
+      const err = checkProof(rows, givens, prove, fig);
+      expect(err, `${p.question}\n${p.answer}`).toBeNull();
+    } else {
+      const rows = parseTable(fillBlanks(table, p.answer));
+      const err = checkProof(rows, givens, prove, fig);
+      expect(err, `${p.question}\n${p.answer}`).toBeNull();
+      for (const d of p.distractors ?? []) {
+        const bad = checkProof(parseTable(fillBlanks(table, d)), givens, prove, fig);
+        expect(bad, `distractor makes a valid proof: ${d}`).not.toBeNull();
+      }
+    }
+  },
+} satisfies Record<string, Verifier>);

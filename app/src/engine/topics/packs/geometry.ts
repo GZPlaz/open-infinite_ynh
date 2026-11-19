@@ -9,6 +9,7 @@ import { triangleCongruence } from '../geometry/congruence';
 import { coordinateGeometry } from '../geometry/coordinate';
 import { parallelPerpendicular, parallelTransversal } from '../geometry/parallel';
 import { parallelograms, polygonAngles } from '../geometry/polygons';
+import { algebraicProofs, congruenceProofs, parallelLineProofs, proofFillIn, segmentAngleProofs, similarityProofs } from '../geometry/proofs';
 import { pythagoreanTheorem } from '../geometry/pythagorean';
 import { elevationDepression, pythagoreanConverse, specialRightTriangles } from '../geometry/right-triangles';
 import { similarPolygons, similarTriangles } from '../geometry/similarity';
@@ -36,6 +37,13 @@ const topics: TopicGenerator[] = [
   triangleInequality,
   midsegments,
   centroids,
+  // Proofs
+  algebraicProofs,
+  segmentAngleProofs,
+  parallelLineProofs,
+  congruenceProofs,
+  similarityProofs,
+  proofFillIn,
   // Right Triangles and Trigonometry
   pythagoreanTheorem,
   pythagoreanConverse,
