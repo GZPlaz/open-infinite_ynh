@@ -4,7 +4,7 @@
  */
 import type { Diagram, DiagramItem, Ink, LabelPos } from '../diagram';
 import { getTopic } from '../topics';
-import { parseRich } from '../richtext';
+import { parseBlocks, parseRich } from '../richtext';
 import { choiceLetter, SPACING_PX, type ProblemInstance, type Worksheet } from '../worksheet';
 
 export interface LatexOptions {
@@ -38,11 +38,27 @@ export function escapeText(s: string): string {
   return s.replace(/[\\#$%&_{}~^°π×−≈]/g, (c) => TEXT_ESCAPES[c] ?? c);
 }
 
-/** Rich text (text + $math$) to LaTeX source. */
-export function richToLatex(src: string): string {
+function inlineToLatex(src: string): string {
   return parseRich(src)
     .map((s) => (s.kind === 'text' ? escapeText(s.value) : `$${s.value}$`))
     .join('');
+}
+
+/** Rich text (text + $math$, `| a | b |` table lines) to LaTeX source. */
+export function richToLatex(src: string): string {
+  return parseBlocks(src)
+    .map((b) => {
+      if (b.kind === 'inline') return inlineToLatex(b.text);
+      const n = Math.max(b.header.length, ...b.rows.map((r) => r.length));
+      const col = `p{${(0.94 / n).toFixed(3)}\\linewidth}`;
+      const row = (cells: string[], bold = false) =>
+        `${Array.from({ length: n }, (_, i) => {
+          const t = inlineToLatex(cells[i] ?? '');
+          return bold && t ? `\\textbf{${t}}` : t;
+        }).join(' & ')} \\\\ \\hline`;
+      return `{\\small\\renewcommand{\\arraystretch}{1.5}\\begin{tabular}{|${Array(n).fill(col).join('|')}|}\\hline\n${[row(b.header, true), ...b.rows.map((r) => row(r))].join('\n')}\n\\end{tabular}}`;
+    })
+    .join('\\par ');
 }
 
 // ---------------------------------------------------------------- TikZ
@@ -122,6 +138,7 @@ export function diagramToTikz(d: Diagram): string {
 function problemLatex(p: ProblemInstance, spacingCm: number): string {
   const parts = [richToLatex(p.question)];
   if (p.diagram) parts.push(`\\par\\smallskip ${diagramToTikz(p.diagram)}`);
+  if (p.workspace) parts.push(`\\par\\smallskip ${richToLatex(p.workspace)}`);
   if (p.choices) parts.push(`\\par\\smallskip ${p.choices.map((c, i) => `${choiceLetter(i)})~${richToLatex(c)}`).join('\\quad ')}`);
   if (spacingCm > 0) parts.push(`\\par\\vspace{${f(spacingCm)}cm}`);
   return `\\item \\begin{minipage}[t]{\\linewidth}\n${parts.join('\n')}\n\\end{minipage}`;

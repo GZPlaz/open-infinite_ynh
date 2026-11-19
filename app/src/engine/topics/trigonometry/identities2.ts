@@ -168,7 +168,7 @@ export const verifyingIdentities = defineTopic({
     return {
       question: m(`${lhs} = ${rhs}`),
       answer,
-      steps: proof.steps.map((s, i) => `${i + 1}. ${s.label}: ${m(`${tex(s.from, v)} = ${tex(s.to, v)}`)}`),
+      steps: proof.steps.map((s) => `${s.label}: ${m(`${tex(s.from, v)} = ${tex(s.to, v)}`)}`),
       check: { kind: 'trigonometry.identityProof' },
     };
   },

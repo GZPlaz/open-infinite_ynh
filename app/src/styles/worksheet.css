@@ -342,3 +342,30 @@
   color: #2856c4;
   margin-left: 2px;
 }
+
+/* tables in rich text (two-column proofs): fit the column, wrap long reasons */
+.rt-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin: 4px 0;
+  font-size: 0.92em;
+}
+
+.rt-table th,
+.rt-table td {
+  border: 1px solid currentColor;
+  padding: 2px 5px;
+  vertical-align: top;
+  text-align: left;
+  overflow-wrap: anywhere;
+  height: 1.7em;
+}
+
+.rt-table th {
+  font-weight: 700;
+}
+
+.ws-workspace {
+  margin-top: 6px;
+}

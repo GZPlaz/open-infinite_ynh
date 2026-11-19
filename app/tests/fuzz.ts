@@ -96,6 +96,7 @@ export function fuzzTopics(topics: readonly TopicGenerator[]): void {
             checkRich(p.question, `question (${ctx})`);
             checkRich(p.answer, `answer (${ctx})`);
             p.steps?.forEach((st, i) => checkRich(st, `step ${i} (${ctx})`));
+          if (p.workspace !== undefined) checkRich(p.workspace, `workspace (${ctx})`);
             if (topic.multipleChoice) {
               expect(p.distractors?.length, `distractors (${ctx})`).toBeGreaterThanOrEqual(3);
               const norm = (x: string) => x.replace(/\s+/g, '');

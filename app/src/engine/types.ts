@@ -65,6 +65,8 @@ export interface ProblemContent {
   distractors?: RichText[];
   /** Figure shown with the question. */
   diagram?: Diagram;
+  /** Shown under the question on the student sheet only, e.g. an empty two-column proof table. */
+  workspace?: RichText;
   /** Figure that replaces `diagram` in the answer key (e.g. a graphed solution). */
   answerDiagram?: Diagram;
   /** Machine-checkable facts used by the test-suite; never rendered or saved. */

@@ -30,6 +30,8 @@ export interface ProblemInstance {
   correct?: number;
   diagram?: Diagram;
   answerDiagram?: Diagram;
+  /** Student-sheet-only content under the question (see ProblemContent.workspace). */
+  workspace?: RichText;
   /** Set once a teacher edits the problem by hand; edited problems survive setting changes. */
   edited?: boolean;
 }
@@ -148,6 +150,7 @@ export function generateProblem(
   if (c.steps?.length) p.steps = c.steps;
   if (c.diagram) p.diagram = c.diagram;
   if (c.answerDiagram) p.answerDiagram = c.answerDiagram;
+  if (c.workspace) p.workspace = c.workspace;
   if (format === 'mc' && topic.multipleChoice && (c.distractors?.length ?? 0) >= 3) {
     const rng = new Rng(hashSeed(used, 'choices'));
     const choices = rng.shuffle([c.answer, ...c.distractors!.slice(0, 3)]);

@@ -1,6 +1,6 @@
 import katex from 'katex';
 import { memo, useMemo } from 'react';
-import { parseRich } from '../engine/richtext';
+import { hasTable, parseBlocks, parseRich } from '../engine/richtext';
 
 export type MathOutput = 'html' | 'htmlAndMathml';
 
@@ -25,8 +25,54 @@ interface Props {
   className?: string;
 }
 
-/** Text with inline `$…$` math. Text segments are rendered as React text (escaped). */
+/**
+ * Text with inline `$…$` math. Text segments are rendered as React text
+ * (escaped). Lines written `| a | b |` become a table (see parseBlocks).
+ */
 export const RichText = memo(function RichText({ text, output = 'htmlAndMathml', className }: Props) {
+  if (hasTable(text)) return <RichBlocks text={text} output={output} className={className} />;
+  return <InlineRich text={text} output={output} className={className} />;
+});
+
+const RichBlocks = memo(function RichBlocks({ text, output = 'htmlAndMathml', className }: Props) {
+  const blocks = useMemo(() => parseBlocks(text), [text]);
+  return (
+    <div className={className}>
+      {blocks.map((b, i) =>
+        b.kind === 'inline' ? (
+          <div key={i}>
+            <InlineRich text={b.text} output={output} />
+          </div>
+        ) : (
+          <table key={i} className="rt-table">
+            <thead>
+              <tr>
+                {b.header.map((h, j) => (
+                  <th key={j}>
+                    <InlineRich text={h} output={output} />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {b.rows.map((r, j) => (
+                <tr key={j}>
+                  {r.map((c, k) => (
+                    <td key={k}>
+                      <InlineRich text={c} output={output} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ),
+      )}
+    </div>
+  );
+});
+
+const InlineRich = memo(function InlineRich({ text, output = 'htmlAndMathml', className }: Props) {
   const segments = useMemo(() => parseRich(text), [text]);
   return (
     <span className={className}>

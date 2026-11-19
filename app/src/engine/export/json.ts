@@ -42,6 +42,7 @@ function sanitizeProblem(p: Record<string, unknown>): ProblemInstance {
   if (diagram) out.diagram = diagram;
   const answerDiagram = sanitizeDiagram(p.answerDiagram);
   if (answerDiagram) out.answerDiagram = answerDiagram;
+  if (typeof p.workspace === 'string' && p.workspace) out.workspace = p.workspace;
   if (p.edited === true) out.edited = true;
   return out;
 }

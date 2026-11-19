@@ -198,7 +198,14 @@ const ProblemCell = memo(function ProblemCell({ section, p, n, index }: { sectio
             )}
           </div>
         ) : (
-          spacing > 0 && <div className="ws-work" style={{ height: spacing }} />
+          <>
+            {p.workspace && (
+              <div className="ws-workspace">
+                <RichText text={p.workspace} output={output} />
+              </div>
+            )}
+            {spacing > 0 && <div className="ws-work" style={{ height: spacing }} />}
+          </>
         )}
       </div>
       {actions && (

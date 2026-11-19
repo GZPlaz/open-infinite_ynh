@@ -10,7 +10,7 @@ Everything happens **in the browser**: problem generation, step-by-step solution
 
 | Area | What you get |
 | --- | --- |
-| **Topics** | 343 topic generators in 8 subjects — Pre-Algebra, Algebra 1, Algebra 2, Geometry, Trigonometry, Precalculus, Calculus (AB and BC) and Multivariable Calculus — grouped by category (see below). Each has Easy / Medium / Hard tiers and its own options, e.g. integer vs. fractional answers, negative numbers, rounding vs. exact (radical/π) form, units, special cases. |
+| **Topics** | 349 topic generators in 8 subjects — Pre-Algebra, Algebra 1, Algebra 2, Geometry, Trigonometry, Precalculus, Calculus (AB and BC) and Multivariable Calculus — grouped by category (see below). Each has Easy / Medium / Hard tiers and its own options, e.g. integer vs. fractional answers, negative numbers, rounding vs. exact (radical/π) form, units, special cases. |
 | **Formats** | Free response or multiple choice. Distractors are built from typical mistakes (sign errors, forgetting to distribute, wrong formula…). |
 | **Layout** | 1, 2 or 3 columns; work space under each problem (none → XL); Name / Date / Period / Score fields; title and subtitle; US Letter or A4; text size; page numbers. |
 | **Editing** | Regenerate everything (new seed) or a single problem; reorder by drag-and-drop or ↑/↓; edit any question, answer, choice or solution step by hand (LaTeX between `$…$`); delete; undo/redo. |
@@ -67,11 +67,12 @@ Grouped by subject and category, as in the topic picker. Generated with `npx vit
 
 </details>
 
-<details><summary><b>Geometry</b> — 36 topics</summary>
+<details><summary><b>Geometry</b> — 42 topics</summary>
 
 - **Basics of Geometry:** Segment Addition Postulate · Distance, Midpoint & Slope · Midpoints and Missing Endpoints · Angle Addition Postulate · Classifying Angles · Angle Relationships
 - **Parallel and Perpendicular Lines:** Parallel Lines and Transversals · Slopes of Parallel and Perpendicular Lines
 - **Triangles:** Classifying Triangles · Triangle Angle Sum and Exterior Angles · Isosceles and Equilateral Triangles · Triangle Congruence (SSS, SAS, ASA, AAS, HL) · Triangle Inequalities · Midsegments of Triangles · Medians and Centroids
+- **Proofs:** Algebraic Proofs · Segment and Angle Proofs · Parallel Lines Proofs · Triangle Congruence Proofs · Similar Triangle Proofs · Proofs: Fill in the Missing Steps
 - **Right Triangles and Trigonometry:** The Pythagorean Theorem · Converse of the Pythagorean Theorem · Special Right Triangles · Right Triangle Trigonometry · Angles of Elevation and Depression
 - **Similarity:** Similar Polygons · Similar Triangles and Triangle Proportionality
 - **Polygons and Quadrilaterals:** Interior and Exterior Angles of Polygons · Properties of Parallelograms · Area & Perimeter
@@ -129,7 +130,7 @@ Grouped by subject and category, as in the topic picker. Generated with `npx vit
 
 </details>
 
-<!-- 343 topics in total -->
+<!-- 349 topics in total -->
 
 ## How it works
 
