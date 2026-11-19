@@ -34,37 +34,37 @@ const mA = (a: string | number) => `m\\angle ${a}`;
 
 export const R = {
   given: 'Given',
-  dist: 'Distributive Prop.',
-  addEq: 'Addition Prop. of Equality',
-  subEq: 'Subtraction Prop. of Equality',
-  mulEq: 'Multiplication Prop. of Equality',
-  divEq: 'Division Prop. of Equality',
+  dist: 'Distributive Property',
+  addEq: 'Addition Property of Equality',
+  subEq: 'Subtraction Property of Equality',
+  mulEq: 'Multiplication Property of Equality',
+  divEq: 'Division Property of Equality',
   simplify: 'Simplify',
-  symEq: 'Symmetric Prop. of Equality',
-  reflexive: 'Reflexive Prop.',
-  transitive: 'Transitive Prop.',
-  substitution: 'Substitution Prop.',
-  defMid: 'Def. of midpoint',
-  defBis: 'Def. of angle bisector',
-  defCongSeg: 'Def. of congruent segments',
-  defCongAng: 'Def. of congruent angles',
-  segAdd: 'Segment Addition Post.',
-  angAdd: 'Angle Addition Post.',
-  vertical: 'Vertical Angles Thm.',
-  linearPair: 'Linear Pair Post.',
-  defSupp: 'Def. of supplementary angles',
-  congSupp: 'Congruent Supplements Thm.',
-  defPerp: 'Def. of perpendicular lines',
-  rightCong: 'Right Angles Congruence Thm.',
-  defRightTri: 'Def. of right triangle',
-  corr: 'Corresponding Angles Post.',
-  altInt: 'Alt. Interior Angles Thm.',
-  altExt: 'Alt. Exterior Angles Thm.',
-  ssi: 'Same-Side Interior Angles Thm.',
-  convCorr: 'Converse of Corresponding Angles Post.',
-  convAltInt: 'Converse of Alt. Interior Angles Thm.',
-  convAltExt: 'Converse of Alt. Exterior Angles Thm.',
-  convSsi: 'Converse of Same-Side Interior Angles Thm.',
+  symEq: 'Symmetric Property of Equality',
+  reflexive: 'Reflexive Property',
+  transitive: 'Transitive Property',
+  substitution: 'Substitution Property',
+  defMid: 'Definition of Midpoint',
+  defBis: 'Definition of Angle Bisector',
+  defCongSeg: 'Definition of Congruent Segments',
+  defCongAng: 'Definition of Congruent Angles',
+  segAdd: 'Segment Addition Postulate',
+  angAdd: 'Angle Addition Postulate',
+  vertical: 'Vertical Angles Theorem',
+  linearPair: 'Linear Pair Postulate',
+  defSupp: 'Definition of Supplementary Angles',
+  congSupp: 'Congruent Supplements Theorem',
+  defPerp: 'Definition of Perpendicular Lines',
+  rightCong: 'Right Angles Congruence Theorem',
+  defRightTri: 'Definition of Right Triangle',
+  corr: 'Corresponding Angles Postulate',
+  altInt: 'Alternate Interior Angles Theorem',
+  altExt: 'Alternate Exterior Angles Theorem',
+  ssi: 'Same-Side Interior Angles Theorem',
+  convCorr: 'Converse of the Corresponding Angles Postulate',
+  convAltInt: 'Converse of the Alternate Interior Angles Theorem',
+  convAltExt: 'Converse of the Alternate Exterior Angles Theorem',
+  convSsi: 'Converse of the Same-Side Interior Angles Theorem',
   SSS: 'SSS',
   SAS: 'SAS',
   ASA: 'ASA',
@@ -72,7 +72,7 @@ export const R = {
   HL: 'HL',
   cpctc: 'CPCTC',
   AA: 'AA Similarity',
-  defSim: 'Def. of similar triangles',
+  defSim: 'Definition of Similar Triangles',
 } as const;
 
 /** Plausible wrong reasons for each reason (every one of them makes the step invalid). */
@@ -136,22 +136,22 @@ interface Proof {
 
 // ---------------------------------------------------------------- tables
 
-const HEAD = '\\begin{array}{|l|l|}\\hline \\textbf{Statements} & \\textbf{Reasons} \\\\ \\hline';
-
-/** Complete two-column proof. */
+/**
+ * Two-column proof as rich-text table lines (`| Statements | Reasons |` header,
+ * then `| 1. $…$ | Given |`). `blanks` replaces cells (`s3` = statement of row 3,
+ * `r3` = its reason) with a fill-in mark.
+ */
 export function proofTable(rows: readonly Row[], blanks: ReadonlyMap<string, string> = new Map()): string {
-  const cell = (key: string, content: string) => blanks.get(key) ?? content;
-  const body = rows.map(([s, r], i) => `${i + 1}.\\ ${cell(`s${i}`, s)} & ${cell(`r${i}`, `\\text{${r}}`)} \\\\ \\hline`).join(' ');
-  return `${HEAD} ${body} \\end{array}`;
+  const lines = rows.map(([s, r], i) => `| ${i + 1}. ${blanks.get(`s${i}`) ?? m(s)} | ${blanks.get(`r${i}`) ?? r} |`);
+  return ['| Statements | Reasons |', ...lines].join('\n');
 }
 
 /** Empty table with numbered rows for the student. */
 function blankTable(n: number): string {
-  const rows = Array.from({ length: n }, (_, i) => `${i + 1}.\\ \\vphantom{\\dfrac{A}{B}} & \\\\ \\hline`).join(' ');
-  return `\\begin{array}{|l|l|}\\hline \\textbf{Statements}\\hspace{4em} & \\textbf{Reasons}\\hspace{4em} \\\\ \\hline ${rows} \\end{array}`;
+  return ['| Statements | Reasons |', ...Array.from({ length: n }, (_, i) => `| ${i + 1}. | |`)].join('\n');
 }
 
-const blankMark = (letter: string) => `\\underline{\\quad\\text{(${letter})}\\quad}`;
+const blankMark = (letter: string) => `(${letter}) __________`;
 
 function header(p: Proof): string {
   return `Given: ${p.givens.map(m).join(', ')}. Prove: ${m(p.prove)}.`;
@@ -765,8 +765,9 @@ function fullTopic(family: Family, id: string, title: string, description: strin
     generate(ctx): ProblemContent {
       const p = FAMILY_GEN[family](ctx.rng, ctx.difficulty);
       return {
-        question: `${header(p)} ${m(blankTable(p.rows.length))}`,
-        answer: m(proofTable(p.rows)),
+        question: header(p),
+        workspace: blankTable(p.rows.length),
+        answer: proofTable(p.rows),
         steps: [`Start from the given ${p.givens.length > 1 ? 'statements' : 'statement'} and end with the statement to prove; every statement needs a reason.`],
         diagram: p.diagram,
         check: checkData(p, 'full'),
@@ -857,9 +858,9 @@ export const proofFillIn = defineTopic({
       });
     }
     return {
-      question: `${header(p)} ${m(proofTable(p.rows, marks))}`,
+      question: `${header(p)}\n${proofTable(p.rows, marks)}`,
       answer,
-      steps: [m(proofTable(p.rows))],
+      steps: [proofTable(p.rows)],
       distractors: distinctDistractors(answer, rng.shuffle(wrongs), () => null),
       diagram: p.diagram,
       check: checkData(p, 'fill'),
