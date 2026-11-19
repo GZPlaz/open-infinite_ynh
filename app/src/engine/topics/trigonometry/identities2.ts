@@ -1,6 +1,7 @@
 /** Fundamental identities, verifying identities, and product-to-sum / sum-to-product identities. */
 import { Frac } from '../../fraction';
-import { defineTopic, distinctDistractors, strOpt } from '../../generator';
+import { attempt, defineTopic, distinctDistractors, strOpt } from '../../generator';
+import { randomProof, tex } from './proofs';
 import type { Rng } from '../../rng';
 import { m } from '../../tex';
 import type { ProblemContent } from '../../types';
@@ -147,84 +148,28 @@ export const fundamentalIdentities = defineTopic({
 
 // ---------------------------------------------------------------- verifying identities
 
-interface Chain {
-  f: (x: number) => number;
-  steps: string[];
-  wrong: Ex[];
-}
-
-const CHAINS: Chain[] = [
-  { f: (x) => S(x) * T(x), steps: ['\\sec @ - \\cos @', '\\frac{1}{\\cos @} - \\cos @', '\\frac{1 - \\cos^{2} @}{\\cos @}', '\\frac{\\sin^{2} @}{\\cos @}', '\\sin @\\tan @'], wrong: [ex('\\frac{1 - \\cos @}{\\cos @}', (x) => (1 - C(x)) / C(x)), ex('\\frac{\\cos^{2} @}{\\cos @}', C)] },
-  { f: (x) => (1 + C(x)) / S(x), steps: ['\\frac{\\sin @}{1 - \\cos @}', '\\frac{\\sin @(1 + \\cos @)}{1 - \\cos^{2} @}', '\\frac{\\sin @(1 + \\cos @)}{\\sin^{2} @}', '\\frac{1 + \\cos @}{\\sin @}'], wrong: [ex('\\frac{\\sin @(1 + \\cos @)}{\\cos^{2} @}', (x) => (S(x) * (1 + C(x))) / C(x) ** 2), ex('\\frac{1 - \\cos @}{\\sin @}', (x) => (1 - C(x)) / S(x))] },
-  { f: (x) => 1 / (S(x) * C(x)), steps: ['\\tan @ + \\cot @', '\\frac{\\sin @}{\\cos @} + \\frac{\\cos @}{\\sin @}', '\\frac{\\sin^{2} @ + \\cos^{2} @}{\\sin @\\cos @}', '\\frac{1}{\\sin @\\cos @}', '\\sec @\\csc @'], wrong: [ex('\\frac{\\sin @ + \\cos @}{\\sin @\\cos @}', (x) => (S(x) + C(x)) / (S(x) * C(x))), ex('\\frac{1}{\\sin @ + \\cos @}', (x) => 1 / (S(x) + C(x)))] },
-  { f: (x) => C(x) ** 2, steps: ['(1 - \\sin @)(1 + \\sin @)', '1 - \\sin^{2} @', '\\cos^{2} @'], wrong: [ex('1 + \\sin^{2} @', (x) => 1 + S(x) ** 2), ex('1 - \\sin @', (x) => 1 - S(x))] },
-  { f: (x) => T(x) ** 2, steps: ['\\frac{1 + \\tan^{2} @}{\\csc^{2} @}', '\\frac{\\sec^{2} @}{\\csc^{2} @}', '\\frac{\\sin^{2} @}{\\cos^{2} @}', '\\tan^{2} @'], wrong: [ex('\\frac{\\cos^{2} @}{\\sin^{2} @}', (x) => 1 / T(x) ** 2), ex('\\frac{\\sec^{2} @}{\\sin^{2} @}', (x) => 1 / (C(x) * S(x)) ** 2)] },
-  { f: (x) => C(2 * x), steps: ['\\cos^{4} @ - \\sin^{4} @', '(\\cos^{2} @ - \\sin^{2} @)(\\cos^{2} @ + \\sin^{2} @)', '\\cos^{2} @ - \\sin^{2} @', '\\cos 2@'], wrong: [ex('(\\cos^{2} @ - \\sin^{2} @)^{2}', (x) => C(2 * x) ** 2), ex('\\cos^{2} @ + \\sin^{2} @', () => 1)] },
-  { f: (x) => 2 * S(x) ** 2, steps: ['\\sin 2@\\tan @', '2\\sin @\\cos @ \\cdot \\frac{\\sin @}{\\cos @}', '2\\sin^{2} @', '1 - \\cos 2@'], wrong: [ex('2\\cos^{2} @', (x) => 2 * C(x) ** 2), ex('\\sin^{2} @', (x) => S(x) ** 2)] },
-  { f: T, steps: ['\\frac{\\sin 2@}{1 + \\cos 2@}', '\\frac{2\\sin @\\cos @}{1 + 2\\cos^{2} @ - 1}', '\\frac{2\\sin @\\cos @}{2\\cos^{2} @}', '\\tan @'], wrong: [ex('\\frac{2\\sin @\\cos @}{2\\sin^{2} @}', (x) => 1 / T(x)), ex('\\frac{\\sin @}{2\\cos @}', (x) => T(x) / 2)] },
-  { f: (x) => C(x) / T(x), steps: ['\\csc @ - \\sin @', '\\frac{1}{\\sin @} - \\sin @', '\\frac{1 - \\sin^{2} @}{\\sin @}', '\\frac{\\cos^{2} @}{\\sin @}', '\\cos @\\cot @'], wrong: [ex('\\frac{\\sin^{2} @}{\\sin @}', S), ex('\\frac{1 - \\sin @}{\\sin @}', (x) => (1 - S(x)) / S(x))] },
-  { f: S, steps: ['\\frac{\\sec @}{\\cot @ + \\tan @}', '\\frac{\\frac{1}{\\cos @}}{\\frac{1}{\\sin @\\cos @}}', '\\frac{\\sin @\\cos @}{\\cos @}', '\\sin @'], wrong: [ex('\\frac{\\sin @}{\\cos @}', T), ex('\\frac{1}{\\sin @\\cos^{2} @}', (x) => 1 / (S(x) * C(x) ** 2))] },
-  { f: (x) => C(x) ** 2 / T(x) ** 2, steps: ['\\cot^{2} @ - \\cos^{2} @', '\\cos^{2} @\\left(\\frac{1}{\\sin^{2} @} - 1\\right)', '\\cos^{2} @(\\csc^{2} @ - 1)', '\\cos^{2} @\\cot^{2} @'], wrong: [ex('\\cos^{2} @\\tan^{2} @', (x) => S(x) ** 2), ex('\\cos^{2} @(\\sec^{2} @ - 1)', (x) => S(x) ** 2)] },
-  { f: (x) => 1 + S(2 * x), steps: ['(\\sin @ + \\cos @)^{2}', '\\sin^{2} @ + 2\\sin @\\cos @ + \\cos^{2} @', '1 + 2\\sin @\\cos @', '1 + \\sin 2@'], wrong: [ex('\\sin^{2} @ + \\cos^{2} @', () => 1), ex('1 + \\cos 2@', (x) => 1 + C(2 * x))] },
-  { f: (x) => 1 + 2 * T(x) ** 2, steps: ['\\sec^{4} @ - \\tan^{4} @', '(\\sec^{2} @ - \\tan^{2} @)(\\sec^{2} @ + \\tan^{2} @)', '\\sec^{2} @ + \\tan^{2} @', '1 + 2\\tan^{2} @'], wrong: [ex('\\sec^{2} @ - \\tan^{2} @', () => 1), ex('1 + \\tan^{2} @', (x) => 1 / C(x) ** 2)] },
-  { f: T, steps: ['\\frac{1 - \\cos 2@}{\\sin 2@}', '\\frac{2\\sin^{2} @}{2\\sin @\\cos @}', '\\frac{\\sin @}{\\cos @}', '\\tan @'], wrong: [ex('\\frac{2\\cos^{2} @}{2\\sin @\\cos @}', (x) => 1 / T(x)), ex('\\frac{\\cos @}{\\sin @}', (x) => 1 / T(x))] },
-];
-
 export const verifyingIdentities = defineTopic({
   id: 'trig.identities.verifying',
   subject: 'trigonometry',
   title: 'Verifying Trigonometric Identities',
-  description: 'Choose the expression identically equal to a given one, or the step that completes a proof of an identity.',
+  description: 'Prove trigonometric identities step by step with reciprocal, quotient, Pythagorean and double-angle identities.',
   category: CATEGORY,
-  instruction: (o) =>
-    o.task === 'equal' ? 'Choose the expression that is identically equal to the given expression.' : o.task === 'step' ? 'Choose the step that completes each proof.' : 'Choose the equivalent expression or the missing step of each proof.',
-  multipleChoice: true,
-  defaultCount: 8,
-  options: [
-    {
-      type: 'select',
-      id: 'task',
-      label: 'Question type',
-      default: 'any',
-      choices: [
-        { value: 'any', label: 'Mixed' },
-        { value: 'equal', label: 'Which expression is identically equal?' },
-        { value: 'step', label: 'Which step completes the proof?' },
-      ],
-    },
-  ],
+  instruction: 'Verify each identity.',
+  multipleChoice: false,
+  defaultCount: 6,
+  options: [],
   generate(ctx): ProblemContent {
     const { rng, difficulty } = ctx;
-    const t = strOpt(ctx, 'task');
-    const task = t === 'equal' || t === 'step' ? t : rng.pick(['equal', 'step'] as const);
     const v = pickVar(rng);
-    const chains = difficulty === 'easy' ? CHAINS.filter((c) => c.steps.length <= 4) : CHAINS;
-    const ch = rng.pick(chains);
-    const others = CHAINS.filter((c) => c !== ch).flatMap((c) => c.steps.slice(1).map((s) => ex(s, c.f)));
-    const pool = [...ch.wrong, ...rng.shuffle(others)].filter((e) => differs(e.f, ch.f)).map((e) => m(render(e, v)));
-
-    if (task === 'equal') {
-      const flip = rng.bool(0.3);
-      const from = flip ? ch.steps.at(-1)! : ch.steps[0]!;
-      const to = flip ? ch.steps[0]! : difficulty === 'hard' ? ch.steps.at(-1)! : rng.pick(ch.steps.slice(1));
-      const answer = m(render(to, v));
-      return {
-        question: m(render(from, v)),
-        answer,
-        steps: ch.steps.map((s, i) => (i === 0 ? m(render(s, v)) : m(`= ${render(s, v)}`))),
-        distractors: distinctDistractors(answer, pool, () => null),
-        check: { kind: 'trigonometry.identityChoice', task },
-      };
-    }
-    const blank = rng.int(1, ch.steps.length - 2 >= 1 ? ch.steps.length - 2 : 1);
-    const shown = ch.steps.map((s, i) => (i === blank ? '\\boxed{?}' : render(s, v)));
-    const answer = m(render(ch.steps[blank]!, v));
+    const proof = attempt('identity proof', () => randomProof(rng, difficulty, v), 4000);
+    const lines = proof.chain.map((e) => tex(e, v));
+    const [lhs, rhs] = [lines[0]!, lines[lines.length - 1]!];
+    const answer = m(`\\begin{aligned} & ${lhs} \\\\ ${lines.slice(1).map((l) => `&= ${l}`).join(' \\\\ ')} \\end{aligned}`);
     return {
-      question: `Complete the proof: ${m(shown.join(' = '))}`,
+      question: m(`${lhs} = ${rhs}`),
       answer,
-      steps: ch.steps.map((s, i) => (i === 0 ? m(render(s, v)) : m(`= ${render(s, v)}`))),
-      distractors: distinctDistractors(answer, pool, () => null),
-      check: { kind: 'trigonometry.identityChoice', task },
+      steps: proof.steps.map((s, i) => `${i + 1}. ${s.label}: ${m(`${tex(s.from, v)} = ${tex(s.to, v)}`)}`),
+      check: { kind: 'trigonometry.identityProof' },
     };
   },
 });

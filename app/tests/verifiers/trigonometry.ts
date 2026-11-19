@@ -632,21 +632,27 @@ Object.assign(VERIFIERS, {
     if (p.check!.form === 'product') expect(/\+| - /.test(body), `not a product: ${a}`).toBe(false);
   },
 
-  'trigonometry.identityChoice'(p) {
-    const qRaw = onlyMath(p.question);
-    const v = varOf(qRaw);
-    const ans = prep(onlyMath(p.answer));
-    if (p.check!.task === 'equal') {
-      const q = prep(qRaw);
-      expect(agree(q, ans, v, IDENTITY_PTS, 6), `${qRaw} vs ${ans}`).toBe(true);
-      p.distractors!.slice(0, 3).forEach((d) => expect(disagree(q, prep(onlyMath(d)), v), `distractor ${d} is equivalent`).toBe(true));
-      return;
-    }
-    expect(qRaw.includes('\\boxed{?}'), qRaw).toBe(true);
-    const parts = splitTop(prep(qRaw.replace('\\boxed{?}', `{${onlyMath(p.answer)}}`)), ['=']).parts;
-    expect(parts.length).toBeGreaterThanOrEqual(3);
-    parts.slice(1).forEach((x) => expect(agree(parts[0]!, x, v, IDENTITY_PTS, 6), `proof step ${x} is not equal to ${parts[0]}`).toBe(true));
-    p.distractors!.slice(0, 3).forEach((d) => expect(disagree(parts[0]!, prep(onlyMath(d)), v), `distractor ${d} would be a valid step`).toBe(true));
+  'trigonometry.identityProof'(p) {
+    const q = onlyMath(p.question);
+    const v = varOf(q);
+    const sidesQ = splitTop(q, ['=']).parts.map((t) => t.trim());
+    expect(sidesQ.length, `one '=' in ${q}`).toBe(2);
+    const norm = (t: string) => t.replace(/\s+/g, '');
+    expect(norm(sidesQ[0]!) === norm(sidesQ[1]!), `trivial identity ${q}`).toBe(false);
+    const pts = Array.from({ length: 40 }, (_, i) => -3.05 + 0.157 * i);
+    expect(agree(prep(sidesQ[0]!), prep(sidesQ[1]!), v, pts, 12), `${q} is not an identity`).toBe(true);
+    const a = onlyMath(p.answer);
+    const mm = /^\\begin\{aligned\}([\s\S]*)\\end\{aligned\}$/.exec(a.trim());
+    expect(mm, `aligned chain in ${a}`).toBeTruthy();
+    const lines = mm![1]!.split('\\\\').map((l) => l.replace(/&/g, '').trim());
+    expect(lines.length, 'proof has steps').toBeGreaterThanOrEqual(2);
+    expect(lines.slice(1).every((l) => l.startsWith('=')), `chain of equalities: ${a}`).toBe(true);
+    const exprs = lines.map((l, i) => (i === 0 ? l : l.slice(1).trim()));
+    const first = norm(exprs[0]!);
+    const last = norm(exprs.at(-1)!);
+    const [L, R] = sidesQ.map(norm);
+    expect((first === L && last === R) || (first === R && last === L), `proof must go from one side to the other: ${a}`).toBe(true);
+    for (let i = 1; i < exprs.length; i++) expect(agree(prep(exprs[i - 1]!), prep(exprs[i]!), v, pts, 12), `step ${exprs[i - 1]} = ${exprs[i]} is false`).toBe(true);
   },
 
   'trigonometry.vecMagDir'(p) {
